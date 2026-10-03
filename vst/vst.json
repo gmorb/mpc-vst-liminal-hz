@@ -1,0 +1,11 @@
+{
+  "name": "Liminal Hz",
+  "vendor": "Gm0rb",
+  "uid": "NmIR",
+  "version": 100,
+  "so": "liminal_hz.so",
+  "params": "params.json",
+  "layout": "layout.conf",
+  "about": "Convolution with impulse responses up to 5 seconds: rooms, halls, spaces, echoes and delays, mono or stereo; browses .wav files in reverbs/ folders anywhere on the device's drives, and TONE3000.",
+  "art": "html"
+}

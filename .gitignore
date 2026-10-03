@@ -1,0 +1,5 @@
+vst/build/
+vst/.test/
+dist/
+__pycache__/
+*.pyc

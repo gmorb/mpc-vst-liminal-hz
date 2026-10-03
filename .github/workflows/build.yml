@@ -1,0 +1,87 @@
+# Build and test Liminal Hz; for a v* tag, make a DRAFT release with the zips (test on a device, then publish).
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  MPC_VST_REPO: sd88me/mpc-vst-plugins          # page generator, plugin-list entry, catalog tools
+  MPC_VST_REF: 081c247310560cc94bcdb0dd4db3a40e395cbe96
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: mpc-vst-liminal-hz
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.MPC_VST_REPO }}
+          ref: ${{ env.MPC_VST_REF }}
+          path: mpc-vst-plugins
+      - name: Tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libcurl4-openssl-dev curl qemu-user libc6-armhf-cross zip
+          pip install --break-system-packages ziglang==0.16.0 pillow
+          pip install --break-system-packages playwright   # the page's browser renderer (vst.json "art": "html")
+          python3 -m playwright install --with-deps chromium
+      - name: Build (device plugin, armhf)
+        working-directory: mpc-vst-liminal-hz
+        env:
+          MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
+        run: vst/build.sh
+      - name: Test (library, IR vs official, engine, plugin)
+        working-directory: mpc-vst-liminal-hz
+        env:
+          MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
+        run: vst/build.sh host && tools/test.sh
+      - name: Test (AddressSanitizer + UBSan)
+        working-directory: mpc-vst-liminal-hz
+        env:
+          MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
+          SANITIZE: asan
+        run: tools/test.sh
+      - name: Test (ThreadSanitizer)
+        working-directory: mpc-vst-liminal-hz
+        env:
+          MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
+          SANITIZE: tsan
+        run: tools/test.sh
+      - name: Test (the device .so under qemu-arm)
+        working-directory: mpc-vst-liminal-hz
+        env:
+          MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
+        run: vst/build.sh host && ARM=1 tools/test.sh
+      - name: Package (distribution zip + catalog zip, checked by catalog_check.py)
+        working-directory: mpc-vst-liminal-hz
+        env:
+          MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
+        run: vst/build.sh && tools/package.sh
+      - name: Tag matches VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: mpc-vst-liminal-hz
+        run: test "v$(cat VERSION)" = "${GITHUB_REF_NAME}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Liminal-Hz-for-MPC-OS
+          path: |
+            mpc-vst-liminal-hz/dist/*.zip
+            mpc-vst-liminal-hz/dist/SHA256SUMS
+      - name: Release (draft)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          body_path: mpc-vst-liminal-hz/dist/RELEASE_NOTES.md
+          files: |
+            mpc-vst-liminal-hz/dist/*.zip
+            mpc-vst-liminal-hz/dist/SHA256SUMS
+
+permissions:
+  contents: write
