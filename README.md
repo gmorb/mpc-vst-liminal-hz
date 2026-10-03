@@ -87,6 +87,9 @@ SANITIZE=asan tools/test.sh ; SANITIZE=tsan tools/test.sh ; ARM=1 tools/test.sh
 REPO=<you>/mpc-vst-liminal-hz tools/package.sh
 ```
 The device benchmark: `tools/bench_reverb.cpp` (see its header).
+## Support
+
+[![Buy Me a Coffee](https://camo.githubusercontent.com/0cf29a542375e1a46e84d8bf5805a4e5c0a6ee98b6547ccdc0c55eed49d99c69/68747470733a2f2f63646e2e6275796d6561636f666665652e636f6d2f627574746f6e732f76322f64656661756c742d79656c6c6f772e706e67)](https://www.buymeacoffee.com/Gmorb)
 
 ## Licence
 MIT ([LICENSE](LICENSE)); components and their licences: [NOTICE.md](NOTICE.md).
