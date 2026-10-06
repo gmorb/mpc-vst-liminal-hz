@@ -22,8 +22,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ${{ env.MPC_VST_REPO }}
-          ref: ${{ env.MPC_VST_REF }}
           path: mpc-vst-plugins
+      - name: Checkout MPC VST plugins ref
+        working-directory: mpc-vst-plugins
+        run: git fetch origin ${{ env.MPC_VST_REF }} && git checkout ${{ env.MPC_VST_REF }}
       - name: Tools
         run: |
           sudo apt-get update -q
