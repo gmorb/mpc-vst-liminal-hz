@@ -10,7 +10,7 @@ on:
 
 env:
   MPC_VST_REPO: sd88me/mpc-vst-plugins          # page generator, plugin-list entry, catalog tools
-  MPC_VST_REF: 3e50b052268d81e6c61a17a1f0fdff74
+  MPC_VST_REF: 3e50b052268d81e6c61a17a1390ced62f0fdff74
 
 jobs:
   build:
