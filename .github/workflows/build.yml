@@ -10,7 +10,7 @@ on:
 
 env:
   MPC_VST_REPO: sd88me/mpc-vst-plugins          # page generator, plugin-list entry, catalog tools
-  MPC_VST_REF: 081c247310560cc94bcdb0dd4db3a40e395cbe96
+  MPC_VST_REF: 3e50b052268d81e6c61a17a1390ced62f0fdff74
 
 jobs:
   build:
@@ -22,8 +22,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ${{ env.MPC_VST_REPO }}
-          ref: ${{ env.MPC_VST_REF }}
           path: mpc-vst-plugins
+      - name: Checkout MPC VST plugins ref
+        working-directory: mpc-vst-plugins
+        run: git fetch origin ${{ env.MPC_VST_REF }} && git checkout ${{ env.MPC_VST_REF }}
       - name: Tools
         run: |
           sudo apt-get update -q
@@ -62,6 +64,7 @@ jobs:
         working-directory: mpc-vst-liminal-hz
         env:
           MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
+          REPO: ${{ github.repository }}
         run: vst/build.sh && tools/package.sh
       - name: Tag matches VERSION
         if: startsWith(github.ref, 'refs/tags/v')
