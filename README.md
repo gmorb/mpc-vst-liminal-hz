@@ -156,7 +156,7 @@ The device benchmark: `tools/bench_reverb.cpp` (see its header). The README imag
 header). What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Thanks
-To Locrian, whose suggestion started the work that made the IR search at start-up and RESCAN fast.
+To [Amit Talwar](https://github.com/intelliriffer), whose suggestion started the work that made the IR search at start-up and RESCAN fast.
 
 ## Support
 
