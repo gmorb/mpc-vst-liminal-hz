@@ -10,7 +10,7 @@ This plugin's own code is MIT-licensed (`LICENSE`). The binary also contains:
 | PFFFT | Julien Pommier; marton78 and contributors | BSD-like FFTPACK licence (`engine/pffft/LICENSE.txt`) | the FFTs of the convolution |
 | AudioDSPTools, `Resample.h` | Steven Atkinson | MIT (`src/audiodsptools/LICENSE`) | resampling IRs to the host rate |
 | nlohmann/json | Niels Lohmann | MIT (in the header) | reading TONE3000's replies |
-| Titillium Web (baked into the page's images) | Accademia di Belle Arti di Urbino | SIL OFL 1.1 | page titles |
+| Titillium Web (baked into the page's images; Regular and SemiBold in art/fonts for the phone pages, OFL.txt beside them) | Accademia di Belle Arti di Urbino | SIL OFL 1.1 | page titles, phone pages |
 
 Built with [mpc-vst-plugins](https://github.com/sd88me/mpc-vst-plugins) (sd88me) at `081c247310560cc94bcdb0dd4db3a40e395cbe96` (page and plugin-list
 generator, Q-Link maps, release tools). At that commit that repository states no licence of its own; its bundled

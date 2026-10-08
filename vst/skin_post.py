@@ -6,7 +6,7 @@ labels itself (Titillium Web); only their size and colour are set here, per comp
 Roles (from the design pass): what you read is bright, what names it is quiet, and amber is kept for live values
 (knob arcs, the playhead), never for plain text.
   IR name 30 ivory, preset 22 ivory, knob values 19 ivory, pack 20 grey, details 18 grey, TONE3000 status 20 grey,
-  knob and switch names 13 dim."""
+  knob and switch names 13 dim. (The numbers in ROLES are what is set: larger, as MPC draws text smaller than it looks.)"""
 import json, sys
 IVORY, GREY, DIM = "ffe6dfd2", "ff9a958c", "ff7a746a"
 ROLES = [  # (definition key prefix, label name, height, colour) -- large: MPC draws these smaller than they look in mockups
@@ -17,8 +17,12 @@ ROLES = [  # (definition key prefix, label name, height, colour) -- large: MPC d
     ("shToggle", "Name", 25.0, GREY),
     ("shReadout_500x42", "Value", 34.0, GREY),      # the pack
     ("shReadout_420x38", "Value", 30.0, GREY),      # the detail line
-    ("shReadout_360x36", "Value", 27.0, GREY),      # TONE3000 status
+    ("shReadout_288x36", "Value", 27.0, GREY),      # TONE3000 status (beside BROWSE)
     ("shReadout_600x42", "Value", 32.0, IVORY),     # the sonic summary
+    # the IR List and My Presets, laid over the page
+    ("shRow_", "Value", 30.0, IVORY),               # a list row (an IR, a saved preset)
+    ("shReadout_226x36", "Value", 28.0, GREY),      # the list's title ("IRs 7-12 of 83")
+    ("shReadout_520x36", "Value", 27.0, GREY),      # My Presets' status line
 ]
 
 

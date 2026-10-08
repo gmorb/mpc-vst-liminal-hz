@@ -20,6 +20,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 namespace irrev {
 
@@ -52,27 +53,53 @@ static Kind kind_of(const std::string& p) {        // lstat: a link is neither (
   return NONE;
 }
 
-// names in a directory (no ".", "..", or hidden ones such as macOS's "._name.wav" and ".Trashes"), sorted
-static std::vector<std::string> names_in(const std::string& dir) {
-  std::vector<std::string> out;
+struct DirEnt {
+  std::string name;
+  Kind kind;
+};
+
+// The entries of a directory (no ".", "..", or hidden ones such as macOS's "._name.wav" and ".Trashes"), with their
+// kind. The kind comes from readdir's d_type, so walking a big card costs one getdents per folder instead of an
+// lstat per entry (the slow part of a scan on an SD card); lstat is only the fallback for a filesystem that doesn't
+// fill d_type in. Links are NONE, as with lstat. Sorted only on request: the walk that looks for reverbs/ folders
+// doesn't need an order (scan() sorts what it finds).
+static std::vector<DirEnt> entries_in(const std::string& dir, bool sorted) {
+  std::vector<DirEnt> out;
   DIR* d = opendir(dir.c_str());
   if (!d) return out;
-  while (struct dirent* e = readdir(d))
-    if (e->d_name[0] != '.') out.push_back(e->d_name);
+  while (struct dirent* e = readdir(d)) {
+    if (e->d_name[0] == '.') continue;
+    DirEnt x;
+    x.name = e->d_name;
+    switch (e->d_type) {
+      case DT_DIR: x.kind = DIR_; break;
+      case DT_REG: x.kind = FILE_; break;
+      case DT_UNKNOWN: x.kind = kind_of(dir + "/" + x.name); break;
+      default: x.kind = NONE; break;           // a link, a socket, ...
+    }
+    out.push_back(std::move(x));
+  }
   closedir(d);
-  std::sort(out.begin(), out.end());
+  if (sorted) std::sort(out.begin(), out.end(), [](const DirEnt& a, const DirEnt& b) { return a.name < b.name; });
   return out;
+}
+
+// folders a card carries that never hold IRs and can be big: not walked
+static bool skip_dir(const std::string& lname) {
+  return lname == "deleted" || lname == "system volume information" || lname == "$recycle.bin" ||
+         lname == "lost+found" || lname == "found.000";
 }
 
 // every directory named `name` (any case) under root, down to max_depth levels below it
 static void find_dirs(const std::string& root, const std::string& name, int depth, int max_depth,
                       std::vector<std::string>& out) {
   if (depth >= max_depth) return;
-  for (const std::string& n : names_in(root)) {
-    std::string p = root + "/" + n;
-    if (kind_of(p) != DIR_) continue;
-    if (lower(n) == "deleted") continue;                  // never scanned (earlier versions moved files there)
-    if (lower(n) == name) { out.push_back(p); continue; }   // a models/ folder's contents are listed separately
+  for (const DirEnt& n : entries_in(root, false)) {
+    if (n.kind != DIR_) continue;
+    const std::string ln = lower(n.name);
+    if (skip_dir(ln)) continue;                           // never scanned (earlier versions moved files there)
+    const std::string p = root + "/" + n.name;
+    if (ln == name) { out.push_back(p); continue; }       // a models/ folder's contents are listed separately
     find_dirs(p, name, depth + 1, max_depth, out);
   }
 }
@@ -109,11 +136,13 @@ static void read_t3k(const std::string& dir, LibEntry& e) {
 static void list_files(const std::string& base, const std::string& dir, const std::string& ext, int depth,
                        std::vector<LibEntry>& out) {
   if (depth >= Library::kInsideDepth) return;
-  for (const std::string& n : names_in(dir)) {
-    std::string p = dir + "/" + n;
-    Kind k = kind_of(p);
-    if (k == DIR_) { if (lower(n) != "deleted") list_files(base, p, ext, depth + 1, out); continue; }
-    if (k != FILE_) continue;
+  LibEntry t3k;                                  // tone3000.json is the folder's: read once, not once per file
+  bool t3k_read = false;
+  for (const DirEnt& de : entries_in(dir, true)) {
+    const std::string& n = de.name;
+    const std::string p = dir + "/" + n;
+    if (de.kind == DIR_) { if (!skip_dir(lower(n))) list_files(base, p, ext, depth + 1, out); continue; }
+    if (de.kind != FILE_) continue;
     size_t dot = n.find_last_of('.');
     if (dot == std::string::npos || lower(n.substr(dot)) != ext) continue;
     std::string rel = p.substr(base.size() + 1);             // "Fender/Twin Clean.nam"
@@ -124,8 +153,15 @@ static void list_files(const std::string& base, const std::string& dir, const st
     e.file = n;
     size_t slash = rel.find_last_of('/');
     e.pack = slash == std::string::npos ? std::string() : rel.substr(0, slash);
-    read_t3k(dir, e);
-    out.push_back(e);
+    if (!t3k_read) { read_t3k(dir, t3k); t3k_read = true; }
+    if (t3k.t3k) {
+      e.t3k = true;
+      e.t3k_title = t3k.t3k_title;
+      e.t3k_gear = t3k.t3k_gear;
+      e.t3k_format = t3k.t3k_format;
+      e.t3k_creator = t3k.t3k_creator;
+    }
+    out.push_back(std::move(e));
   }
 }
 
@@ -144,25 +180,110 @@ std::vector<LibEntry> Library::scan_folder(const std::string& dir, const std::st
   return out;
 }
 
-std::vector<LibEntry> Library::scan(const std::string& folder, const std::string& ext) {
+// ---- the folder index ---------------------------------------------------------------------------------------------
+// Finding the reverbs/ folders means walking the cards, which is the slow part of a scan. Where they were found is
+// kept in a small hidden file in the plugin's folder (".<folder>-index"), so the next start can list those folders
+// at once (scan_quick) and let the full walk (scan) catch up behind it. The file is only a hint: every folder in it
+// is checked before use, a missing or unwritable file just means no quick scan, and nothing depends on it.
+static const char kIndexMagic[] = "liminal-hz folder index 1";
+
+static std::string index_path(const std::string& folder) {
+  const std::string own = Library::plugin_dir();
+  return own.empty() ? std::string() : own + "/." + folder + "-index";
+}
+
+static std::vector<std::string> read_index(const std::string& folder) {
   std::vector<std::string> dirs;
-  const std::string own = plugin_dir();
-  if (!own.empty() && kind_of(own) == DIR_) find_dirs(own, folder, 0, 1, dirs);
-  const std::string media = media_root();
-  if (kind_of(media) == DIR_) find_dirs(media, folder, 0, kSearchDepth, dirs);
+  const std::string path = index_path(folder);
+  FILE* f = path.empty() ? nullptr : fopen(path.c_str(), "r");
+  if (!f) return dirs;
+  std::string text;
+  char buf[4096];
+  size_t n;
+  while ((n = fread(buf, 1, sizeof buf, f)) > 0 && text.size() < (1u << 20)) text.append(buf, n);
+  fclose(f);
+  std::vector<std::string> lines;
+  for (size_t i = 0; i < text.size();) {
+    size_t e = text.find('\n', i);
+    if (e == std::string::npos) e = text.size();
+    lines.push_back(text.substr(i, e - i));
+    i = e + 1;
+  }
+  if (lines.size() < 2 || lines[0] != kIndexMagic || lines[1] != "media=" + Library::media_root()) return dirs;
+  for (size_t i = 2; i < lines.size(); i++) {
+    // only a folder that is still there and still has the right name
+    const std::string& d = lines[i];
+    const size_t slash = d.find_last_of('/');
+    if (slash == std::string::npos || lower(d.substr(slash + 1)) != folder) continue;
+    if (kind_of(d) == DIR_) dirs.push_back(d);
+  }
+  return dirs;
+}
+
+static void write_index(const std::string& folder, const std::vector<std::string>& dirs) {
+  const std::string path = index_path(folder);
+  if (path.empty()) return;
+  std::string text = std::string(kIndexMagic) + "\nmedia=" + Library::media_root() + "\n";
+  for (const std::string& d : dirs) text += d + "\n";
+  FILE* old = fopen(path.c_str(), "r");            // unchanged: don't touch the card
+  if (old) {
+    std::string cur;
+    char buf[4096];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof buf, old)) > 0 && cur.size() <= text.size()) cur.append(buf, n);
+    fclose(old);
+    if (cur == text) return;
+  }
+  const std::string tmp = path + ".tmp";
+  FILE* f = fopen(tmp.c_str(), "w");
+  if (!f) return;                                  // a read-only folder: the hint is simply not kept
+  const bool ok = fwrite(text.data(), 1, text.size(), f) == text.size();
+  const bool closed = fclose(f) == 0;
+  if (!ok || !closed || rename(tmp.c_str(), path.c_str()) != 0) unlink(tmp.c_str());
+}
+
+static std::vector<std::string> unique_dirs(const std::vector<std::string>& dirs) {
   std::vector<std::string> uniq;                   // the plugin's folder is itself under /media: no duplicates
   for (auto& d : dirs) {
     std::string c = canonical(d);
     if (std::find(uniq.begin(), uniq.end(), c) == uniq.end()) uniq.push_back(c);
   }
+  return uniq;
+}
+
+static std::vector<LibEntry> list_dirs(const std::vector<std::string>& dirs, const std::string& ext) {
   std::vector<LibEntry> out;
   const std::string lext = lower(ext);
-  for (auto& d : uniq) list_files(d, d, lext, 0, out);
+  for (auto& d : dirs) list_files(d, d, lext, 0, out);
   std::sort(out.begin(), out.end(), [](const LibEntry& a, const LibEntry& b) {
     const std::string la = lower(a.display), lb = lower(b.display);
     return la != lb ? la < lb : a.path < b.path;   // same name in two places: a stable order
   });
   return out;
+}
+
+static std::vector<std::string> own_dirs(const std::string& folder) {
+  std::vector<std::string> dirs;
+  const std::string own = Library::plugin_dir();
+  if (!own.empty() && kind_of(own) == DIR_) find_dirs(own, folder, 0, 1, dirs);
+  return dirs;
+}
+
+std::vector<LibEntry> Library::scan(const std::string& folder, const std::string& ext) {
+  std::vector<std::string> dirs = own_dirs(folder);
+  const std::string media = media_root();
+  if (kind_of(media) == DIR_) find_dirs(media, folder, 0, kSearchDepth, dirs);
+  const std::vector<std::string> uniq = unique_dirs(dirs);
+  write_index(folder, uniq);                       // for the next start's scan_quick
+  return list_dirs(uniq, ext);
+}
+
+bool Library::scan_quick(const std::string& folder, const std::string& ext, std::vector<LibEntry>* out) {
+  std::vector<std::string> dirs = read_index(folder);
+  if (dirs.empty()) return false;                  // no (usable) index yet: only the full walk can say
+  for (auto& d : own_dirs(folder)) dirs.push_back(d);
+  *out = list_dirs(unique_dirs(dirs), ext);
+  return true;
 }
 
 bool Library::remove(const LibEntry& e, std::string* err) {
@@ -181,10 +302,10 @@ bool Library::remove(const LibEntry& e, std::string* err) {
   const std::string dir = e.path.substr(0, e.path.find_last_of('/'));
   if (dir != root) {
     bool audio_left = false;
-    for (const std::string& n : names_in(dir)) {
-      const size_t d2 = n.find_last_of('.');
-      const std::string x = d2 == std::string::npos ? "" : lower(n.substr(d2));
-      if (x == ".nam" || x == ".wav" || kind_of(dir + "/" + n) == DIR_) audio_left = true;
+    for (const DirEnt& de : entries_in(dir, false)) {
+      const size_t d2 = de.name.find_last_of('.');
+      const std::string x = d2 == std::string::npos ? "" : lower(de.name.substr(d2));
+      if (x == ".nam" || x == ".wav" || de.kind == DIR_) audio_left = true;
     }
     if (!audio_left) {
       unlink((dir + "/tone3000.json").c_str());

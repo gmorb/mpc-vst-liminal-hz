@@ -18,11 +18,21 @@
 #pragma once
 #include <atomic>
 #include <functional>
+#include <map>
 #include <mutex>
 #include <string>
 #include <thread>
 
 namespace irrev {
+
+// A page the plugin adds to this web server (the My Presets page): handle(method, path, args) fills the reply and
+// returns true, or returns false for "not mine". args: the query string and, for a POST, the form fields. Called
+// on the server's thread.
+struct WebReply {
+  std::string status = "200 OK", type = "text/html; charset=utf-8", body, extra;   // extra: more header lines
+};
+using WebRoute = std::function<bool(const std::string& method, const std::string& path,
+                                    const std::map<std::string, std::string>& args, WebReply* out)>;
 
 class Tone3000 {
  public:
@@ -34,7 +44,10 @@ class Tone3000 {
 
   // open the page (again); returns at once. kind: "model" or "ir" (the block's Browse TONE3000 button: the page's
   // Continue goes straight to that catalogue), or "" (both choices)
-  void start(const std::string& kind = "");
+  // need_https=false: only the plugin's own pages are wanted (no TONE3000 sign-in), so a device without libcurl is fine
+  void start(const std::string& kind = "", bool need_https = true);
+  void set_route(WebRoute r) { route_ = std::move(r); }   // before the first start()
+  std::string address() const;    // "192.168.1.20:8191" while the page is open, else ""
   void stop();                    // close it
   std::string status() const;     // one short line for the plugin's page (<= 23 characters where possible)
 
@@ -51,6 +64,7 @@ class Tone3000 {
   std::string phone_line() const;
 
   std::function<void(const std::string&, const std::string&)> on_done_;
+  WebRoute route_;
   mutable std::mutex mu_;
   std::string status_;
   std::string host_, api_, dest_;

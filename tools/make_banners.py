@@ -5,8 +5,9 @@
   banner.png (the README's top image and the GitHub social preview), page.png, shape.png, controls.png.
 page-render.png: a render of the page with a preset loaded (the kit's preview composed with
 mpc-plugin-ui's honest_preview.py, sample text drawn in, preview-only outlines removed).
-Data shown is real: knob values of factory presets, and the shape columns of factory "Dream Ping-Pong" from the
-engine. Fonts from mpc-vst-plugins (MPC_VST, default ../mpc-vst-plugins)."""
+Data shown is real: knob values of factory "Liminal Hz", and the shape columns of factory "Dream Ping-Pong" from the
+engine. Also ir-list.png, my-presets.png (page renders with a list open: BANNER_LISTS=<ir-list render>,<presets render>)
+and phone.png (the phone pages: BANNER_PHONE=<home screenshot>,<presets screenshot>). Fonts from mpc-vst-plugins (MPC_VST, default ../mpc-vst-plugins)."""
 import os, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
@@ -79,15 +80,37 @@ im.convert('RGB').save(os.path.join(OUTD,'shape.png'))
 # 4. Controls: the engraved knobs at real values
 im=vignette(bg(0.8),0.5).convert('RGBA'); d=ImageDraw.Draw(im)
 big=Image.open(A+'knob_big.png'); fw=big.width
-knobs=[('Mix','40%',0.40),('Pre-delay','35 ms',0.14),('Feedback','12%',0.13),('Low Cut','80 Hz',0.06),('High Cut','11.0 kHz',0.53),('Width','150%',0.75),('Output','0.0 dB',0.67)]
-size=150; gap=(W-120-size*len(knobs))/(len(knobs)-1); x=60
+# factory 'Liminal Hz' (Low Cut and High Cut turn on a log scale; Decay 50-300%)
+knobs=[('Mix','40%',0.40),('Pre-delay','35 ms',0.14),('Feedback','50%',0.50),('Low Cut','80 Hz',0.354),('High Cut','11.0 kHz',0.800),('Width','150%',0.75),('Output','0.0 dB',0.67),('Decay','100%',0.20)]
+size=132; gap=(W-120-size*len(knobs))/(len(knobs)-1); x=60
 for nm,val,v in knobs:
     f=int(round(v*127)); fr=big.crop((0,f*fw,fw,(f+1)*fw)).resize((size,size),Image.LANCZOS)
     im.alpha_composite(fr,(int(x),250))
     cx=int(x+size/2); d.text((cx,438),nm,font=fS(24),fill=GR,anchor='ms'); d.text((cx,478),val,font=fS(32),fill=IV,anchor='ms')
     x+=size+gap
 wordmark(d, 64, 150, 60)
-d.text((66,560),'14 factory spaces & echoes  \u00b7  IRs up to 5 s  \u00b7  stretch, reverse, fades  \u00b7  TONE3000 browsing',font=fR(22),fill=DIM,anchor='ls')
+d.text((66,560),'14 factory spaces & echoes  \u00b7  IRs up to 5 s  \u00b7  decay, stretch, reverse, fades  \u00b7  My Presets  \u00b7  TONE3000 browsing',font=fR(22),fill=DIM,anchor='ls')
 im.convert('RGB').save(os.path.join(OUTD,'controls.png'))
+
+# 5. The lists and the phone pages (when their renders are given)
+if os.environ.get('BANNER_LISTS'):
+    for src, name in zip(os.environ['BANNER_LISTS'].split(','), ('ir-list.png', 'my-presets.png')):
+        Image.open(src).convert('RGB').save(os.path.join(OUTD, name))
+if os.environ.get('BANNER_PHONE'):
+    im=vignette(bg(0.7),0.5).convert('RGBA'); d=ImageDraw.Draw(im)
+    shots=[Image.open(p).convert('RGB') for p in os.environ['BANNER_PHONE'].split(',')]
+    x=560
+    for sh_ in shots:
+        h_=560; w_=int(sh_.width*h_/sh_.height) if sh_.height*0+1 else 0
+        crop=sh_.crop((0,0,sh_.width,min(sh_.height,int(sh_.width*h_/260))))   # the top of the page
+        crop=crop.resize((260,int(crop.height*260/crop.width)),Image.LANCZOS).crop((0,0,260,h_))
+        frame=Image.new('RGBA',(276,h_+16),(30,31,35,255)); frame.paste(crop,(8,8))
+        im.alpha_composite(frame,(x,40)); x+=300
+    wordmark(d, 64, 150, 54)
+    d.text((66,200),'On your phone, on the same Wi-Fi:',font=fR(26),fill=GR,anchor='ls')
+    d.text((66,240),'TONE3000 IRs straight to the MPC,',font=fR(26),fill=IV,anchor='ls')
+    d.text((66,276),'and My Presets named with a keyboard.',font=fR(26),fill=IV,anchor='ls')
+    d.text((66,560),'No app, no account for presets, no internet needed for them.',font=fR(22),fill=DIM,anchor='ls')
+    im.convert('RGB').save(os.path.join(OUTD,'phone.png'))
 
 print('banners written to', OUTD)

@@ -356,3 +356,19 @@ for k in range(STEPS5 + 1):
         ImageDraw.Draw(im).ellipse([cx - 4, GH5 / 2 - 4, cx + 4, GH5 / 2 + 4], fill=(250, 226, 178, 235))
     im.save(os.path.join(OUT, "glow5_%d.png" % k))
 print("glow v5 written")
+
+# ---- the panel the IR List and My Presets open on (laid over the browser column, 540x314) ---------------------------
+pn = Image.new("RGBA", (540, 314), (0, 0, 0, 0)); dp = ImageDraw.Draw(pn)
+dp.rounded_rectangle((0, 0, 539, 313), radius=8, fill=(11, 12, 14, 255), outline=(58, 55, 50, 255), width=2)
+dp.rounded_rectangle((4, 4, 535, 309), radius=6, outline=(26, 26, 29, 255), width=1)
+pn.save(os.path.join(OUT, "menu_panel.png"))
+print("menu panel written")
+
+# ---- the IR stepper's arrows (66x66). They are drawn into the page's own background, not the stepper's gated part: the
+# skin takes each arrow's tap-zone picture from the background, so an arrow drawn only while the browser shows would vanish.
+for name, pts in (("arrow_prev", [(40, 17), (40, 49), (21, 33)]), ("arrow_next", [(26, 17), (26, 49), (45, 33)])):
+    ar = Image.new("RGBA", (66, 66), (0, 0, 0, 0)); da = ImageDraw.Draw(ar)
+    da.rounded_rectangle((0, 0, 65, 65), radius=5, fill=(29, 31, 35, 255), outline=(44, 44, 49, 255), width=1)
+    da.polygon(pts, fill=(184, 137, 74, 255))
+    ar.save(os.path.join(OUT, name + ".png"))
+print("stepper arrows written")

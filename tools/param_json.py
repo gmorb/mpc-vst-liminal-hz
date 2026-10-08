@@ -9,7 +9,9 @@ params = json.load(open(os.path.join(ROOT, "vst", "params.json")))["params"]
 NOTES = {"ir": "the IR in use (text); Q-Link or the arrows browse the reverbs/ folders",
          "ir_info": "the IR's place in its pack, or a status (read-only)", "ir_pack": "its pack (read-only)",
          "length": "the share of the IR used (up to 5 s): shorter = less CPU on the second core",
-         "ir_src": "Local or TONE3000 (shows the T3K mark; read-only)", "rescan": "look for new files"}
+         "ir_src": "Local or TONE3000 (shows the T3K mark; read-only)", "rescan": "look for new files",
+         "lowcut": "logarithmic knob (20 Hz at 0, 141 Hz at the middle, 1 kHz at full)",
+         "highcut": "logarithmic knob (1 kHz at 0, 4.5 kHz at the middle, 20 kHz at full)"}
 doc = {"name": "Liminal Hz", "numParams": len(params), "parameters": {}}
 for i, p in enumerate(params):
     opts = p.get("options")

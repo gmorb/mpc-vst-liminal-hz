@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 #include "long_convolver.h"
+#include "onset.h"
 
 namespace irrev {
 
@@ -28,7 +29,7 @@ struct ReverbParams {
   std::atomic<float> highcut_hz{12000.0f};// low-pass on the wet signal, 1000..20000
   std::atomic<float> width{1.0f};         // 0..2 (1 = as recorded)
   std::atomic<float> output_db{0.0f};     // -24..12
-  std::atomic<float> feedback{0.0f};      // 0..0.9: the wet output fed back into the convolution (soft-limited)
+  std::atomic<float> feedback{0.0f};      // 0..1: the wet output fed back into the convolution (eased, guarded)
 };
 
 // how the IR is shaped before use (all off the audio thread; Kilohearts-Convolver-style controls)
@@ -39,9 +40,10 @@ struct IRShape {
   double fade_out = 0.1;   // share of the kept part faded out, 0..0.5 (at least 32 samples: no click)
   double stretch = 1.0;    // 0.5..2: longer and lower (2) or shorter and higher (0.5)
   bool reverse = false;    // played backwards (after the 5 s cap: it swells into the IR's start)
+  double decay = 1.0;      // 0.5..3: the tail's decay time, band by band (longer: the tail is continued in kind)
   bool operator==(const IRShape& o) const {
     return start == o.start && length == o.length && fade_in == o.fade_in && fade_out == o.fade_out &&
-           stretch == o.stretch && reverse == o.reverse;
+           stretch == o.stretch && reverse == o.reverse && decay == o.decay;
   }
   bool operator!=(const IRShape& o) const { return !(*this == o); }
 };
@@ -56,6 +58,7 @@ class ReverbIR {
   static std::unique_ptr<ReverbIR> load(const std::string& wav_path, double host_rate, const IRShape& shape,
                                         std::string* err);
   bool stereo = false;                    // the IR has its own L and R
+  float fb_gain = 0;                      // feedback: 1 / the loop's peak gain (the loop stays below 1)
   size_t frames = 0;                      // at the host rate, as used
   std::unique_ptr<LongConvolver> l, r;
   long reported = 0;                      // misses already counted into ReverbEngine::misses() (audio thread)
@@ -75,6 +78,9 @@ class ReverbEngine {
  public:
   static constexpr int kFade = 4096;      // samples: a new IR crossfades in (~93 ms at 44.1 kHz)
   static constexpr int kMaxPredelay = 250;
+  // feedback (see block()): the curve's top, how much of the peak-gain scaling applies, the guard's ceiling and release
+  static float kFbMax, kFbEase, kFbCeil, kFbRelease;
+  static float kDampHz;                   // feedback damping: the loop's high cut (0: none)
   explicit ReverbEngine(double host_rate);
   ~ReverbEngine();
   ReverbParams params;
@@ -85,6 +91,8 @@ class ReverbEngine {
   // the playhead: 0 hidden, 1..kPlay its position along the IR (pre-delay + length) since the last note
   static constexpr int kPlay = 24;        // the playhead's positions (finer than the display's columns: smooth)
   int playhead() const { return playhead_.load(std::memory_order_relaxed); }
+  void note_on() { note_.store(true, std::memory_order_relaxed); }   // a MIDI note-on (any thread): restarts the playhead
+  long notes() const { return notes_.load(std::memory_order_relaxed); }   // playhead restarts so far (tests)
 
  private:
   void block(const float* in_l, const float* in_r, float* out_l, float* out_r);   // 128 frames
@@ -98,7 +106,9 @@ class ReverbEngine {
   ReverbIR* old_ = nullptr;               // fading out (audio thread)
   int fade_ = 0;
   float presence_ = 0.0f;
-  float env_ = 0.0f;                      // the input's recent level (note detection, audio thread)
+  std::unique_ptr<OnsetDetector> onset_;  // notes heard in the input (audio thread)
+  std::atomic<bool> note_{false};         // a MIDI note-on arrived
+  std::atomic<long> notes_{0};
   long play_t_ = 1L << 40;                // samples since the last note
   std::atomic<int> playhead_{0};                 // 0 = no IR (the dry signal at full level), 1 = an IR (dry at 1 - mix)
   static constexpr int kRetire = 32;
@@ -110,8 +120,11 @@ class ReverbEngine {
   std::vector<float> pd_[2];
   size_t pd_pos_ = 0;
   struct Biquad { double b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0, z1 = 0, z2 = 0; float run(float x); };
-  Biquad hp_[2], lp_[2];
+  Biquad hp_[2], lp_[2], damp_[2];
   float lc_cache_ = -1, hc_cache_ = -1;
+  float mix_prev_ = -1, width_prev_ = -1, gain_prev_ = -1;   // the last block's values (they glide to new ones)
+  float fb_env_ = 0.0f, fb_lim_ = 1.0f, fb_lim_prev_ = 1.0f;   // feedback guard: input peak, gain now and last block
+  size_t delay_prev_ = (size_t)-1;        // the last block's pre-delay, samples (a change crossfades)
   // a host block that isn't a multiple of 128: through a FIFO (one block of latency)
   std::vector<float> fin_[2], fout_[2];
   int fifo_fill_ = 0;

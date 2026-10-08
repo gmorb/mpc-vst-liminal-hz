@@ -203,7 +203,7 @@
       "key": "feedback",
       "name": "Feedback",
       "min": 0,
-      "max": 90,
+      "max": 100,
       "unit": "%",
       "default": 0
     },
@@ -650,6 +650,154 @@
       "default": 0,
       "display": "string",
       "type": "readout"
+    },
+    {
+      "key": "mp_info",
+      "name": "My Preset Info",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string",
+      "type": "readout"
+    },
+    {
+      "key": "mp_save",
+      "name": "Save Preset",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "momentary": true
+    },
+    {
+      "key": "mp_delete",
+      "name": "Delete Preset",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "momentary": true
+    },
+    {
+      "key": "mp_phone",
+      "name": "Name On Phone",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "momentary": true
+    },
+    {
+      "key": "menu",
+      "name": "Menu",
+      "options": [
+        "Closed",
+        "IR List",
+        "My Presets"
+      ],
+      "default": 0
+    },
+    {
+      "key": "ir_list",
+      "name": "IR List",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "momentary": true
+    },
+    {
+      "key": "mp_list",
+      "name": "My Presets",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "momentary": true
+    },
+    {
+      "key": "menu_close",
+      "name": "Close",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "momentary": true
+    },
+    {
+      "key": "menu_prev",
+      "name": "List Prev Page",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "momentary": true
+    },
+    {
+      "key": "menu_next",
+      "name": "List Next Page",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "momentary": true
+    },
+    {
+      "key": "menu_title",
+      "name": "List Title",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string",
+      "type": "readout"
+    },
+    {
+      "key": "row_1",
+      "name": "List Row 1",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "row_2",
+      "name": "List Row 2",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "row_3",
+      "name": "List Row 3",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "row_4",
+      "name": "List Row 4",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "row_5",
+      "name": "List Row 5",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "row_6",
+      "name": "List Row 6",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "decay",
+      "name": "Decay",
+      "min": 50,
+      "max": 300,
+      "unit": "%",
+      "default": 100
     }
   ]
 }

@@ -7,6 +7,10 @@
  * them (with their subfolders, which act as categories), sorted by folder then name. Links are not followed,
  * hidden files (names starting with ".", e.g. macOS's "._name.wav") are skipped, and nothing here runs on the
  * audio thread: scanning touches the file system.
+ *
+ * Speed: the walk reads each folder's entry kinds from readdir (no lstat per file), skips what can't hold IRs, and
+ * reads tone3000.json once per folder; scan() also records where it found the folders so scan_quick() can list them
+ * without walking the cards (see library.cpp).
  */
 #pragma once
 #include <string>
@@ -32,6 +36,10 @@ class Library {
 
   // folder: "models" or "irs"; ext: ".nam" or ".wav"
   static std::vector<LibEntry> scan(const std::string& folder, const std::string& ext);
+  // The same from the folders where the last scan() found them (kept in a hidden ".<folder>-index" file in the plugin's
+  // folder) plus the plugin's own: no walk of the cards, so it's fast even on a big one. Returns false (and leaves
+  // *out alone) when there is no usable index yet. It can miss a folder added since, so follow it with scan().
+  static bool scan_quick(const std::string& folder, const std::string& ext, std::vector<LibEntry>* out);
   // the files under one folder (its subfolders as packs), sorted the same way: e.g. the plugin's factory/ IRs
   static std::vector<LibEntry> scan_folder(const std::string& dir, const std::string& ext);
 

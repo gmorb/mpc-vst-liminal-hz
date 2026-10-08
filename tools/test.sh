@@ -6,6 +6,7 @@
 #   engine_test   the reverb chain: pass-through, mix, pre-delay, mono/stereo IRs, width, levels, crossfade, blocks
 #   pkce_test, http_abi_check   TONE3000 sign-in pieces (PKCE vs hashlib; libcurl constants vs curl.h)
 #   library_test  the reverbs/ search on a made-up /media
+#   presets_test, presets_web_test  My Presets: the files, and the phone page over a real socket
 #   plugin_test   the .so as MPC uses it, with tools/t3k_mock.py standing in for TONE3000
 # SANITIZE=asan|tsan: the plugin and plugin_test with AddressSanitizer+UBSan or ThreadSanitizer.
 # ARM=1: also plugin_test against the device .so (vst/build/liminal_hz.so) under qemu-arm.
@@ -38,6 +39,10 @@ if [ -z "$SAN" ]; then
   fi
   g++ $FL tools/library_test.cpp engine/library.cpp -o "$T/library_test" -ldl
   run library_test "$T/library_test"
+  g++ $FL tools/presets_test.cpp engine/presets.cpp engine/library.cpp -o "$T/presets_test" -ldl
+  run presets_test "$T/presets_test"
+  g++ $FL tools/presets_web_test.cpp engine/presets_web.cpp engine/presets.cpp engine/tone3000.cpp engine/http.cpp engine/pkce.cpp engine/library.cpp -o "$T/presets_web_test" -ldl -lpthread
+  run presets_web_test "$T/presets_web_test"
 fi
 
 if [ -n "$SAN" ]; then HOST_FLAGS="-O1 $SAN" JOBS="${JOBS:-3}" vst/build.sh host > "$T/build.log" 2>&1 || { tail -20 "$T/build.log"; exit 1; }

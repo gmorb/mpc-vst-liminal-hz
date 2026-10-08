@@ -28,7 +28,7 @@ sed -i -e 's/category="Synth"/category="Effect"/' -e 's/isInstrument="1"/isInstr
 
 SRCS_C="engine/pffft/pffft.c engine/pffft/pffft_common.c"
 SRCS_CXX="engine/long_convolver.cpp engine/reverb_engine.cpp engine/wav_reader.cpp engine/library.cpp
-          engine/tone3000.cpp engine/http.cpp engine/pkce.cpp vst/liminal_hz_vst.cpp"
+          engine/presets.cpp engine/presets_web.cpp engine/tone3000.cpp engine/http.cpp engine/pkce.cpp vst/liminal_hz_vst.cpp"
 INC="-Iengine -Iengine/pffft -Isrc/audiodsptools -Isrc/nlohmann -I$B"
 DEFS=""
 # -fsigned-char: WDL (the resampler's helpers) requires a signed char, which ARM Linux doesn't default to

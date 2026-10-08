@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
   { // feedback: a longer, bounded tail
     double tail[2]; bool finite = true; double peak = 0;
     for (int k = 0; k < 2; k++) {
-      ReverbEngine e(RATE); e.params.mix = 1; e.params.feedback = k ? 0.9f : 0.0f;
+      ReverbEngine e(RATE); e.params.mix = 1; e.params.feedback = k ? 1.0f : 0.0f;
       e.set_ir(ir_of({decay(22050, 12, 0.2f)}));
       const size_t n = 128 * 1200; std::vector<float> x(n, 0.0f), ol(n), orr(n);
       for (size_t i = 0; i < 128 * 100; i++) x[i] = g(rg);
@@ -199,7 +199,147 @@ int main(int argc, char** argv) {
       double a = 0; for (size_t i = 128 * 600; i < n; i++) { a += ol[i] * ol[i]; if (!std::isfinite(ol[i])) finite = false; peak = std::max(peak, (double)std::fabs(ol[i])); }
       tail[k] = std::sqrt(a / (n - 128 * 600));
     }
-    CHECK(finite && tail[1] > 10 * tail[0] && peak < 10, "Feedback 90%%: a longer tail (rms %.2e vs %.2e), bounded (peak %.2f)", tail[1], tail[0], peak);
+    CHECK(finite && tail[1] > 10 * tail[0] && peak < 2, "Feedback 100%%: a longer tail (rms %.2e vs %.2e), bounded (peak %.2f)", tail[1], tail[0], peak);
+  }
+  { // feedback on a resonant IR (a ringing 110 Hz tone, its peak far above its average): the loop is scaled by the
+    // IR's peak gain, so the level stays near the no-feedback level instead of running away into clipping
+    std::vector<float> ring(44100);
+    for (size_t i = 0; i < ring.size(); i++) ring[i] = std::sin(2 * M_PI * 110 * i / RATE) * std::exp(-3.0f * (float)i / 44100.0f);
+    double rms[2], pk[2];
+    for (int k = 0; k < 2; k++) {
+      ReverbEngine e(RATE); e.params.mix = 1; e.params.feedback = k ? 1.0f : 0.0f;
+      e.set_ir(ir_of({ring}));
+      const size_t n = 128 * 2000; std::vector<float> x(n), ol(n), orr(n);
+      std::mt19937 rr(5); std::normal_distribution<float> gg(0, 0.1f);
+      for (size_t i = 0; i < n; i++) x[i] = gg(rr);
+      for (size_t p = 0; p < n; p += 128) e.process(&x[p], &x[p], &ol[p], &orr[p], 128);
+      double a = 0; pk[k] = 0; for (size_t i = n / 2; i < n; i++) { a += ol[i] * ol[i]; pk[k] = std::max(pk[k], (double)std::fabs(ol[i])); }
+      rms[k] = std::sqrt(a / (n / 2));
+    }
+    CHECK(rms[1] < 4 * rms[0] && pk[1] < 1.0, "Feedback 100%% on a resonant IR stays in bounds: rms %.3f vs %.3f without, peak %.2f", rms[1], rms[0], pk[1]);
+    // and when the input stops, its ringing dies away (the guard follows the input down): no endless drone
+    ReverbEngine e(RATE); e.params.mix = 1; e.params.feedback = 1.0f;
+    e.set_ir(ir_of({ring}));
+    const size_t n = (size_t)(RATE * 60); std::vector<float> x(n, 0.0f), ol(n), orr(n);
+    std::mt19937 rr(9); std::normal_distribution<float> gg(0, 0.1f);
+    for (size_t i = 0; i < (size_t)(RATE * 3); i++) x[i] = gg(rr);
+    for (size_t p = 0; p + 128 <= n; p += 128) e.process(&x[p], &x[p], &ol[p], &orr[p], 128);
+    auto rms_at = [&](double t0, double t1) { double a = 0; size_t c = 0; for (size_t i = (size_t)(t0 * RATE); i < (size_t)(t1 * RATE); i++, c++) a += ol[i] * ol[i]; return std::sqrt(a / c); };
+    const double playing = rms_at(1, 3), late = rms_at(57, 60);
+    CHECK(late < playing * 1e-3, "Feedback 100%%: the ringing ends once the input stops (%.1f dB under the playing level after 54 s)", 20 * std::log10(playing / std::max(1e-12, late)));
+  }
+  { // feedback damping: each repeat is darker, so the fed-back part of the tail loses its top (a white room, Feedback 30%)
+    auto tail_hf = [&](float damp) {                          // the tail's share of energy over 6 kHz, 0.6-1.4 s after the input
+      const float keep = ReverbEngine::kDampHz; ReverbEngine::kDampHz = damp;
+      std::mt19937 rr(6); std::normal_distribution<float> gg(0, 1);
+      std::vector<float> h(22050);
+      for (size_t i = 0; i < h.size(); i++) h[i] = gg(rr) * std::exp(-6.9f * (float)i / 22050.0f);
+      ReverbEngine e(RATE); e.params.mix = 1; e.params.feedback = 0.3f; e.params.lowcut_hz = 20; e.params.highcut_hz = 20000;
+      e.set_ir(ir_of({h}));
+      const size_t n = (size_t)(RATE * 6); std::vector<float> x(n, 0.0f), ol(n), orr(n);
+      std::mt19937 rx(2); std::normal_distribution<float> gx(0, 0.1f);
+      for (size_t i = 0; i < (size_t)(RATE * 1); i++) x[i] = gx(rx);
+      for (size_t p = 0; p + 128 <= n; p += 128) e.process(&x[p], &x[p], &ol[p], &orr[p], 128);
+      double all = 0, d = 0;                                  // first difference: a crude high-frequency measure
+      for (size_t i = (size_t)(RATE * 1.6); i < (size_t)(RATE * 2.4); i++) { all += ol[i] * ol[i]; const double v = ol[i] - ol[i - 1]; d += v * v; }
+      e.collect(); ReverbEngine::kDampHz = keep;
+      return all > 0 ? d / all : 0.0;
+    };
+    const double off = tail_hf(0.0f), on = tail_hf(ReverbEngine::kDampHz);
+    CHECK(on > 0 && on < 0.7 * off, "Feedback is damped: the fed-back tail is darker (brightness %.3f vs %.3f undamped)", on, off);
+  }
+  { // Decay (experimental): the decay time scaled band by band; 100% leaves the IR exactly as it was
+    std::mt19937 rr(8); std::normal_distribution<float> gg(0, 1);
+    const size_t n = (size_t)(1.6 * RATE);
+    std::vector<float> L(n), Rr(n);
+    for (size_t i = 0; i < n; i++) { const float env = std::exp(-6.91f * (float)i / (float)RATE); L[i] = gg(rr) * env; Rr[i] = gg(rr) * env; }   // T60 1.0 s
+    auto t60 = [&](double d) { IRShape s; s.decay = d; s.fade_out = 0; auto ir = ir_shaped({L, Rr}, s); return ir ? ir->t60 : 0.0f; };
+    auto frames = [&](double d) { IRShape s; s.decay = d; auto ir = ir_shaped({L, Rr}, s); return ir ? ir->frames : (size_t)0; };
+    const float t1 = t60(1.0), th = t60(0.5), t2 = t60(2.0), t3 = t60(3.0);
+    CHECK(std::fabs(t1 - 1.0f) < 0.15f && std::fabs(th - 0.5f) < 0.12f && t2 > 1.6f && t2 < 2.4f && t3 > 2.4f,
+          "Decay 50/100/200/300%%: a 1.0 s room measures %.2f / %.2f / %.2f / %.2f s", th, t1, t2, t3);
+    CHECK(frames(2.0) > frames(1.0) * 1.8 && frames(3.0) <= (size_t)(ReverbIR::kMaxSeconds * RATE),
+          "Decay lengthens the IR (continued past its end), within the 5 s cap: %zu -> %zu, %zu frames", frames(1.0), frames(2.0), frames(3.0));
+    {   // IRs of every length (past the 5 s cap too: one of 6 s crashed), mono and stereo, at every Decay
+      bool all = true; size_t worst = 0;
+      for (double secs : {0.01, 0.05, 0.3, 4.9, 5.0, 6.0, 9.0})
+        for (int ch = 1; ch <= 2; ch++)
+          for (double d : {0.5, 0.75, 1.5, 2.0, 3.0}) {
+            const size_t m2 = (size_t)(secs * RATE);
+            std::vector<std::vector<float>> c(ch, std::vector<float>(m2));
+            for (auto& v : c) for (size_t i = 0; i < m2; i++) v[i] = gg(rr) * std::exp(-3.0f * (float)i / (float)RATE);
+            IRShape s; s.decay = d; auto ir = ir_shaped(c, s);
+            if (!ir) all = false; else worst = std::max(worst, ir->frames);
+          }
+      CHECK(all && worst <= (size_t)(ReverbIR::kMaxSeconds * RATE), "Decay on IRs of 0.01-9 s, mono and stereo: all prepared, none over the cap (%zu frames)", worst);
+    }
+    IRShape a1; auto i1 = ir_shaped({L, Rr}, a1), i2 = ir_shaped({L, Rr}, a1);
+    CHECK(i1 && i2 && i1->sonics == i2->sonics && i1->t60 == i2->t60, "Decay 100%%: the IR as prepared before (the reshaping is skipped)");
+  }
+  { // the playhead's note detection (onset.h): hits, plucks and pads with slow attacks over long releases; a held,
+    // beating chord or tremolo doesn't keep restarting it
+    const double R2 = 48000;
+    struct Nt { double t, f, att, rel, len, amp; };
+    auto render = [&](const std::vector<Nt>& ns, double secs, bool detune, double trem) {
+      std::vector<float> x((size_t)(secs * R2), 0.f);
+      for (auto& n : ns)
+        for (size_t i = (size_t)(n.t * R2); i < x.size(); i++) {
+          const double t = i / R2 - n.t;
+          double env = t < n.att ? t / n.att : 1.0;
+          if (t > n.len) env *= std::exp(-(t - n.len) / (n.rel / 6.9));
+          if (env < 1e-4 && t > n.len) break;
+          double v = 0;
+          if (detune) { for (double dt : {-0.006, 0.0, 0.0071}) for (int h = 1; h <= 8; h++) v += 0.6 * std::sin(2 * M_PI * n.f * (1 + dt) * h * t + h * (1 + dt * 300)) / h; }
+          else for (int h = 1; h <= 5; h++) v += std::sin(2 * M_PI * n.f * h * t + h) / h;
+          x[i] += (float)(n.amp * env * v);
+        }
+      if (trem > 0) for (size_t i = 0; i < x.size(); i++) x[i] *= (float)(1 + trem * std::sin(2 * M_PI * 5 * i / R2));
+      return x;
+    };
+    auto count = [&](const std::vector<Nt>& ns, const std::vector<float>& x, int& caught, int& extra) {
+      OnsetDetector d(R2); std::vector<double> on;
+      for (size_t p = 0; p + 128 <= x.size(); p += 128) if (d.process(&x[p], &x[p], 128)) on.push_back(p / R2);
+      caught = extra = 0;
+      for (auto& n : ns) { for (double t : on) if (t >= n.t - 0.01 && t <= n.t + std::max(0.15, n.att + 0.05)) { caught++; break; } }
+      for (double t : on) { bool m = false; for (auto& n : ns) if (t >= n.t - 0.01 && t <= n.t + std::max(0.15, n.att + 0.05)) m = true; if (!m) extra++; }
+      return on.size();
+    };
+    const double fs[] = {220, 277, 330, 247, 196, 262, 294, 349};
+    std::vector<Nt> keys, pad, pad2;
+    for (int i = 0; i < 16; i++) keys.push_back({0.5 + i * 0.4, fs[i % 8], 0.005, 0.8, 0.3, 0.2});
+    for (int i = 0; i < 8; i++) pad.push_back({0.5 + i * 1.5, fs[i % 8], 0.35, 2.5, 1.2, 0.15});
+    for (int i = 0; i < 8; i++) pad2.push_back({0.5 + i * 1.2, fs[i % 8], 0.8, 3.0, 1.0, 0.15});
+    int c1, e1, c2, e2, c3, e3, c4, e4, c5, e5;
+    count(keys, render(keys, 8, false, 0), c1, e1);
+    count(pad, render(pad, 14, false, 0), c2, e2);
+    count(pad2, render(pad2, 13, false, 0), c3, e3);
+    count(pad, render(pad, 14, true, 0), c4, e4);
+    const std::vector<Nt> held = {{0.3, 220, 0.3, 1, 30, 0.15}, {0.3, 277, 0.3, 1, 30, 0.15}, {0.3, 330, 0.3, 1, 30, 0.15}};
+    const size_t held_n = count(held, render(held, 12, true, 0), c5, e5);
+    std::vector<Nt> one = {{0.3, 220, 0.3, 1, 30, 0.2}}; int c6, e6;
+    const size_t trem_n = count(one, render(one, 12, false, 0.35), c6, e6);
+    CHECK(c1 == 16 && e1 == 0 && c2 >= 7 && e2 == 0 && c3 >= 6 && e3 == 0 && c4 == 8 && e4 <= 1 && held_n <= 2 && trem_n == 1,
+          "notes heard: plucks %d/16, pads (350 ms attack) %d/8, (800 ms) %d/8, detuned pads %d/8 (%d extra); a held detuned chord %zu, tremolo %zu trigger(s)",
+          c1, c2, c3, c4, e4, held_n, trem_n);
+  }
+  { // knob moves don't click: Output -24 -> +12 dB and Pre-delay 0 -> 250 ms between two blocks of a steady tone
+    auto worst = [&](int which) {
+      ReverbEngine e(RATE); e.params.mix = 0.5f;
+      e.set_ir(ir_of({decay(22050, 3, 0.2f)}));
+      const size_t n = 128 * 400; std::vector<float> x(n), ol(n), orr(n);
+      for (size_t i = 0; i < n; i++) x[i] = 0.5f * (float)std::sin(2 * M_PI * 220 * i / RATE);
+      if (which == 0) e.params.output_db = -24;
+      for (size_t p = 0; p < n; p += 128) {
+        if (p == 128 * 300) { if (which == 0) e.params.output_db = 12; else e.params.predelay_ms = 250; }
+        e.process(&x[p], &x[p], &ol[p], &orr[p], 128);
+      }
+      double d = 0, dref = 0;
+      for (size_t i = 128 * 300 - 64; i < 128 * 300 + 256; i++) d = std::max(d, (double)std::fabs(ol[i] - ol[i - 1]));
+      for (size_t i = 128 * 380; i < n; i++) dref = std::max(dref, (double)std::fabs(ol[i] - ol[i - 1]));
+      return d / std::max(1e-9, dref);
+    };
+    const double g = worst(0), pd = worst(1);
+    CHECK(g < 1.2 && pd < 1.5, "Output and Pre-delay changes glide (largest step vs the steady signal's: %.2f, %.2f)", g, pd);
   }
   { // sonics: decay time, brightness, width, measured when an IR is prepared
     std::mt19937 rs(31); std::normal_distribution<float> gs(0, 1);

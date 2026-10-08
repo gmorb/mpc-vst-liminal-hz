@@ -33,4 +33,5 @@ wav('ext_pcm24', ext=True); wav('ext_pcm24_fact', ext=True, fact=True); wav('ext
 wav('ext_float32_fact', bits=32, fmt=3, ext=True, fact=True)
 wav('chunks', before=[(b'JUNK', b'\x00' * 28), (b'bext', b'x' * 601)], after=[(b'LIST', b'INFOISFT\x05\x00\x00\x00Logic\x00')])
 wav('rate96k', rate=96000); wav('stereo24', nch=2); wav('stereo_ext_float', nch=2, bits=32, fmt=3, ext=True)
+wav('long7s', nch=2, rate=44100, bits=16, n=44100 * 7)                            # over the 5 s cap (Decay crashed on those)
 print('test wavs in', out)

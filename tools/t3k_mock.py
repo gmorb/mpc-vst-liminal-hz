@@ -30,7 +30,7 @@ class H(http.server.BaseHTTPRequestHandler):
             need = {"client_id": CLIENT, "response_type": "code", "code_challenge_method": "S256", "prompt": "select_tone"}
             bad = [k for k, v in need.items() if q.get(k) != v] + [k for k in ("state", "code_challenge", "redirect_uri") if not q.get(k)]
             if q.get("format") == "nam" and q.get("architecture") != "2": bad.append("architecture")
-            if q.get("format") == "ir" and q.get("gears") != "space_outboard": bad.append("gears")   # reverb IRs only
+            if q.get("format") == "ir" and q.get("gears") != "space_outboard_pedal_experimental": bad.append("gears")   # IRs only: spaces, outboard, pedals, experimental
             if bad: return self.send(400, json.dumps({"error": "invalid_request", "bad": bad}).encode())
             tone = "77" if q.get("format") == "ir" else "42"
             code = "code-" + os.urandom(6).hex()

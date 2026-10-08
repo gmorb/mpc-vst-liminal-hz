@@ -2,7 +2,7 @@
  * Principles (from the design skills consulted: no-ai-design-slop, better-layout, better-colors, make-interfaces-
  * feel-better): group with space before lines; one colour, one meaning (amber = live value: knob arcs, playhead);
  * distinct, quiet type roles; depth from shadow, structure from hairlines. */
-:root { --title-size: 13px; --label-size: 13px; --button-size: 13px; --seg-size: 12px; --radius: 4px; --sheen: 0.025; }
+:root { --title-size: 13px; --label-size: 13px; --button-size: 13px; --seg-size: 22px; --radius: 4px; --sheen: 0.025; }
 
 /* frames: structure only -- a hairline, barely there */
 .frame-border { fill: none; stroke: rgba(255, 255, 255, 0.075); stroke-width: 1; }
@@ -14,7 +14,9 @@
 .box { fill: rgba(0, 0, 0, 0.34); stroke: none; }
 .box-label { fill: #6e685f; letter-spacing: 0.16em; }
 
-/* buttons and segments: flat, neutral, quietly lit edge; text spaced */
-.button-tx, .seg-tx { letter-spacing: 0.14em; font-weight: 600; }
+/* buttons and segments: flat, neutral, quietly lit edge; text spaced. Segments are also the rows of the preset lists
+ * (the PRESET popup), so their text is large (22px, up from 12px) to read at arm's length on the Force. */
+.button-tx { letter-spacing: 0.14em; font-weight: 600; }
+.seg-tx { letter-spacing: 0.06em; font-weight: 600; }
 .button-sheen, .seg-sheen { opacity: 0.35; }
 .text { fill: #8a847a; letter-spacing: 0.16em; }

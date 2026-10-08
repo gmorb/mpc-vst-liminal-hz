@@ -22,6 +22,7 @@
 #include "http.h"
 #include "library.h"
 #include "pkce.h"
+#include "web_theme.h"
 #include "json.hpp"   // nlohmann/json, from NeuralAmpModelerCore (MIT)
 
 namespace irrev {
@@ -66,11 +67,8 @@ static std::string urldec(const std::string& s) {
   }
   return o;
 }
-static std::map<std::string, std::string> query_of(const std::string& target) {
+static std::map<std::string, std::string> pairs_of(const std::string& s) {   // "a=1&b=2" (a query or a form body)
   std::map<std::string, std::string> q;
-  size_t qm = target.find('?');
-  if (qm == std::string::npos) return q;
-  std::string s = target.substr(qm + 1);
   size_t p = 0;
   while (p <= s.size()) {
     size_t amp = s.find('&', p);
@@ -81,6 +79,10 @@ static std::map<std::string, std::string> query_of(const std::string& target) {
     p = amp + 1;
   }
   return q;
+}
+static std::map<std::string, std::string> query_of(const std::string& target) {
+  size_t qm = target.find('?');
+  return qm == std::string::npos ? std::map<std::string, std::string>() : pairs_of(target.substr(qm + 1));
 }
 static std::string html_escape(const std::string& s) {
   std::string o;
@@ -127,10 +129,11 @@ Tone3000::Tone3000(std::function<void(const std::string&, const std::string&)> o
 
 Tone3000::~Tone3000() { stop(); }
 
-// "Open 192.168.1.20:8191", or just the address when that's too long for MPC's 23-character value text
+// "Open 10.0.0.5:8191", or just the address when "Open " + it is over 21 characters (the status box beside BROWSE is
+// about 17 characters of address wide at the page's text size)
 std::string Tone3000::phone_line() const {
   const std::string addr = host_ + ":" + std::to_string(port_);
-  return addr.size() + 5 <= 23 ? "Open " + addr : addr;
+  return addr.size() + 5 <= 21 ? "Open " + addr : addr;
 }
 
 void Tone3000::set_status(const std::string& s) {
@@ -143,7 +146,12 @@ std::string Tone3000::status() const {
   return status_;
 }
 
-void Tone3000::start(const std::string& kind) {
+std::string Tone3000::address() const {
+  std::lock_guard<std::mutex> lk(mu_);
+  return serving_ ? host_ + ":" + std::to_string(port_) : std::string();
+}
+
+void Tone3000::start(const std::string& kind, bool need_https) {
   {
     std::lock_guard<std::mutex> lk(mu_);
     preferred_ = "space";                         // Liminal Hz: one catalogue (reverb and space IRs)
@@ -151,12 +159,12 @@ void Tone3000::start(const std::string& kind) {
   if (serving_) {                                   // open: just show the address again
     std::lock_guard<std::mutex> lk(mu_);
     last_activity_ = now_s();
-    if (!busy_) status_ = phone_line();
+    if (!busy_ && need_https) status_ = phone_line();
     return;
   }
   if (server_.joinable()) server_.join();           // the page closed itself (idle): open it again
   std::string why;
-  if (!Http::available(&why)) { set_status(why == "needs libcurl" ? "Needs libcurl" : why); return; }
+  if (need_https && !Http::available(&why)) { set_status(why == "needs libcurl" ? "Needs libcurl" : why); return; }
   host_ = env_or("MPCNAM_T3K_HOST", lan_address());
   if (host_.empty()) { set_status("No network"); return; }
   // the port, here (before the server thread): the first free one of base_port_ .. base_port_ + kPorts - 1
@@ -183,7 +191,7 @@ void Tone3000::start(const std::string& kind) {
   stop_ = false;
   last_activity_ = now_s();
   serving_ = true;
-  set_status(phone_line());
+  if (need_https) set_status(phone_line());
   server_ = std::thread(&Tone3000::serve, this);
 }
 
@@ -225,14 +233,8 @@ static void reply(int fd, const std::string& status, const std::string& type, co
 // "Download TONE3000 Logos") and the phone page shows it; without it, a text wordmark
 static std::string logo_base() { return Library::plugin_dir() + "/art/tone3000-logo"; }
 
-static std::string page(const std::string& body) {
-  return "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
-         "<title>Liminal Hz x TONE3000</title><style>body{font-family:system-ui,sans-serif;background:#1e2126;color:#eee;"
-         "max-width:34em;margin:auto;padding:1.5em;line-height:1.45}.brand{display:flex;align-items:center;gap:.5em;"
-         "margin:.5em 0 1em}.ours{font-weight:700}.x{color:#888}.logoimg{height:1.6em}h1{font-size:1.3em}.logo{font-weight:800;"
-         "letter-spacing:.06em;font-size:1.6em}a.b{display:block;text-align:center;background:#e5c07b;color:#111;"
-         "padding:.9em;margin:.8em 0;border-radius:.5em;text-decoration:none;font-weight:700}small{color:#aaa}</style>"
-         "</head><body>" + body + "</body></html>";
+static std::string page(const std::string& body, bool mark = true) {   // the Liminal Hz look (web_theme.h)
+  return web_page("Liminal Hz", (mark ? web_wordmark() : std::string()) + body);
 }
 
 void Tone3000::handle(int fd) {
@@ -241,17 +243,51 @@ void Tone3000::handle(int fd) {
   char buf[8192];
   ssize_t n = recv(fd, buf, sizeof buf - 1, 0);
   if (n <= 0) return;
-  buf[n] = 0;
-  std::string req(buf), method, target;
+  std::string req(buf, (size_t)n), method, target;
   size_t sp1 = req.find(' '), sp2 = sp1 == std::string::npos ? sp1 : req.find(' ', sp1 + 1);
   if (sp2 == std::string::npos) { reply(fd, "400 Bad Request", "text/plain", "bad request"); return; }
   method = req.substr(0, sp1);
   target = req.substr(sp1 + 1, sp2 - sp1 - 1);
   const std::string path = target.substr(0, target.find('?'));
   auto q = query_of(target);
+  if (method == "POST") {                           // a form (the presets page): read the body, up to 4 KB
+    const size_t hdr_end = req.find("\r\n\r\n");
+    if (hdr_end == std::string::npos) { reply(fd, "400 Bad Request", "text/plain", "bad request"); return; }
+    std::string head = req.substr(0, hdr_end);
+    for (char& ch : head) ch = (char)tolower((unsigned char)ch);
+    size_t cl = head.find("content-length:");
+    const long want = cl == std::string::npos ? 0 : atol(head.c_str() + cl + 15);
+    if (want < 0 || want > 4096) { reply(fd, "413 Payload Too Large", "text/plain", "too large"); return; }
+    std::string body = req.substr(hdr_end + 4);
+    while ((long)body.size() < want) {
+      struct pollfd pb = {fd, POLLIN, 0};
+      if (poll(&pb, 1, 3000) <= 0) break;
+      ssize_t m = recv(fd, buf, sizeof buf, 0);
+      if (m <= 0) break;
+      body.append(buf, (size_t)m);
+    }
+    if ((long)body.size() > want) body.resize((size_t)want);
+    for (auto& kv : pairs_of(body)) q[kv.first] = kv.second;     // (the form's fields win over the query's)
+  }
   {
     std::lock_guard<std::mutex> lk(mu_);
     last_activity_ = now_s();
+  }
+  if (method == "GET" && (path == "/font/regular.ttf" || path == "/font/semibold.ttf")) {   // the pages' typeface
+    const std::string f = Library::plugin_dir() + "/art/fonts/TitilliumWeb-" + (path[6] == 'r' ? "Regular" : "SemiBold") + ".ttf";
+    FILE* fp = fopen(f.c_str(), "rb");
+    if (!fp) { reply(fd, "404 Not Found", "text/plain", "no font"); return; }   // (the pages fall back to the system font)
+    std::string data;
+    char b2[8192];
+    size_t got;
+    while ((got = fread(b2, 1, sizeof b2, fp)) > 0 && data.size() < (1u << 20)) data.append(b2, got);
+    fclose(fp);
+    reply(fd, "200 OK", "font/ttf", data, "Cache-Control: max-age=86400\r\n");
+    return;
+  }
+  if (route_) {
+    WebReply r;
+    if (route_(method, path, q, &r)) { reply(fd, r.status, r.type, r.body, r.extra); return; }
   }
   if (method != "GET") { reply(fd, "405 Method Not Allowed", "text/plain", "GET only"); return; }
   const std::string self = "http://" + host_ + ":" + std::to_string(port_);
@@ -271,7 +307,7 @@ void Tone3000::handle(int fd) {
     reply(fd, "404 Not Found", "text/plain", "no logo");
     return;
   }
-  if (path == "/") {                                // TONE3000's partnership splash (design requirement 2)
+  if (path == "/") {                                // TONE3000's splash introducing the integration (design requirement 2; its copy is a recommendation, not fixed)
     std::string pref;
     {
       std::lock_guard<std::mutex> lk(mu_);
@@ -279,15 +315,23 @@ void Tone3000::handle(int fd) {
     }
     const bool have_logo = access((logo_base() + ".svg").c_str(), R_OK) == 0 ||
                            access((logo_base() + ".png").c_str(), R_OK) == 0;
-    const std::string logo = have_logo ? "<img class=logoimg src='/logo' alt='TONE3000'>" : "<div class=logo>TONE3000</div>";
+    const std::string logo = have_logo ? "<img class=logoimg src='/logo' alt='TONE3000'>" : "<span class=logo>TONE3000</span>";
     (void)pref;
-    const std::string actions = "<a class=b href='/go?kind=space'>Continue: reverb and space IRs</a>";
+    std::string why;
+    const bool can_t3k = Http::available(&why);
+    const std::string browse = can_t3k
+        ? "<a class='b go' href='/go?kind=space'>Continue: space, outboard, pedal and experimental IRs</a>"
+        : "<p><small>TONE3000 can't be reached from this MPC (" + why + "). Your presets still can, below.</small></p>";
     reply(fd, "200 OK", "text/html; charset=utf-8", page(
-        "<div class=brand><span class=ours>Liminal Hz</span> <span class=x>&times;</span> " + logo + "</div>"
-        "<p>Liminal Hz has partnered with TONE3000 to give you access to a massive library of Neural Amp Modeler "
-        "(NAM) captures and IRs of real analog gear, created by a global community of musicians.</p>" + actions +
+        web_wordmark("<span class=x>&times;</span>" + logo) +
+        "<div class=cap>tone3000</div><div class=card>"
+        "<p>Liminal Hz can load impulse responses (IRs) from TONE3000, a massive library of captures of real "
+        "spaces and gear, created by a global community of musicians.</p>" + browse +
         "<p><small>You sign in and pick a tone on TONE3000; it downloads straight to your MPC, into the plugin's "
-        "models or irs folder. Keep this phone on the same Wi-Fi as the MPC.</small></p>"));
+        "reverbs folder. Keep this phone on the same Wi-Fi as the MPC.</small></p></div>"
+        "<div class=cap>my presets</div><div class=card>"
+        "<p>Save the plugin's current sound under a name you type, and load, rename or delete your presets.</p>"
+        "<a class=b href='/presets'>My Presets: name &amp; save</a></div>", false));
     return;
   }
   if (path == "/go") {                              // start TONE3000's Select flow (OAuth 2.0 + PKCE)
@@ -301,7 +345,7 @@ void Tone3000::handle(int fd) {
       url = api_ + "/oauth/authorize?client_id=" + urlenc(publishable_key()) + "&redirect_uri=" + urlenc(self + "/cb") +
             "&response_type=code&code_challenge=" + pkce_challenge(verifier_) + "&code_challenge_method=S256&state=" +
             state_ + "&prompt=select_tone&menubar=true&preview=true" +
-            std::string("&format=ir&gears=space_outboard");   // acoustic spaces and outboard (echo, plate...) IRs
+            std::string("&format=ir&gears=space_outboard_pedal_experimental");   // spaces, outboard (echo, plate...), pedals and experimental: IRs only (format=ir)
       status_ = "Signing in on phone";
     }
     reply(fd, "302 Found", "text/plain", "", "Location: " + url + "\r\n");
@@ -359,6 +403,7 @@ void Tone3000::fetch(std::string code, std::string tone_id, std::string kind) {
   if (r.status != 200) return fail(!r.error.empty() ? r.error : "TONE3000 error " + std::to_string(r.status));
   nlohmann::json tone;
   try { tone = nlohmann::json::parse(r.body); } catch (...) { return fail("Bad reply from TONE3000"); }
+  { const std::string fmt = tone.value("format", ""); if (!fmt.empty() && fmt != "ir") return fail("Not an IR"); }   // IRs only
   const std::string title = tone.value("title", std::string("tone ") + tone_id);
   r = Http::request(api_ + "/models?tone_id=" + tone_id + "&page_size=300" + arch, auth, nullptr, &stop_);
   if (r.status != 200) return fail(!r.error.empty() ? r.error : "TONE3000 error " + std::to_string(r.status));
@@ -381,7 +426,7 @@ void Tone3000::fetch(std::string code, std::string tone_id, std::string kind) {
     std::string ext = ".wav";
     size_t dot = url.find_last_of('.'), slash = url.find_last_of('/');
     if (dot != std::string::npos && dot > slash) ext = url.substr(dot);
-    if (ext != ".nam" && ext != ".wav") { total--; continue; }  // only what this plugin loads
+    if (ext != ".wav") { total--; continue; }       // only what this plugin loads: IRs (never a NAM model)
     set_status("Downloading " + std::to_string(done + 1) + "/" + std::to_string(total));
     std::string file = dir + "/" + safe_name(name.empty() ? std::to_string(m.value("id", 0)) : name);
     std::string target = file + ext;

@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <strings.h>
+#include <unistd.h>
 #include <filesystem>
 #include <fstream>
 #include "library.h"
@@ -46,6 +47,51 @@ int main() {
   CHECK(models.size() == 4, "no duplicates, no loops (%zu models: 2 cards + internal)", models.size());
   bool sorted = true; for (size_t i = 1; i < models.size(); i++) if (models[i - 1].display > models[i].display && strcasecmp(models[i-1].display.c_str(), models[i].display.c_str()) > 0) sorted = false;
   CHECK(sorted, "sorted by folder, then name");
+  // the folder index and the quick scan (library.cpp): where the folders were found is kept next to the plugin
+  {
+    fs::path m2 = fs::temp_directory_path() / "mpcnam_quick";
+    fs::remove_all(m2);
+    touch(m2 / "cardA/Samples/reverbs/Hall.wav");
+    touch(m2 / "cardA/Samples/reverbs/TONE3000/Plate/a.wav");
+    touch(m2 / "cardA/Samples/reverbs/TONE3000/Plate/b.wav");
+    std::ofstream(m2 / "cardA/Samples/reverbs/TONE3000/Plate/tone3000.json") << "{\"source\": \"TONE3000\", \"title\": \"Plate\", \"creator\": \"x\"}";
+    touch(m2 / "cardA/Samples/reverbs/._Hall.wav");
+    touch(m2 / "cardA/System Volume Information/reverbs/skipped.wav");   // never walked
+    touch(m2 / "cardA/Samples/models/not-an-ir.wav");
+    fs::create_directory_symlink(m2 / "cardA/Samples", m2 / "cardA/link");   // not followed
+    setenv("MPCNAM_MEDIA", m2.c_str(), 1);
+    const std::string idx = Library::plugin_dir() + "/.reverbs-index";
+    std::remove(idx.c_str());
+    std::vector<LibEntry> q;
+    CHECK(!Library::scan_quick("reverbs", ".wav", &q) && q.empty(), "no index yet: the quick scan says so");
+    auto full = Library::scan("reverbs", ".wav");
+    CHECK(full.size() == 3 && has(full, "Hall") && has(full, "TONE3000/Plate/a") && !has(full, "skipped"),
+          "the walk: %zu IRs, nothing from a system folder, links or hidden files", full.size());
+    int t3k = 0; for (auto& e : full) t3k += e.t3k && e.t3k_title == "Plate" && e.t3k_creator == "x";
+    CHECK(t3k == 2, "tone3000.json read once per folder, still applied to each file (%d)", t3k);
+    CHECK(access(idx.c_str(), F_OK) == 0, "the walk leaves the folder index (%s)", idx.c_str());
+    CHECK(Library::scan_quick("reverbs", ".wav", &q) && q.size() == full.size(), "the quick scan lists the same IRs (%zu)", q.size());
+    bool same = q.size() == full.size(); for (size_t i = 0; same && i < q.size(); i++) same = q[i].path == full[i].path;
+    CHECK(same, "in the same order");
+    touch(m2 / "cardA/Samples/reverbs/New.wav");                                   // a new file in a known folder
+    touch(m2 / "cardB/reverbs/FromCardB.wav");                                      // a folder the index doesn't know
+    CHECK(Library::scan_quick("reverbs", ".wav", &q) && has(q, "New") && !has(q, "FromCardB"),
+          "quick: new files in known folders show, a new folder waits for the walk");
+    full = Library::scan("reverbs", ".wav");
+    CHECK(has(full, "FromCardB") && Library::scan_quick("reverbs", ".wav", &q) && has(q, "FromCardB"), "the walk finds the new folder; the index learns it");
+    fs::remove_all(m2 / "cardB");                                                   // a card pulled out
+    CHECK(Library::scan_quick("reverbs", ".wav", &q) && !has(q, "FromCardB") && has(q, "Hall"), "a vanished folder is dropped from the quick scan");
+    setenv("MPCNAM_MEDIA", (m2 / "cardA").c_str(), 1);                              // another media root: the index is not trusted
+    CHECK(!Library::scan_quick("reverbs", ".wav", &q), "an index from another media root is ignored");
+    { std::ofstream(idx) << "garbage\n/etc\n"; }
+    setenv("MPCNAM_MEDIA", m2.c_str(), 1);
+    CHECK(!Library::scan_quick("reverbs", ".wav", &q), "a corrupt index is ignored");
+    { std::ofstream(idx) << "liminal-hz folder index 1\nmedia=" << m2.string() << "\n/etc\n/nowhere/reverbs\n"; }
+    CHECK(!Library::scan_quick("reverbs", ".wav", &q), "index lines that aren't live reverbs/ folders are ignored");
+    std::remove(idx.c_str());
+    fs::remove_all(m2);
+    setenv("MPCNAM_MEDIA", m.c_str(), 1);
+  }
   // finding a saved choice again
   int i = Library::find(models, "/gone/Fender/Twin Clean.nam", "Fender/Twin Clean", "Twin Clean.nam");
   CHECK(i >= 0 && models[i].display == "Fender/Twin Clean", "a saved model whose card moved is found by its folder and name");

@@ -26,8 +26,12 @@ REL_ARGS=(--so "$B/liminal_hz.so" --skin "$B/skin/$FOLDER" --entry "$B/pluginlis
           --about "$(python3 -c "import json;print(json.load(open('vst/vst.json'))['about'])")"
           --extra "LICENSE:LICENSE" --extra "NOTICE.md:NOTICE.md" --extra "dist/work/LiminalHz.json:LiminalHz.json"
           --extra "packaging/reverbs-README.txt:reverbs/README.txt"
+          --extra "packaging/presets-README.txt:presets/README.txt"
           --extra "vst/art/tone3000-logo.png:art/tone3000-logo.png"
-          --user-data reverbs)
+          --extra "$MPC_VST/tools/html_art/fonts/TitilliumWeb-Regular.ttf:art/fonts/TitilliumWeb-Regular.ttf"
+          --extra "$MPC_VST/tools/html_art/fonts/TitilliumWeb-SemiBold.ttf:art/fonts/TitilliumWeb-SemiBold.ttf"
+          --extra "$MPC_VST/tools/html_art/fonts/OFL.txt:art/fonts/OFL.txt"
+          --user-data reverbs --user-data presets)
 [ -n "$REPO" ] && REL_ARGS+=(--repo "$REPO")
 # the factory IRs (tools/make_factory_irs.py): factory/<category>/<name>.wav in the plugin folder (not user data:
 # an upgrade brings the current ones)
