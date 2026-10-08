@@ -378,8 +378,13 @@ int main(int argc, char** argv) {
     press(mp, P_MP_PHONE);
     wait_for([&] { return info().find("Phone: ") == 0; }, 5);
     std::string web = info();
-    CHECK(web.find("Phone: 127.0.0.1:") == 0 && web.size() > 8 && web.compare(web.size() - 8, 8, "/presets") == 0, "NAME ON PHONE shows the address: [%s]", web.c_str());
-    const std::string base = "http://" + web.substr(7, web.size() - 7 - 8);
+    // (the address is the machine's LAN address when it has one -- a CI runner does -- else 127.0.0.1: accept any IPv4)
+    const size_t colon = web.rfind(':');
+    const bool shape = web.size() > 8 && web.compare(web.size() - 8, 8, "/presets") == 0 && colon != std::string::npos && colon > 7;
+    bool ipv4 = shape;
+    if (shape) { int dots = 0; for (size_t i = 7; i < colon; i++) { if (web[i] == '.') dots++; else if (web[i] < '0' || web[i] > '9') ipv4 = false; } ipv4 = ipv4 && dots == 3; }
+    CHECK(ipv4, "NAME ON PHONE shows the address: [%s]", web.c_str());
+    const std::string base = "http://127.0.0.1:" + (shape ? web.substr(colon + 1, web.size() - colon - 1 - 8) : std::string("0"));   // (always reachable from this machine)
     auto curl = [&](const std::string& args) { return system(("curl -s -m 5 -o /dev/null " + args).c_str()); };
     mp->setP(mp, P_MIX, 0.9f);
     curl("--data-urlencode 'name=Typed On Phone' " + base + "/presets/save");
