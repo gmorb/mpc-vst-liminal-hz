@@ -7,7 +7,7 @@
 A convolution reverb for **Gen 1 Akai MPC and Force**: play through impulse responses of real rooms, halls, strange
 spaces and echoes, up to 5 seconds, mono or stereo. Make a room bigger or smaller with **Decay**, stretch its tail
 with **Feedback**, and keep your sounds as **My Presets**. It comes with 14 factory spaces, browses your own IRs, and
-downloads more from TONE3000 from your phone. A companion to [NAM A2](https://github.com/gmorb/mpc-vst-nam-a2).
+downloads more from TONE3000 from your phone. A companion to [Liminal Amp](https://github.com/gmorb/mpc-vst-liminal-amp).
 Not affiliated with or endorsed by TONE3000 or Akai.
 
 ## What it looks like
