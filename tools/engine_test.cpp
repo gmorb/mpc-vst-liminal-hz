@@ -139,8 +139,9 @@ int main(int argc, char** argv) {
   { // length: a share of the IR; WAVs (stereo, EXTENSIBLE) load
     auto full = ir_of({decay(44100, 10, 0.2f)}, 1.0), half = ir_of({decay(44100, 10, 0.2f)}, 0.5);
     CHECK(full && half && half->frames == full->frames / 2, "Length 50%%: %zu of %zu frames", half ? half->frames : 0, full ? full->frames : 0);
-    auto big = ir_of({decay(44100 * 8, 11, 0.2f)});
-    CHECK(big && big->frames == (size_t)(ReverbIR::kMaxSeconds * RATE), "an 8 s IR is cut to %.0f s (%zu frames)", ReverbIR::kMaxSeconds, big ? big->frames : 0);
+    const double over = ReverbIR::kMaxSeconds + 3.0;         // (8 s on Gen 1, 23 s on Gen 2)
+    auto big = ir_of({decay((size_t)(44100 * over), 11, 0.2f)});
+    CHECK(big && big->frames == (size_t)(ReverbIR::kMaxSeconds * RATE), "a %.0f s IR is cut to %.0f s (%zu frames)", over, ReverbIR::kMaxSeconds, big ? big->frames : 0);
     if (argc > 1) {
       std::string dir = argv[1], err;
       IRShape full;
@@ -259,10 +260,11 @@ int main(int argc, char** argv) {
     CHECK(std::fabs(t1 - 1.0f) < 0.15f && std::fabs(th - 0.5f) < 0.12f && t2 > 1.6f && t2 < 2.4f && t3 > 2.4f,
           "Decay 50/100/200/300%%: a 1.0 s room measures %.2f / %.2f / %.2f / %.2f s", th, t1, t2, t3);
     CHECK(frames(2.0) > frames(1.0) * 1.8 && frames(3.0) <= (size_t)(ReverbIR::kMaxSeconds * RATE),
-          "Decay lengthens the IR (continued past its end), within the 5 s cap: %zu -> %zu, %zu frames", frames(1.0), frames(2.0), frames(3.0));
+          "Decay lengthens the IR (continued past its end), within the cap: %zu -> %zu, %zu frames", frames(1.0), frames(2.0), frames(3.0));
     {   // IRs of every length (past the 5 s cap too: one of 6 s crashed), mono and stereo, at every Decay
       bool all = true; size_t worst = 0;
-      for (double secs : {0.01, 0.05, 0.3, 4.9, 5.0, 6.0, 9.0})
+      const double K = ReverbIR::kMaxSeconds;
+      for (double secs : {0.01, 0.05, 0.3, K - 0.1, K, K + 1.0, K + 4.0})
         for (int ch = 1; ch <= 2; ch++)
           for (double d : {0.5, 0.75, 1.5, 2.0, 3.0}) {
             const size_t m2 = (size_t)(secs * RATE);
@@ -271,11 +273,62 @@ int main(int argc, char** argv) {
             IRShape s; s.decay = d; auto ir = ir_shaped(c, s);
             if (!ir) all = false; else worst = std::max(worst, ir->frames);
           }
-      CHECK(all && worst <= (size_t)(ReverbIR::kMaxSeconds * RATE), "Decay on IRs of 0.01-9 s, mono and stereo: all prepared, none over the cap (%zu frames)", worst);
+      CHECK(all && worst <= (size_t)(ReverbIR::kMaxSeconds * RATE), "Decay on IRs of 0.01-%.0f s, mono and stereo: all prepared, none over the cap (%zu frames)", K + 4.0, worst);
     }
     IRShape a1; auto i1 = ir_shaped({L, Rr}, a1), i2 = ir_shaped({L, Rr}, a1);
     CHECK(i1 && i2 && i1->sonics == i2->sonics && i1->t60 == i2->t60, "Decay 100%%: the IR as prepared before (the reshaping is skipped)");
   }
+#if defined(LIMINAL_GEN2)
+  { // Gen 2 (platform.h): long IRs, Decay past 5 s, band-limited resampling
+    auto impulse_response = [](ReverbIR& ir, size_t n) {      // the prepared IR, read back through its convolver
+      n = (n + 127) / 128 * 128;
+      std::vector<float> x(n, 0.0f), y(n, 0.0f); x[0] = 1.0f;
+      ir.l->process(x.data(), y.data(), (int)n);
+      return y;
+    };
+    auto amp = [](const std::vector<float>& y, double f, double rate, size_t a, size_t b) {   // the level of f in y[a, b)
+      double re = 0, im = 0;
+      for (size_t i = a; i < b && i < y.size(); i++) { const double w = 2 * M_PI * f * i / rate; re += y[i] * std::cos(w); im += y[i] * std::sin(w); }
+      return 2 * std::sqrt(re * re + im * im) / (double)(b - a);
+    };
+    std::string err;
+    {
+      auto ir = ir_of({decay((size_t)(44100 * 15), 21, 0.2f)});
+      CHECK(ir && ir->frames == (size_t)(15 * RATE) && ir->l->stages() == 2,
+            "a 15 s IR is used whole, with the far convolution stage (%zu frames, %zu stages)", ir ? ir->frames : 0, ir ? ir->l->stages() : 0);
+    }
+    {   // a 5 s room at Decay 300%: on Gen 1 it stopped at the 5 s cap; here it rings on
+      std::mt19937 r5(9); std::normal_distribution<float> g5(0, 1);
+      const size_t n5 = (size_t)(5 * RATE);
+      std::vector<float> L5(n5);
+      for (size_t i = 0; i < n5; i++) L5[i] = g5(r5) * std::exp(-3.45f * (float)i / (float)RATE);   // T60 2.0 s, recorded 5 s
+      IRShape s; s.decay = 3.0; s.fade_out = 0;
+      auto ir = ir_shaped({L5}, s);
+      CHECK(ir && ir->frames > (size_t)(12 * RATE) && ir->t60 > 4.5f,
+            "Decay 300%% on a 5 s IR goes past 5 s: %.1f s long, decay %.1f s", ir ? ir->frames / RATE : 0.0, ir ? ir->t60 : 0.0f);
+    }
+    {   // 48 kHz IR to 44.1 kHz: 1 kHz and 17 kHz at the same level stay at the same level (cubic dulls 17 kHz)
+      const double r48 = 48000; const size_t n = (size_t)(0.5 * r48);
+      std::vector<float> c(n);
+      for (size_t i = 0; i < n; i++) c[i] = (float)((std::sin(2 * M_PI * 1000 * i / r48) + std::sin(2 * M_PI * 17000 * i / r48)) * std::exp(-2.0 * i / r48));
+      IRShape s; s.fade_out = 0;
+      auto ir = ReverbIR::make({c}, r48, RATE, s, &err, LongConvolver::Inline);
+      double db = -99;
+      if (ir) { auto y = impulse_response(*ir, ir->frames); db = 20 * std::log10(amp(y, 17000, RATE, 2000, 12000) / amp(y, 1000, RATE, 2000, 12000)); }
+      CHECK(ir && std::fabs(db) < 0.3, "sinc resampling 48 -> 44.1 kHz keeps 17 kHz level with 1 kHz (%+.2f dB)", db);
+    }
+    {   // Stretch 50% (resampled to half the rate, played at the full one): 15 kHz can't fit, so it must not fold back
+      const size_t n = (size_t)(0.5 * RATE);
+      std::vector<float> c(n);
+      for (size_t i = 0; i < n; i++) c[i] = (float)((std::sin(2 * M_PI * 1000 * i / RATE) + std::sin(2 * M_PI * 15000 * i / RATE)) * std::exp(-2.0 * i / RATE));
+      IRShape s; s.stretch = 0.5; s.fade_out = 0;
+      auto ir = ReverbIR::make({c}, RATE, RATE, s, &err, LongConvolver::Inline);
+      double db = 0;   // 1 kHz plays at 2 kHz; an alias of 15 kHz would be at 22050 - 15000 = 7050 Hz, playing at 14.1 kHz
+      if (ir) { auto y = impulse_response(*ir, ir->frames); db = 20 * std::log10(amp(y, 14100, RATE, 500, 6000) / amp(y, 2000, RATE, 500, 6000) + 1e-12); }
+      CHECK(ir && db < -60, "Stretch 50%%: no alias of a 15 kHz partial (%.0f dB under the kept one)", db);
+    }
+  }
+#endif
   { // the playhead's note detection (onset.h): hits, plucks and pads with slow attacks over long releases; a held,
     // beating chord or tremolo doesn't keep restarting it
     const double R2 = 48000;

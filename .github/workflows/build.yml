@@ -10,7 +10,7 @@ on:
 
 env:
   MPC_VST_REPO: sd88me/mpc-vst-plugins          # page generator, plugin-list entry, catalog tools
-  MPC_VST_REF: 3e50b052268d81e6c61a17a1390ced62f0fdff74
+  MPC_VST_REF: 7c4bf25dd9947eba3f1bf2d8b176bafdcd6a2ae0   # Gen 2 (aarch64) packaging and catalog checks
 
 jobs:
   build:
@@ -29,7 +29,7 @@ jobs:
       - name: Tools
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q libcurl4-openssl-dev curl qemu-user libc6-armhf-cross zip
+          sudo apt-get install -y -q libcurl4-openssl-dev curl qemu-user libc6-armhf-cross libc6-arm64-cross zip
           pip install --break-system-packages ziglang==0.16.0 pillow
           pip install --break-system-packages playwright   # the page's browser renderer (vst.json "art": "html")
           python3 -m playwright install --with-deps chromium
@@ -60,12 +60,31 @@ jobs:
         env:
           MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
         run: vst/build.sh host && ARM=1 tools/test.sh
-      - name: Package (distribution zip + catalog zip, checked by catalog_check.py)
+      - name: Build (Gen 2 device plugin, aarch64)
+        working-directory: mpc-vst-liminal-hz
+        env:
+          MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
+        run: vst/build.sh gen2
+      - name: Test (Gen 2 limits on the PC, and the aarch64 build under qemu-aarch64)
+        working-directory: mpc-vst-liminal-hz
+        env:
+          MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
+          GEN2: "1"
+          AARCH64: "1"
+        run: vst/build.sh host-gen2 && tools/test.sh
+      - name: Test (Gen 2, AddressSanitizer + UBSan)
+        working-directory: mpc-vst-liminal-hz
+        env:
+          MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
+          GEN2: "1"
+          SANITIZE: asan
+        run: tools/test.sh
+      - name: Package (distribution zip + Gen 1 and Gen 2 catalog zips, checked by catalog_check.py)
         working-directory: mpc-vst-liminal-hz
         env:
           MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
           REPO: ${{ github.repository }}
-        run: vst/build.sh && tools/package.sh
+        run: vst/build.sh && vst/build.sh gen2 && tools/package.sh
       - name: Tag matches VERSION
         if: startsWith(github.ref, 'refs/tags/v')
         working-directory: mpc-vst-liminal-hz
