@@ -230,7 +230,7 @@ page-render.png (input for page.png). All 1280x640, made by tools/make_banners.p
 display, the controls, factory presets, install; then the CPU design, build and licence. Release README: the
 "The page" section's PRESET / FACTORY bullets now point to "Presets and factory IRs" (was duplicated).
 
-## Gen 2 (aarch64, 1.2.0; offline only so far)
+## Gen 2 (aarch64, 1.2.0; tested on an MPC Live III, MPC OS 3.9.1, 2026-10-12)
 - One plugin, two builds (mpc-vst-plugins docs/GEN2.md): `vst/build.sh` (Gen 1, armhf) and `vst/build.sh gen2`
   (aarch64, Zig `aarch64-linux-gnu.2.36 -mcpu=cortex_a55`: ARMv8.2-A features both RK3588 core types have). Same uid
   `NmIR`, params, presets, page. `tools/package.sh` makes `Liminal-Hz-<v>-mpc-aarch64.zip` when the Gen 2 .so exists.
@@ -242,6 +242,6 @@ display, the controls, factory presets, install; then the CPU design, build and 
   thread). Gen 1 constructs exactly one stage, as before. `LongConvolver(ir, mode, far)` lets tests pick the far block.
 - Memory on Gen 2 for a 20 s stereo IR: about 28 MB of partition spectra + input FDLs per IR (twice during a
   crossfade); Decay's STFT needs ~56 MB briefly while preparing.
-- Tests: `GEN2=1 tools/test.sh` and `AARCH64=1` (qemu-aarch64; needs libc6-arm64-cross). Not yet run on a Gen 2 unit:
-  to do there: `bench_reverb` built for aarch64 (worker load and misses at 20 s stereo), the MPC CPU meter, and an
-  install via the catalog zip's install.sh (registers under pluginList-arm-64bit).
+- Tests: `GEN2=1 tools/test.sh` and `AARCH64=1` (qemu-aarch64; needs libc6-arm64-cross). Device: 1.2.0
+  tested by the user on an MPC Live III (Gen 2) and an Akai Force (Gen 1), both MPC OS 3.9.1, 2026-10-12 (tested.json).
+  Not yet measured there: `bench_reverb` built for aarch64 (worker load and misses at 20 s stereo).

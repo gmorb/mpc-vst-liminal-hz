@@ -19,6 +19,7 @@
   - **Finer Decay analysis**: an STFT of 4096 (10.8 Hz bins) instead of 2048, so the bass third-octave bands are
     measured and continued from real resolution; same 11.6 ms time step.
   - **NEON FFT** (PFFFT's NEON path; the Gen 1 build has always used PFFFT's scalar code).
+- Tested on an MPC Live III (Gen 2) and an Akai Force (Gen 1), both on MPC OS 3.9.1.
 - Tests: `GEN2=1 tools/test.sh` (the Gen 2 limits on the PC), `AARCH64=1` (the convolution check, engine tests and the
   plugin test as aarch64 programs under qemu-aarch64, against the Gen 2 .so); new tests for the far stage, 15-20 s
   IRs, Decay past 5 s, and the resampler's top octave and aliasing.

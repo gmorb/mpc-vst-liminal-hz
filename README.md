@@ -132,8 +132,8 @@ a 12 s IR plays it cut to 5 s on Gen 1). The Gen 2 build uses the RK3588's headr
 | FFT | scalar | **NEON** |
 
 The audio thread's cost doesn't grow with IR length on either: it always runs the same first 93 ms of the IR (zero
-latency); everything later runs on worker threads. Built and tested offline (aarch64 under emulation); not yet
-measured on a Gen 2 device. As for every Gen 2 plugin today, installing needs root access on the unit
+latency); everything later runs on worker threads. Tested on an MPC Live III (MPC OS 3.9.1) and,
+for the Gen 1 build, on an Akai Force (3.9.1). As for every Gen 2 plugin today, installing needs root access on the unit
 (mpc-vst-plugins docs/GEN2.md).
 
 ## Install
