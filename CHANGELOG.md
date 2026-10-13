@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.2.0
+
+### New
+- **Gen 2 build (MPC Live III and other RK3588 units, 64-bit).** The release now carries a second zip,
+  `Liminal-Hz-<version>-mpc-aarch64.zip`, next to the Gen 1 one: the same plugin (same id, uid, parameters, presets
+  and page), so a project moves between generations. Its installer registers it under `pluginList-arm-64bit`.
+- **Gen 2 lifts the Gen 1 limits** (engine/platform.h), since the RK3588 has far more headroom than the Force's RK3288:
+  - **IRs up to 20 s** (Gen 1: 5 s). Long halls, drones and long echo IRs play whole.
+  - **Decay reaches its full length**: 300% on a 5 s room now rings to about 15 s; on Gen 1 it stopped at the 5 s cap.
+  - **A third convolution stage** for long IRs: taps past 0.74 s run in 16384-sample blocks on their own worker
+    thread, so a 20 s stereo IR costs the audio thread exactly what a 5 s one does (the same 93 ms zero-latency head),
+    and the background work is a fraction of what 2048-sample blocks would need. Still zero latency, still equal to
+    direct convolution (`tools/bench_reverb --check`: about 133 dB below the signal).
+  - **Band-limited IR resampling** (Kaiser-windowed sinc, 64 zero crossings) instead of cubic interpolation, for IRs
+    at other sample rates and for **Stretch**. A 48 kHz IR keeps its top octave (cubic lost 1.9 dB at 17 kHz) and
+    Stretch below 100% no longer folds high partials back down as alias tones (cubic: a full-level alias; now -77 dB).
+  - **Finer Decay analysis**: an STFT of 4096 (10.8 Hz bins) instead of 2048, so the bass third-octave bands are
+    measured and continued from real resolution; same 11.6 ms time step.
+  - **NEON FFT** (PFFFT's NEON path; the Gen 1 build has always used PFFFT's scalar code).
+- Tested on an MPC Live III (Gen 2) and an Akai Force (Gen 1), both on MPC OS 3.9.1.
+- Tests: `GEN2=1 tools/test.sh` (the Gen 2 limits on the PC), `AARCH64=1` (the convolution check, engine tests and the
+  plugin test as aarch64 programs under qemu-aarch64, against the Gen 2 .so); new tests for the far stage, 15-20 s
+  IRs, Decay past 5 s, and the resampler's top octave and aliasing.
+
+### Changed
+- `engine/long_convolver`: the tail is now a list of stages (each with its own worker). The Gen 1 build has one stage,
+  as before; its tests pass unchanged.
+- The aarch64 build sets FPCR's flush-to-zero while processing, as the armv7 build sets FPSCR's.
+
 ## 1.1.0
 
 ### New

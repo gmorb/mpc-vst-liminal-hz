@@ -17,7 +17,12 @@ float ReverbEngine::kFbMax = 0.97f, ReverbEngine::kFbEase = 0.93f, ReverbEngine:
 
 // flush-to-zero while processing: a decaying reverb tail must not fall into denormal arithmetic (slow on ARM)
 struct FlushDenormals {
-#if defined(__arm__)
+#if defined(__aarch64__)
+  uint64_t old;                             // FPCR.FZ (bit 24), as FPSCR's on armv7
+  FlushDenormals() { __asm__ __volatile__("mrs %0, fpcr" : "=r"(old)); uint64_t v = old | (1ull << 24);
+                     __asm__ __volatile__("msr fpcr, %0" : : "r"(v)); }
+  ~FlushDenormals() { __asm__ __volatile__("msr fpcr, %0" : : "r"(old)); }
+#elif defined(__arm__)
   uint32_t old;
   FlushDenormals() { __asm__ __volatile__("vmrs %0, fpscr" : "=r"(old)); uint32_t v = old | (1u << 24);
                      __asm__ __volatile__("vmsr fpscr, %0" : : "r"(v)); }
@@ -104,7 +109,10 @@ static std::string describe(const std::vector<std::vector<float>>& h, double rat
 // is continued with noise of the same spectrum, decaying at the new rate (random phase: a tail, not a loop). Done on
 // an STFT (2048 / hop 512, sqrt-Hann). Returns the new length; m == 1 is never called.
 static size_t decay_reshape(std::vector<std::vector<float>>& h, double rate, double m, size_t max_len, std::mt19937& rng) {
-  const int N = 2048, H = 512, K = N / 2 + 1;
+  const int N = platform::kDecayFFT, H = platform::kDecayHop, K = N / 2 + 1;   // (2048 on Gen 1, 4096 on Gen 2; hop 512)
+  const float ola = (float)N / (2.0f * H);                  // sqrt-Hann both ways: the windows' product sums to N / 2H
+  // frames of random phase add in power, not amplitude: sqrt(3N / 8H) against a coherent frame's N / 2H
+  const float lift = ola / std::sqrt(3.0f * N / (8.0f * H));
   if (h[0].size() > max_len) for (auto& v : h) v.resize(max_len);   // (never longer than the result may be)
   const size_t len = h[0].size();
   const size_t out_len = m > 1 ? std::min(max_len, std::max(len, (size_t)std::llround((double)len * m))) : len;
@@ -174,14 +182,13 @@ static size_t decay_reshape(std::vector<std::vector<float>>& h, double rate, dou
       for (int k = k0; k < k1; k++)
         for (size_t c = 0; c < nch; c++) {
           std::complex<float> v = f < F0 ? X[c][f][k] * g : std::complex<float>(0, 0);
-          // (frames of random phase add in power, not amplitude: at hop N/4 with sqrt-Hann both ways that is
-          //  sqrt(1.5) / 2 of a coherent frame's level, so the continuation is lifted by 2 / sqrt(1.5))
-          if (syn > 0) v = v * (1 - syn) + std::polar(ref[c][k] * lvl * syn * 1.633f, ph(rng));
+          // (the continuation is lifted by `lift`: 2 / sqrt(1.5) = 1.633 at hop N/4, as on Gen 1)
+          if (syn > 0) v = v * (1 - syn) + std::polar(ref[c][k] * lvl * syn * lift, ph(rng));
           X[c][f][k] = v;
         }
     }
   }
-  // back to samples (sqrt-Hann at hop N/4: the windows' product sums to 2)
+  // back to samples (sqrt-Hann: the windows' product sums to `ola`, 2 at hop N/4)
   std::vector<std::vector<float>> out(nch, std::vector<float>(out_len + N, 0.0f));
   for (size_t c = 0; c < nch; c++)
     for (int f = 0; f < F; f++) {
@@ -189,11 +196,56 @@ static size_t decay_reshape(std::vector<std::vector<float>>& h, double rate, dou
       for (int k = 1; k < N / 2; k++) { buf[2 * k] = X[c][f][k].real(); buf[2 * k + 1] = X[c][f][k].imag(); }
       pffft_transform_ordered(st, buf, buf, wk, PFFFT_BACKWARD);
       const long s0 = (long)f * H - N + H;
-      for (int i = 0; i < N; i++) { const long j = s0 + i; if (j >= 0 && (size_t)j < out_len) out[c][j] += buf[i] * win[i] / (float)N / 2.0f; }
+      for (int i = 0; i < N; i++) { const long j = s0 + i; if (j >= 0 && (size_t)j < out_len) out[c][j] += buf[i] * win[i] / (float)N / ola; }
     }
   for (size_t c = 0; c < nch; c++) { out[c].resize(out_len); h[c].swap(out[c]); }
   pffft_aligned_free(wk); pffft_aligned_free(buf); pffft_destroy_setup(st);
   return out_len;
+}
+
+// ---- Gen 2: band-limited resampling (windowed sinc), off the audio thread ------------------------------------------------
+// Output sample j is the input at time j * rate / target (sample 0 at time 0, as ResampleCubic on the zero-padded input
+// gives, and the same count: ceil(n * target / rate)). Kaiser-windowed sinc, 64 zero crossings each side, beta 9.6
+// (about -96 dB stopband); when the result has the lower rate (Stretch below 100%, or a 96 kHz IR) the sinc's cutoff
+// follows it (0.97 x its Nyquist), so nothing folds back. Cubic, on Gen 1, has neither: it dulls the top octave a little
+// and lets a shortened IR alias.
+static double bessel_i0(double x) {
+  double s = 1, t = 1;
+  for (int k = 1; k < 40; k++) { t *= (x / (2 * k)) * (x / (2 * k)); s += t; if (t < 1e-12 * s) break; }
+  return s;
+}
+
+static void resample_sinc(const std::vector<float>& in, double rate, double target, std::vector<float>& out) {
+  const int Z = 64;                                         // zero crossings each side
+  const double beta = 9.6, i0b = bessel_i0(beta);
+  const double fc = std::min(1.0, target / rate) * 0.97;    // cutoff, as a share of the input's Nyquist
+  const double half = Z / fc;                               // the kernel's half-width, input samples
+  const int L = 512;                                        // table: the kernel at 1/L-sample steps (linear between)
+  const int nt = (int)std::ceil(half * L) + 2;
+  std::vector<float> tab(nt + 1);
+  for (int i = 0; i <= nt; i++) {
+    const double x = (double)i / L, r = x / half;
+    const double sinc = x == 0 ? 1.0 : std::sin(M_PI * fc * x) / (M_PI * fc * x);
+    tab[i] = r >= 1 ? 0.0f : (float)(fc * sinc * bessel_i0(beta * std::sqrt(1 - r * r)) / i0b);
+  }
+  const size_t n = in.size();
+  const size_t m = (size_t)std::ceil((double)n * target / rate - 1e-9);
+  out.assign(m, 0.0f);
+  const double step = rate / target;
+  const long w = (long)std::ceil(half);
+  for (size_t j = 0; j < m; j++) {
+    const double t = j * step;
+    const long c = (long)std::floor(t);
+    double acc = 0;
+    for (long i = std::max(0L, c - w + 1); i <= std::min((long)n - 1, c + w); i++) {
+      const double p = std::fabs(t - (double)i) * L;
+      const long k = (long)p;
+      if (k >= nt) continue;
+      const double f = p - k;
+      acc += (double)in[i] * (tab[k] + (tab[k + 1] - tab[k]) * f);
+    }
+    out[j] = (float)acc;
+  }
 }
 
 std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& channels, double rate, double host_rate,
@@ -205,6 +257,13 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
   std::vector<std::vector<float>> h(nch);
   for (size_t c = 0; c < nch; c++) {                       // to the host rate: cubic, zero-padded (as NAM's cab IRs)
     if (rate == target) { h[c] = channels[c]; continue; }
+    if (platform::kSincResample) {                          // Gen 2: band-limited (above)
+      // (only the part that can survive the cap is resampled: a long file costs no more than a 20 s one)
+      const size_t keep = std::min(channels[c].size(), (size_t)std::ceil((kMaxSeconds + 1.0) * rate / stretch) + 256);
+      std::vector<float> src(channels[c].begin(), channels[c].begin() + keep);
+      resample_sinc(src, rate, target, h[c]);
+      continue;
+    }
     std::vector<float> padded(channels[c].size() + 2, 0.0f);
     memcpy(padded.data() + 1, channels[c].data(), channels[c].size() * sizeof(float));
     dsp::ResampleCubic<float>(padded, rate, target, 0.0, h[c]);
@@ -225,7 +284,7 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
     // half the tail's energy change, in dB: a longer decay is a little louder, as a bigger room is (+3 dB at 300%)
     if (e0 > 1e-20 && e1 > 1e-20) decay_level = std::min(1.5, std::max(0.5, std::pow(e1 / e0, 0.25)));
   }
-  n = std::min(n, cap);                                    // the 5 s cap (after stretch: it's about CPU)
+  n = std::min(n, cap);                                    // the cap (5 s Gen 1, 20 s Gen 2; after stretch: it's about CPU)
   for (auto& v : h) v.resize(n, 0.0f);
   if (shape.reverse) for (auto& v : h) std::reverse(v.begin(), v.end());
   // trim: [a, b) of the capped IR, at least 128 samples

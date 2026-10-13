@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 the mpc-vst-liminal-hz contributors
 // bench_reverb.cpp -- long-IR convolution on MPC's audio clock (44.1 kHz, 128-frame blocks, paced in real time).
-//   irrev-bench [-v] [--quick]   IR lengths 1, 2, 3, 5 s, mono and stereo, three methods (see long_convolver.h):
+//   irrev-bench [-v] [--quick]   IR lengths 1, 2, 3, 5 s (and 10, 20 s built with -DLIMINAL_GEN2), mono and stereo, three methods (see long_convolver.h):
 //                                audio-thread cost per block (mean / p99 / max, % of 2902 us), the worker thread's
 //                                load (% of one core) and missed tail deadlines
 //   irrev-bench --check          the convolver against direct convolution (all three methods)
@@ -14,6 +14,7 @@
 #include <time.h>
 #include <vector>
 #include "long_convolver.h"
+#include "platform.h"
 using namespace irrev;
 static const double RATE = 44100;
 static const int B = 128;
@@ -28,9 +29,9 @@ static std::vector<float> make_ir(size_t n, unsigned seed) {            // a rev
   return h;
 }
 
-static int check() {
+// the convolver (all three methods) against direct convolution: irn taps, xn input samples, far = the far stage's block
+static int check_one(size_t irn, size_t xn, int far) {
   int fails = 0;
-  const size_t irn = 13230 /* 0.3 s: head + tail */, xn = 44160;   // a whole number of 128-sample blocks
   auto h = make_ir(irn, 3);
   std::mt19937 r(5); std::normal_distribution<float> g(0.f, 0.1f);
   std::vector<float> x(xn); for (auto& v : x) v = g(r);
@@ -38,7 +39,7 @@ static int check() {
   for (size_t i = 0; i < xn; i++) { double a = 0; for (size_t k = 0; k <= i && k < irn; k++) a += (double)h[k] * x[i - k]; ref[i] = a; }
   double rr = 0; for (double v : ref) rr += v * v; rr = std::sqrt(rr / xn);
   for (auto mode : {LongConvolver::Uniform, LongConvolver::Inline, LongConvolver::Threaded}) {
-    LongConvolver c(h, mode);
+    LongConvolver c(h, mode, far);
     std::vector<float> y(xn);
     double next = wall_s();
     for (size_t p = 0; p < xn; p += B) {
@@ -54,10 +55,18 @@ static int check() {
     e = std::sqrt(e / xn);
     const char* name = mode == LongConvolver::Uniform ? "uniform" : mode == LongConvolver::Inline ? "inline" : "threaded";
     bool ok = e < 1e-5 * rr && c.misses() == 0;
-    printf("%s %-8s vs direct convolution: rms error %.1e (%.0f dB below the signal), max %.1e, misses %ld\n",
-           ok ? "ok  " : "FAIL", name, e, 20 * std::log10(rr / std::max(e, 1e-30)), mx, c.misses());
+    printf("%s %-8s %6zu taps, %zu stage(s) vs direct convolution: rms error %.1e (%.0f dB below the signal), max %.1e, misses %ld\n",
+           ok ? "ok  " : "FAIL", name, irn, c.stages(), e, 20 * std::log10(rr / std::max(e, 1e-30)), mx, c.misses());
     fails += !ok;
   }
+  return fails;
+}
+
+static int check() {
+  int fails = 0;
+  fails += check_one(13230 /* 0.3 s: head + tail */, 44160, 0);         // (a whole number of 128-sample blocks)
+  fails += check_one(20000, 61440, 6144);   // head + 2048 stage + a far stage (6144: taps from 12288; small, to be quick)
+  fails += check_one(40000, 98304, 16384);  // head + 2048 stage + the Gen 2 far stage (16384: taps from 32768)
   printf("%s\n", fails ? "FAILED" : "PASSED");
   return fails ? 1 : 0;
 }
@@ -103,7 +112,9 @@ int main(int argc, char** argv) {
   printf("Liminal Hz convolution on MPC's clock: 44.1 kHz, 128-frame blocks paced in real time (2902 us each).\n");
   printf("audio thread: %% of one block (mean / p99 / max); worker: %% of one core; misses: tail blocks late\n\n");
   printf("%-5s %-6s %-9s %8s %8s %8s %9s %7s\n", "IR", "chans", "method", "mean", "p99", "max", "worker", "misses");
-  for (double secs : {1.0, 2.0, 3.0, 5.0})
+  std::vector<double> lens{1.0, 2.0, 3.0, 5.0};
+  if (platform::kMaxSeconds > 5.0) { lens.push_back(10.0); lens.push_back(platform::kMaxSeconds); }
+  for (double secs : lens)
     for (int ch : {1, 2})
       for (auto mode : {LongConvolver::Uniform, LongConvolver::Inline, LongConvolver::Threaded}) {
         if (mode == LongConvolver::Uniform && secs * ch > 3.0) {       // would take far longer than real time

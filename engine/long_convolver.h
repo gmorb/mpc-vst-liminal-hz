@@ -8,6 +8,10 @@
  *   tail  taps [2W, N):  uniformly partitioned in W-sample blocks (FFT 2W). Output block m of the tail needs input
  *                        only up to block m-2, which is complete one W-period before block m starts, so the tail
  *                        is computed one block ahead, with a whole W-period (W = 2048: 46 ms) to do it in.
+ * Gen 2 (platform.h kFarBlock) adds a third, far stage for long IRs: taps [2F, N) in F-sample blocks (F = 16384, its own
+ * worker), and the 2048 stage then covers [2W, 2F). Each stage keeps the same rule (taps from twice its block on: a
+ * whole block of time to compute), so the far stage has 371 ms per job; it moves most of a 20 s IR's work into big,
+ * cheap FFTs (about 1/8 the memory traffic of 2048-sample partitions).
  * Tail modes:
  *   Threaded  a worker thread computes it (on the Force's other cores); the audio thread only copies samples and
  *             adds the result. If a result isn't ready in time (a "miss"), that block's tail is left out (counted).
@@ -55,31 +59,38 @@ class LongConvolver {
   static constexpr int kHost = 128;        // host block (MPC)
   static constexpr int kTail = 2048;       // W
 
-  LongConvolver(const std::vector<float>& ir, Mode mode);
+  // far: the far stage's block (0: none; it is used only when the IR reaches past 2 x far). Default: platform.h.
+  LongConvolver(const std::vector<float>& ir, Mode mode, int far = -1);
   ~LongConvolver();
   // n must be a multiple of 128 (MPC's block)
   void process(const float* in, float* out, int n);
-  long misses() const { return misses_; }
-  double worker_cpu_seconds() const { return worker_cpu_.load() / 1e6; }
+  long misses() const;
+  double worker_cpu_seconds() const;
   size_t length() const { return length_; }
+  size_t stages() const { return stages_.size(); }   // tail stages (0, 1 or 2)
 
  private:
-  void tail_job(long m);                   // the tail for W-block m into tail_out_[m % 3]
-  void worker_main();
+  struct Stage {                           // taps [2W, end) in W-sample blocks, computed one block ahead
+    int w = 0;
+    std::unique_ptr<Upols> conv;
+    std::vector<float> in_ring;            // 4W of input
+    std::vector<float> out[3];             // output, W-blocks m % 3
+    std::atomic<long> ready{-1};           // last W-block whose output is ready
+    std::atomic<long> requested{-1};       // last W-block whose output was asked for
+    std::atomic<long long> cpu{0};         // the worker's CPU time, microseconds
+    long misses = 0;                       // (audio thread)
+    sem_t sem;
+    std::thread worker;
+  };
+  void job(Stage& s, long j);              // input W-block j -> stage output block j + 2
+  void worker_main(Stage* s);
 
   Mode mode_;
   size_t length_;
-  std::unique_ptr<Upols> head_, tail_;
-  std::vector<float> in_ring_;             // 4W of input
-  std::vector<float> tail_out_[3];         // tail output, W-blocks m % 3
+  std::unique_ptr<Upols> head_;
+  std::vector<std::unique_ptr<Stage>> stages_;
   long sample_ = 0;                        // samples processed (audio thread)
-  std::atomic<long> ready_{-1};            // last W-block whose tail is ready
-  std::atomic<long> requested_{-1};        // last W-block whose tail was asked for
   std::atomic<bool> stop_{false};
-  std::atomic<long long> worker_cpu_{0};   // microseconds
-  long misses_ = 0;
-  sem_t sem_;
-  std::thread worker_;
 };
 
 }  // namespace irrev

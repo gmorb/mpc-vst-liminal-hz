@@ -4,6 +4,9 @@
 # Package Liminal Hz (run vst/build.sh first): the self-contained plugin folder (Force VST distribution layout,
 # docs/SELF_CONTAINED_PORTS.md) and, with REPO=owner/name (GITHUB_REPOSITORY in CI), the MPC OS Plugin Catalog zip.
 #   tools/package.sh   -> dist/Liminal-Hz-for-MPC-OS-<VERSION>.zip, dist/Liminal-Hz-<VERSION>-mpc-armv7.zip, SHA256SUMS
+#   and, when vst/build.sh gen2 has built vst/build/aarch64/liminal_hz.so, the Gen 2 (MPC Live III and kin, RK3588)
+#   zip too: dist/Liminal-Hz-<VERSION>-mpc-aarch64.zip (mpc-vst-plugins docs/GEN2.md: one release, two zips, the same
+#   id, uid and parameters). It has release.py's install.sh, which registers under pluginList-arm-64bit.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 VERSION=$(cat VERSION)
@@ -54,10 +57,36 @@ find dist/stage -exec touch -d "2026-01-01 00:00:00" {} +
 (cd dist/stage && find "$COLL" -type f | LC_ALL=C sort | zip -q -X -@ "../Liminal-Hz-for-MPC-OS-$VERSION.zip")
 rm -rf dist/stage
 
-# 3. the catalog zip, only with a source repo (the catalog needs it in the manifest)
+# 3. Gen 2 (aarch64): the same plugin folder with the 64-bit .so and the Gen 2 limits (engine/platform.h)
+if [ -f "$B/aarch64/liminal_hz.so" ]; then
+  mkdir -p dist/work64
+  sed -e 's/up to 5 seconds are used in full; longer ones are cut to 5 s/up to 20 seconds are used in full; longer ones are cut to 20 s/' \
+      packaging/reverbs-README.txt > dist/work64/reverbs-README.txt
+  grep -q "20 seconds" dist/work64/reverbs-README.txt || { echo "error: reverbs-README.txt changed; update the Gen 2 sed" >&2; exit 1; }
+  ABOUT64="$(python3 -c "import json;print(json.load(open('vst/vst.json'))['about'].replace('up to 5 seconds', 'up to 20 seconds'))") Gen 2 build (RK3588, 64-bit)."
+  A64=()
+  for ((i = 0; i < ${#REL_ARGS[@]}; i++)); do
+    case "${REL_ARGS[$i]}" in
+      --so) A64+=(--so "$B/aarch64/liminal_hz.so"); i=$((i + 1)) ;;
+      --about) A64+=(--about "$ABOUT64"); i=$((i + 1)) ;;
+      --extra) case "${REL_ARGS[$((i + 1))]}" in
+                 packaging/reverbs-README.txt:*) A64+=(--extra "dist/work64/reverbs-README.txt:reverbs/README.txt") ;;
+                 *) A64+=(--extra "${REL_ARGS[$((i + 1))]}") ;;
+               esac; i=$((i + 1)) ;;
+      *) A64+=("${REL_ARGS[$i]}") ;;
+    esac
+  done
+  python3 "$MPC_VST/tools/release.py" "${A64[@]}" -o dist/work64 >/dev/null
+  mv dist/work64/*-mpc-aarch64.zip dist/
+  rm -rf dist/work64
+  echo "Gen 2 zip: $(ls dist/*-mpc-aarch64.zip)"
+fi
+
+# 4. the catalog zip, only with a source repo (the catalog needs it in the manifest)
 if [ -n "$REPO" ]; then
   mv "$CZ" dist/
-  for z in dist/*-mpc-armv7.zip; do
+  for z in dist/*-mpc-armv7.zip dist/*-mpc-aarch64.zip; do
+    [ -f "$z" ] || continue
     python3 "$MPC_VST/tools/catalog_check.py" "$z" --catalog >/dev/null || { python3 "$MPC_VST/tools/catalog_check.py" "$z" --catalog >&2; exit 1; }
     echo "catalog zip ok: $z"
   done

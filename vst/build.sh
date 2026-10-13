@@ -3,10 +3,14 @@
 # Copyright (c) 2026 the mpc-vst-liminal-hz contributors
 # Build Liminal Hz.
 #   vst/build.sh            the device plugin: armhf (Zig, glibc 2.36, Cortex-A17 NEON) + its page (MPC skin)
+#   vst/build.sh gen2       the Gen 2 device plugin: aarch64 (Zig, glibc 2.36, RK3588's A76/A55: ARMv8.2-A, NEON FFT)
+#                           with the Gen 2 limits (engine/platform.h: 20 s IRs, a far convolution stage, sinc resampling)
 #   vst/build.sh host       the same plugin for this PC (tests); HOST_FLAGS adds flags (e.g. sanitizers)
+#   vst/build.sh host-gen2  the PC plugin with the Gen 2 limits (tests: tools/test.sh with GEN2=1)
 # Needs: mpc-vst-plugins in $MPC_VST (default ../mpc-vst-plugins), python3 + Pillow, Eigen 3.4 headers
 # a host g++, Playwright + Chromium (the page renderer), and Zig (pip install ziglang) for the device build.
-# Output: vst/build/liminal_hz.so (device) or vst/build/host/liminal_hz.so, vst/build/skin/, pluginlist-entry.xml
+# Output: vst/build/liminal_hz.so (Gen 1), vst/build/aarch64/liminal_hz.so (Gen 2), vst/build/host[-gen2]/liminal_hz.so,
+#         vst/build/skin/, pluginlist-entry.xml (the page is the same for both generations)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
@@ -31,6 +35,7 @@ SRCS_CXX="engine/long_convolver.cpp engine/reverb_engine.cpp engine/wav_reader.c
           engine/presets.cpp engine/presets_web.cpp engine/tone3000.cpp engine/http.cpp engine/pkce.cpp vst/liminal_hz_vst.cpp"
 INC="-Iengine -Iengine/pffft -Isrc/audiodsptools -Isrc/nlohmann -I$B"
 DEFS=""
+case "$MODE" in gen2|host-gen2) DEFS="-DLIMINAL_GEN2" ;; esac
 # -fsigned-char: WDL (the resampler's helpers) requires a signed char, which ARM Linux doesn't default to
 COMMON="-O3 -fPIC -fvisibility=hidden -fsigned-char -D_FILE_OFFSET_BITS=64 -w"
 
@@ -45,7 +50,7 @@ build() {   # $1 out dir, $2 C compiler, $3 C++ compiler, $4 extra flags, $5 lin
   mkdir -p "$out/obj"
   for f in $SRCS_C; do
     o="$out/obj/c_$(basename "${f%.c}").o"; throttle
-    run $cc $COMMON $fl -Iengine/pffft -c "$f" -o "$o" & pids+=($!); objs+=("$o")
+    run $cc $COMMON $fl $DEFS -Iengine/pffft -c "$f" -o "$o" & pids+=($!); objs+=("$o")
   done
   for f in $SRCS_CXX; do
     p=our
@@ -57,15 +62,24 @@ build() {   # $1 out dir, $2 C compiler, $3 C++ compiler, $4 extra flags, $5 lin
   $cxx $fl -shared -o "$out/liminal_hz.so" "${objs[@]}" -Wl,--version-script=vst/exports.map $lf
 }
 
-if [ "$MODE" = host ]; then
-  build "$B/host" gcc g++ "${HOST_FLAGS:-}" "-lpthread -ldl"
-  echo "host plugin: $B/host/liminal_hz.so"
+if [ "$MODE" = host ] || [ "$MODE" = host-gen2 ]; then
+  build "$B/$MODE" gcc g++ "${HOST_FLAGS:-}" "-lpthread -ldl"
+  echo "host plugin: $B/$MODE/liminal_hz.so"
 else
   ZIG="${ZIG:-python3 -m ziglang}"
-  TGT="-target arm-linux-gnueabihf.2.36 -mcpu=cortex_a17"
-  build "$B/device" "$ZIG cc $TGT" "$ZIG c++ $TGT" "" "-Wl,-s -Wl,--no-undefined -lpthread"
-  cp "$B/device/liminal_hz.so" "$B/liminal_hz.so"
-  SO="$B/liminal_hz.so"
+  if [ "$MODE" = gen2 ]; then
+    # cortex_a55: ARMv8.2-A features both of the RK3588's core types have (the scheduler moves threads between them);
+    # PFFFT_ENABLE_NEON: PFFFT's NEON path (without it PFFFT builds scalar, as the Gen 1 build always has)
+    TGT="-target aarch64-linux-gnu.2.36 -mcpu=cortex_a55 -DPFFFT_ENABLE_NEON"
+    build "$B/device-aarch64" "$ZIG cc $TGT" "$ZIG c++ $TGT" "" "-Wl,-s -Wl,--no-undefined -lpthread"
+    mkdir -p "$B/aarch64"; cp "$B/device-aarch64/liminal_hz.so" "$B/aarch64/liminal_hz.so"
+    SO="$B/aarch64/liminal_hz.so"; WANT_ARCH="ARM aarch64"; CEIL=GLIBC_2.39
+  else
+    TGT="-target arm-linux-gnueabihf.2.36 -mcpu=cortex_a17"
+    build "$B/device" "$ZIG cc $TGT" "$ZIG c++ $TGT" "" "-Wl,-s -Wl,--no-undefined -lpthread"
+    cp "$B/device/liminal_hz.so" "$B/liminal_hz.so"
+    SO="$B/liminal_hz.so"; WANT_ARCH="ARM, EABI5"; CEIL=GLIBC_2.36
+  fi
   EXP=$(readelf --dyn-syms -W "$SO" | awk '$5=="GLOBAL" && $7!="UND" && $4!="NOTYPE"{print $8}' | tr '\n' ' ')
   GLIBC=$(readelf -V "$SO" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
   NEEDED=$(readelf -d "$SO" | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p' | tr '\n' ' ')
@@ -76,5 +90,6 @@ else
   echo "   highest glibc: $GLIBC"
   [ "$EXP" = "VSTPluginMain " ] || { echo "error: unexpected exports" >&2; exit 1; }
   case "$NEEDED" in *libstdc++*|*libc++*) echo "error: C++ runtime must be linked in" >&2; exit 1 ;; esac
-  [ "$(printf '%s\n%s\n' "$GLIBC" GLIBC_2.36 | sort -V | tail -1)" = GLIBC_2.36 ] || { echo "error: needs glibc > 2.36" >&2; exit 1; }
+  file -b "$SO" | grep -q "$WANT_ARCH" || { echo "error: not a $WANT_ARCH library" >&2; exit 1; }
+  [ "$(printf '%s\n%s\n' "$GLIBC" "$CEIL" | sort -V | tail -1)" = "$CEIL" ] || { echo "error: needs glibc > ${CEIL#GLIBC_}" >&2; exit 1; }
 fi

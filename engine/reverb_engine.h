@@ -6,7 +6,8 @@
  *          -> width (mid/side) -> mix with the dry signal -> output gain
  * Mono IR: L and R are convolved separately (the stereo image is kept). Stereo IR (2+ channels): the input's mono sum
  * feeds the IR's first two channels, L and R (how reverb IRs of spaces are recorded).
- * IRs are prepared off the audio thread (ReverbIR::make: resampled to the host rate as NAM's cab IRs are, cut to
+ * IRs are prepared off the audio thread (ReverbIR::make: resampled to the host rate (cubic on Gen 1, windowed sinc on
+ * Gen 2: platform.h), cut to
  * kMaxSeconds and the Length setting, faded out at the end, normalised to unit energy) and handed over without
  * locks; a new IR crossfades in over kFade samples. Convolvers (and their worker threads) are never freed on the
  * audio thread: collect() frees them.
@@ -19,6 +20,7 @@
 #include <vector>
 #include "long_convolver.h"
 #include "onset.h"
+#include "platform.h"
 
 namespace irrev {
 
@@ -50,7 +52,7 @@ struct IRShape {
 
 class ReverbIR {
  public:
-  static constexpr double kMaxSeconds = 5.0;
+  static constexpr double kMaxSeconds = platform::kMaxSeconds;   // 5 s on Gen 1, 20 s on Gen 2
   // channels[c][frame] at `rate`, shaped by `shape` (stretch, 5 s cap, reverse, start/length trim, fades, level)
   static std::unique_ptr<ReverbIR> make(const std::vector<std::vector<float>>& channels, double rate, double host_rate,
                                         const IRShape& shape, std::string* err,

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstring>
 #include "pffft.h"
+#include "platform.h"
 
 namespace irrev {
 
@@ -63,8 +64,8 @@ void Upols::push(const float* in, float* out) {
 }
 
 // ------------------------------------------------------------------------------------------------ LongConvolver
-LongConvolver::LongConvolver(const std::vector<float>& ir, Mode mode) : mode_(mode), length_(ir.size()) {
-  sem_init(&sem_, 0, 0);
+LongConvolver::LongConvolver(const std::vector<float>& ir, Mode mode, int far) : mode_(mode), length_(ir.size()) {
+  if (far < 0) far = platform::kFarBlock;
   const size_t n = ir.empty() ? 1 : ir.size();
   std::vector<float> h = ir.empty() ? std::vector<float>(1, 0.0f) : ir;
   if (mode_ == Uniform || n <= (size_t)2 * kTail) {
@@ -72,37 +73,61 @@ LongConvolver::LongConvolver(const std::vector<float>& ir, Mode mode) : mode_(mo
     return;
   }
   head_.reset(new Upols(h.data(), 2 * kTail, kHost, 0));
-  tail_.reset(new Upols(h.data() + 2 * kTail, n - 2 * kTail, kTail, 0));
-  in_ring_.assign(4 * kTail, 0.0f);
-  for (auto& t : tail_out_) t.assign(kTail, 0.0f);
-  ready_ = 1;                                               // output blocks 0 and 1 have no tail (it starts at 2W)
-  if (mode_ == Threaded) worker_ = std::thread(&LongConvolver::worker_main, this);
+  std::vector<int> blocks{kTail};                           // the stages' blocks; each starts at twice its block
+  if (far > 2 * kTail && far % kTail == 0 && n > (size_t)2 * far) blocks.push_back(far);
+  for (size_t i = 0; i < blocks.size(); i++) {
+    const size_t a = 2 * (size_t)blocks[i], b = i + 1 < blocks.size() ? 2 * (size_t)blocks[i + 1] : n;
+    std::unique_ptr<Stage> st(new Stage());
+    st->w = blocks[i];
+    st->conv.reset(new Upols(h.data() + a, b - a, st->w, 0));
+    st->in_ring.assign(4 * (size_t)st->w, 0.0f);
+    for (auto& o : st->out) o.assign(st->w, 0.0f);
+    st->ready = 1;                                          // output blocks 0 and 1 have none (it starts at 2W)
+    sem_init(&st->sem, 0, 0);
+    stages_.push_back(std::move(st));
+  }
+  if (mode_ == Threaded)
+    for (auto& st : stages_) st->worker = std::thread(&LongConvolver::worker_main, this, st.get());
 }
 
 LongConvolver::~LongConvolver() {
   stop_ = true;
-  sem_post(&sem_);
-  if (worker_.joinable()) worker_.join();
-  sem_destroy(&sem_);
+  for (auto& st : stages_) {
+    sem_post(&st->sem);
+    if (st->worker.joinable()) st->worker.join();
+    sem_destroy(&st->sem);
+  }
 }
 
-void LongConvolver::tail_job(long j) {                     // input W-block j -> the tail of output block j + 2
-  std::vector<float>& out = tail_out_[(j + 2) % 3];
+long LongConvolver::misses() const {
+  long m = 0;
+  for (auto& st : stages_) m += st->misses;
+  return m;
+}
+
+double LongConvolver::worker_cpu_seconds() const {
+  long long us = 0;
+  for (auto& st : stages_) us += st->cpu.load();
+  return us / 1e6;
+}
+
+void LongConvolver::job(Stage& s, long j) {                // input W-block j -> output block j + 2
+  std::vector<float>& out = s.out[(j + 2) % 3];
   std::fill(out.begin(), out.end(), 0.0f);
-  tail_->push(&in_ring_[(j % 4) * kTail], out.data());
-  ready_.store(j + 2, std::memory_order_release);
+  s.conv->push(&s.in_ring[(size_t)(j % 4) * s.w], out.data());
+  s.ready.store(j + 2, std::memory_order_release);
 }
 
-void LongConvolver::worker_main() {
+void LongConvolver::worker_main(Stage* s) {
   long done = -1;
   for (;;) {
-    sem_wait(&sem_);
+    sem_wait(&s->sem);
     if (stop_) return;
-    const long want = requested_.load(std::memory_order_acquire);
+    const long want = s->requested.load(std::memory_order_acquire);
     while (done < want) {                                   // in order; catches up if it fell behind
       const long long t0 = cpu_us();
-      tail_job(++done);
-      worker_cpu_ += cpu_us() - t0;
+      job(*s, ++done);
+      s->cpu += cpu_us() - t0;
     }
   }
 }
@@ -112,27 +137,24 @@ void LongConvolver::process(const float* in, float* out, int n) {
     float* o = out + off;
     memset(o, 0, kHost * sizeof(float));
     head_->push(in + off, o);
-    if (!tail_) { sample_ += kHost; continue; }
-    // the tail of this output W-block, if it's there
-    const long m = sample_ / kTail;
-    const int at = (int)(sample_ % kTail);
-    if (ready_.load(std::memory_order_acquire) >= m) {
-      const float* t = &tail_out_[m % 3][at];
-      for (int i = 0; i < kHost; i++) o[i] += t[i];
-    } else if (at == 0) {
-      misses_++;                                            // late: this W-block plays without its tail
-    }
-    memcpy(&in_ring_[(sample_ % (4 * kTail))], in + off, kHost * sizeof(float));
-    sample_ += kHost;
-    if (sample_ % kTail == 0) {                             // input W-block j complete
-      const long j = sample_ / kTail - 1;
-      if (mode_ == Inline) {
-        tail_job(j);
-      } else {
-        requested_.store(j, std::memory_order_release);
-        sem_post(&sem_);
+    for (auto& sp : stages_) {
+      Stage& s = *sp;
+      const long m = sample_ / s.w;                         // this output W-block's part, if it's there
+      const int at = (int)(sample_ % s.w);
+      if (s.ready.load(std::memory_order_acquire) >= m) {
+        const float* t = &s.out[m % 3][at];
+        for (int i = 0; i < kHost; i++) o[i] += t[i];
+      } else if (at == 0) {
+        s.misses++;                                         // late: this W-block plays without this stage
+      }
+      memcpy(&s.in_ring[(size_t)(sample_ % (4L * s.w))], in + off, kHost * sizeof(float));
+      if ((sample_ + kHost) % s.w == 0) {                   // input W-block j complete
+        const long j = (sample_ + kHost) / s.w - 1;
+        if (mode_ == Inline) job(s, j);
+        else { s.requested.store(j, std::memory_order_release); sem_post(&s.sem); }
       }
     }
+    sample_ += kHost;
   }
 }
 

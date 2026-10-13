@@ -4,8 +4,10 @@
 
 *Real rooms, halls and echoes from impulse responses: the space for your NAM amp.*
 
-A convolution reverb for **Gen 1 Akai MPC and Force**: play through impulse responses of real rooms, halls, strange
-spaces and echoes, up to 5 seconds, mono or stereo. Make a room bigger or smaller with **Decay**, stretch its tail
+A convolution reverb for **Akai MPC and Force, Gen 1 and Gen 2**: play through impulse responses of real rooms, halls,
+strange spaces and echoes, mono or stereo: up to 5 seconds on Gen 1 (Force, MPC Live/One/X/Key), up to **20 seconds**
+on Gen 2 (MPC Live III and other RK3588 units, 64-bit), which also gets finer processing (see
+[Gen 2](#gen-2-rk3588-64-bit)). Make a room bigger or smaller with **Decay**, stretch its tail
 with **Feedback**, and keep your sounds as **My Presets**. It comes with 14 factory spaces, browses your own IRs, and
 downloads more from TONE3000 from your phone. A companion to [Liminal Amp](https://github.com/gmorb/mpc-vst-liminal-amp).
 Not affiliated with or endorsed by TONE3000 or Akai.
@@ -61,8 +63,8 @@ The shape display shows what the IR sounds like, after your shaping:
 - **Decay** changes how long the room rings without changing its pitch or its colour: each frequency band of the IR
   is measured and made to fade faster or slower, and where a band's real tail ends it is continued in kind. A small
   dark room stays a dark room, just bigger (Backrooms at 300% rings about 2.5x as long). At 100% the IR plays exactly
-  as recorded. IRs are still capped at 5 s (for the MPC's CPU), so very long IRs gain less; Feedback can take the tail
-  further.
+  as recorded. IRs are capped at 5 s on Gen 1 (for the RK3288's CPU), so long IRs gain less there; on Gen 2 the cap is
+  20 s, so a 5 s room at 300% rings its full ~15 s. Feedback can take the tail further.
 
 Shaping happens in the background and crossfades in. Mix, Width, Output and Pre-delay glide to a new value, so moving
 them never clicks.
@@ -113,9 +115,31 @@ Put `.wav` IRs (mono or stereo, any sample rate) in any folder named `reverbs` o
 packs (subfolders) if you like; switch to **MY IRS**. The plugin remembers where it found them, so starting up and
 **RESCAN** are quick even on a full card.
 
+## Gen 2 (RK3588, 64-bit)
+
+Gen 2 units (MPC Live III and kin) run a 64-bit system that can't load Gen 1's 32-bit plugins, so each release has two
+zips: `Liminal-Hz-<version>-mpc-armv7.zip` (Gen 1) and `Liminal-Hz-<version>-mpc-aarch64.zip` (Gen 2). They are the
+same plugin, with the same page, parameters and presets, so a project moves between generations (a Gen 2 project with
+a 12 s IR plays it cut to 5 s on Gen 1). The Gen 2 build uses the RK3588's headroom where the Gen 1 build had to save:
+
+| | Gen 1 (RK3288) | Gen 2 (RK3588) |
+|---|---|---|
+| IR length used | 5 s | **20 s** |
+| Decay 300% on a 5 s room | stops at 5 s | **rings ~15 s** |
+| Convolution | head (128) + tail (2048, one worker) | head (128) + 2048 + **far stage (16384, its own worker)** |
+| IR resampling (other rates, Stretch) | cubic: -1.9 dB at 17 kHz, Stretch < 100% aliases | **windowed sinc**: flat, aliases -77 dB |
+| Decay analysis | STFT 2048 (21.5 Hz bins) | **STFT 4096 (10.8 Hz bins)**: real bass resolution |
+| FFT | scalar | **NEON** |
+
+The audio thread's cost doesn't grow with IR length on either: it always runs the same first 93 ms of the IR (zero
+latency); everything later runs on worker threads. Tested on an MPC Live III (MPC OS 3.9.1) and,
+for the Gen 1 build, on an Akai Force (3.9.1). As for every Gen 2 plugin today, installing needs root access on the unit
+(mpc-vst-plugins docs/GEN2.md).
+
 ## Install
 
-Download `Liminal-Hz-for-MPC-OS-<version>.zip` from the releases and follow its README: copy the
+**Gen 2**: install `Liminal-Hz-<version>-mpc-aarch64.zip` from the MPC OS Plugin Catalog, or unzip it on the unit and
+run its `install.sh` as root (see its INSTALL.md). **Gen 1**: download `Liminal-Hz-for-MPC-OS-<version>.zip` from the releases and follow its README: copy the
 `Gm0rb - VST - Liminal Hz` folder into your `Synths` folder and run `vstscanner`; Liminal Hz then appears under
 **Gm0rb** in MPC's plugin list. Or install it from the MPC OS Plugin Catalog. After updating, re-insert the plugin on
 your tracks. Your `reverbs` and `presets` folders are kept across upgrades.
@@ -136,20 +160,27 @@ Measured on an Akai Force (RK3288), real time, % of one 2.9 ms audio block:
 | tail on the audio thread, 2048-sample blocks | 11% / 137% | | 0 |
 | **tail on a second thread** (Liminal Hz) | **3.4% / 7.2%** | 8.3% of a core | **0** |
 
-Every method equals direct convolution to float precision (`tools/bench_reverb.cpp --check`, PC and ARM). Decay,
+Every method equals direct convolution to float precision (`tools/bench_reverb.cpp --check`, PC and ARM).
+
+On Gen 2, IRs past 0.74 s get a third stage: taps from 32768 on run in 16384-sample blocks on their own worker (each
+job has 371 ms to finish). A 20 s IR then costs the audio thread what a 5 s one does, and the 2048-sample worker's job
+stays the size it is on Gen 1; the far worker moves most of a long IR's work into a few large, cheap FFTs. Decay,
 Feedback's analysis and the playhead's note detection add little on top: the first two run when an IR is prepared,
 off the audio thread.
 
 ## Build and test
 ```
 git clone https://github.com/sd88me/mpc-vst-plugins ../mpc-vst-plugins
-git -C ../mpc-vst-plugins checkout 3e50b052268d81e6c61a17a1390ced62f0fdff74   # as in .github/workflows/build.yml
+git -C ../mpc-vst-plugins checkout 7c4bf25dd9947eba3f1bf2d8b176bafdcd6a2ae0   # as in .github/workflows/build.yml
 pip install ziglang==0.16.0 pillow playwright && python3 -m playwright install --with-deps chromium
 sudo apt install qemu-user libc6-armhf-cross libcurl4-openssl-dev
-vst/build.sh             # the device plugin (armhf) and its page
+vst/build.sh             # the Gen 1 device plugin (armhf) and its page
+vst/build.sh gen2        # the Gen 2 device plugin (aarch64)
 vst/build.sh host        # the same plugin for this PC
 tools/test.sh            # convolution vs direct, engine, TONE3000 sign-in, library, My Presets, plugin (with a TONE3000 mock)
 SANITIZE=asan tools/test.sh ; SANITIZE=tsan tools/test.sh ; ARM=1 tools/test.sh
+vst/build.sh host-gen2 && GEN2=1 AARCH64=1 tools/test.sh    # Gen 2: its limits on the PC, the aarch64 build under qemu
+sudo apt install libc6-arm64-cross                          # (for AARCH64=1)
 REPO=<you>/mpc-vst-liminal-hz tools/package.sh
 ```
 The device benchmark: `tools/bench_reverb.cpp` (see its header). The README images: `tools/make_banners.py` (see its
