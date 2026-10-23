@@ -35,7 +35,7 @@ enum { P_MIX, P_PREDELAY, P_LOWCUT, P_HIGHCUT, P_WIDTH, P_LENGTH, P_OUTPUT, P_IR
        P_START, P_FADE_IN, P_FADE_OUT, P_STRETCH, P_REVERSE, P_FEEDBACK,
        P_WAVE0, P_PLAYHEAD = P_WAVE0 + kCols, P_SOURCE, P_PRESET, P_SONICS,
        P_MP_INFO, P_MP_SAVE, P_MP_DELETE, P_MP_PHONE, P_MENU, P_IR_LIST, P_MP_LIST, P_MENU_CLOSE, P_MENU_PREV, P_MENU_NEXT,
-       P_MENU_TITLE, P_ROW1, P_ROW6 = P_ROW1 + 5, P_DECAY, P_PRESET_OPEN, P_TOTAL };
+       P_MENU_TITLE, P_ROW1, P_ROW6 = P_ROW1 + 5, P_DECAY, P_LONG_IR, P_LONG_IR_TAP, P_LONG_IR_INFO, P_PRESET_OPEN, P_TOTAL };
 static const int kPresets = 14;                 // factory presets after Init (PRESET's options: Init + 14)
 static int fails = 0;
 #define CHECK(c, ...) do { printf("%s ", (c) ? "ok  " : "FAIL"); printf(__VA_ARGS__); printf("\n"); if (!(c)) fails++; } while (0)
@@ -66,6 +66,21 @@ static double tail_rms(AEffect* a, bool* finite) {
   if (finite) *finite = fin;
   return std::sqrt(acc / std::max(1L, n));
 }
+
+// rms of the reverb between 5.5 and 6.5 s after a short burst: zero when the IR is cut at 5 s, not with LONG IR
+static double late_rms(AEffect* a) {
+  std::vector<float> l(128), r(128), ol(128), orr(128);
+  double acc = 0; long n = 0;
+  const long b0 = (long)(5.5 * 44100 / 128), b1 = (long)(6.5 * 44100 / 128);
+  for (long b = 0; b < b1; b++) {
+    for (int i = 0; i < 128; i++) l[i] = r[i] = (b < 4) ? (float)(0.3 * std::sin(2 * M_PI * 330 * (b * 128 + i) / 44100.0)) : 0.0f;
+    float* in[2] = {l.data(), r.data()}; float* out[2] = {ol.data(), orr.data()};
+    a->pr(a, in, out, 128);
+    if (b >= b0) for (int i = 0; i < 128; i++) { acc += (double)ol[i] * ol[i]; n++; }
+  }
+  return std::sqrt(acc / std::max(1L, n));
+}
+static std::string chunk_of(AEffect* a) { void* c = nullptr; intptr_t len = a->d(a, 23, 0, 0, &c, 0); return std::string((const char*)c, len > 0 ? len - 1 : 0); }
 
 int main(int argc, char** argv) {
   if (argc < 3) { printf("usage: plugin_test <plugin.so> <wavs dir>\n"); return 2; }
@@ -536,6 +551,60 @@ int main(int argc, char** argv) {
     wait_for([&] { return idle(d); }, 20);
     CHECK(disp(d, P_IR) == "Long Hall" && disp(d, P_DECAY) == "300%" && tail_rms(d, nullptr) > 0,
           "a 7 s IR at Decay 300%% (turned fast on the way): [%s] [%s] [%s]", disp(d, P_IR).c_str(), disp(d, P_DECAY).c_str(), disp(d, P_IR_INFO).c_str());
+  }
+  {   // LONG IR: the 20 s quality. Gen 1: two taps turn it on (the first warns), one turns it off; Gen 2: always on
+    d->setP(d, P_DECAY, 0.2f);                                  // (Decay 100%: the 7 s IR as recorded)
+    d->setP(d, P_MIX, 1.0f);
+    wait_for([&] { return idle(d); }, 30);
+#if defined(LIMINAL_GEN2)
+    press(d, P_LONG_IR_TAP);
+    CHECK(d->getP(d, P_LONG_IR) == 1.0f && disp(d, P_LONG_IR_INFO) == "Gen 2 \xC2\xB7 always on",
+          "Gen 2: LONG IR is always on [%s]", disp(d, P_LONG_IR_INFO).c_str());
+    wait_for([&] { return idle(d); }, 60);
+    CHECK(late_rms(d) > 1e-5, "Gen 2: the 7 s IR plays past 5 s (rms %.2g at 5.5-6.5 s)", late_rms(d));
+#else
+    const std::string off = disp(d, P_LONG_IR_INFO);
+    const double cut = late_rms(d);
+    CHECK(d->getP(d, P_LONG_IR) == 0.0f && off == "Off \xC2\xB7 IRs up to 5 s" && cut < 1e-6,
+          "LONG IR off by default: [%s], the 7 s IR stops at 5 s (rms %.2g at 5.5-6.5 s)", off.c_str(), cut);
+    press(d, P_LONG_IR_TAP);
+    const std::string warn = disp(d, P_LONG_IR_INFO);
+    CHECK(d->getP(d, P_LONG_IR) == 0.0f && warn == "CPU heavy \xC2\xB7 tap again",
+          "LONG IR, first tap: only a warning [%s]", warn.c_str());
+    press(d, P_LONG_IR_TAP);
+    const std::string on = disp(d, P_LONG_IR_INFO);
+    wait_for([&] { return idle(d); }, 60);
+    const double longer = late_rms(d);
+    CHECK(d->getP(d, P_LONG_IR) == 1.0f && on == "On \xC2\xB7 IRs up to 20 s" && longer > 1e-5,
+          "LONG IR, second tap: on [%s], the 7 s IR plays past 5 s (rms %.2g)", on.c_str(), longer);
+    const std::string st = chunk_of(d);
+    CHECK(st.find("long_ir=1\n") != std::string::npos && st.find("long_ir_info") == std::string::npos,
+          "LONG IR is saved in the project (and its status line isn't)");
+    press(d, P_LONG_IR_TAP);
+    CHECK(d->getP(d, P_LONG_IR) == 0.0f && disp(d, P_LONG_IR_INFO) == "Off \xC2\xB7 IRs up to 5 s",
+          "LONG IR, a tap while on: off at once [%s]", disp(d, P_LONG_IR_INFO).c_str());
+    press(d, P_LONG_IR_TAP);                                    // armed, then left: the warning runs out
+    std::this_thread::sleep_for(std::chrono::milliseconds(4400));
+    const std::string later = disp(d, P_LONG_IR_INFO);
+    press(d, P_LONG_IR_TAP);
+    CHECK(later == "Off \xC2\xB7 IRs up to 5 s" && d->getP(d, P_LONG_IR) == 0.0f && disp(d, P_LONG_IR_INFO) == "CPU heavy \xC2\xB7 tap again",
+          "LONG IR: a first tap is forgotten after 4 s (then a tap warns again) [%s]", later.c_str());
+    {   // a project with LONG IR on turns it on with no warning; Init and factory presets leave it as it is
+      AEffect* q = open_plugin();
+      const std::string ch = "echo-vault=1\nmix=40\nlong_ir=1\nir_path=\nir_display=\nir_file=\n";
+      q->d(q, 24, 0, (intptr_t)ch.size() + 1, (void*)ch.c_str(), 0);
+      const bool restored = q->getP(q, P_LONG_IR) == 1.0f;
+      q->setP(q, P_PRESET, 0.0f);                               // Init
+      q->setP(q, P_PRESET, 3.0f / kPresets);                    // Fluorescent Hall
+      CHECK(restored && q->getP(q, P_LONG_IR) == 1.0f && disp(q, P_LONG_IR_INFO) == "On \xC2\xB7 IRs up to 20 s",
+            "LONG IR from a project (no warning), kept by Init and a factory preset [%s]", disp(q, P_LONG_IR_INFO).c_str());
+      wait_for([&] { return idle(q); }, 30);
+      q->d(q, 1, 0, 0, nullptr, 0);
+    }
+    d->setP(d, P_LONG_IR, 0.0f);
+#endif
+    d->setP(d, P_MIX, 0.3f);
+    wait_for([&] { return idle(d); }, 30);
   }
   std::atomic<bool> run{true}, sane{true}; std::atomic<long> blocks{0};
   std::thread audio([&] {

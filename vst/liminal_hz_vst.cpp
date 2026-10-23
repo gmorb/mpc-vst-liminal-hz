@@ -89,6 +89,9 @@ enum {
   P_ROW1,                                      // the list's rows (text = the item, value 1 = the one in use)
   P_ROW_LAST = P_ROW1 + 5,                     // (6 rows for IRs, 4 for presets)
   P_DECAY,                                     // Decay (experimental): the IR's decay time, band by band (IR shaping)
+  P_LONG_IR,                                   // LONG IR: the high IR quality (engine/platform.h); a device setting, not a sound's
+  P_LONG_IR_TAP,                               // its button: two taps turn it on (the first warns: CPU heavy), one turns it off
+  P_LONG_IR_INFO,                              // read-only: "Off · IRs up to 5 s", "CPU heavy · tap again", "On · IRs up to 20 s"
   P_PRESET_OPEN,                               // the PRESET popup's open flag (added by the layout's popup)
   P_COUNT
 };
@@ -101,6 +104,7 @@ struct Browser {
   LibEntry loaded, saved;
   bool loading = false, loaded_stereo = false;
   IRShape loaded_shape;                        // the shape of the IR in the engine
+  Quality loaded_quality;                      // and the quality it was prepared at (LONG IR)
   bool shape_valid = false;                    // false: nothing loaded (or the engine was rebuilt)
   std::string error;
   std::string armed_path;                      // DELETE: armed for this file until armed_until
@@ -160,6 +164,8 @@ struct Inst {
   int marq_sent = 0;                           // the scroll step the rows were last redrawn at (worker, under mu)
   std::string sonics;                          // the loaded IR's sonics, as words (under mu)
   int playhead_sent = 0, playhead_age = 0;     // the playhead as last reported (audio thread)
+  std::chrono::steady_clock::time_point long_armed_until;   // LONG IR: the first tap warned; a second before this turns it on
+  bool long_armed = false;                     // (under mu)
 };
 
 static float clamp01(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
@@ -214,6 +220,9 @@ static bool is_browser(int i) { return (i >= P_IR && i <= P_IR_BROWSE) || i == P
 static bool is_mp(int i) { return i >= P_MP_INFO && i <= P_MP_PHONE; }   // My Presets controls
 static bool is_menu(int i) { return i >= P_MENU && i <= P_ROW_LAST; }     // the list laid over the page (state, buttons, rows)
 static bool is_row(int i) { return i >= P_ROW1 && i <= P_ROW_LAST; }
+static bool is_long(int i) { return i >= P_LONG_IR && i <= P_LONG_IR_INFO; }   // LONG IR: the setting, its button, its line
+static bool long_ir_on(const Inst* w) { return platform::kGen2 || w->norm[P_LONG_IR] > 0.5f; }
+static Quality quality_of(const Inst* w) { return platform::quality(long_ir_on(w)); }
 
 static void apply_param(Inst* w, int i) {      // plain parameter -> engine (atomics)
   ReverbParams& e = w->eng->params;
@@ -375,15 +384,16 @@ static void load_ir(Inst* w) {
   std::unique_lock<std::mutex> lk(w->mu);
   Browser& b = w->ir;
   const IRShape shape = shape_of(w);
+  const Quality q = quality_of(w);
   if (b.want < 0 || b.want >= (int)b.lib.size()) { b.loading = false; return; }
   const LibEntry e = b.lib[b.want];
-  if (e.path == b.loaded.path && b.shape_valid && shape == b.loaded_shape) { b.loading = false; return; }
+  if (e.path == b.loaded.path && b.shape_valid && shape == b.loaded_shape && q == b.loaded_quality) { b.loading = false; return; }
   b.loading = true;
   const double rate = w->rate;
   w->update_display = 1;
   lk.unlock();
   std::string err;
-  std::unique_ptr<ReverbIR> r = ReverbIR::load(e.path, rate, shape, &err);
+  std::unique_ptr<ReverbIR> r = ReverbIR::load(e.path, rate, shape, &err, q);
   lk.lock();
   b.loading = false;
   if (!w->eng || w->rate != rate) return;
@@ -392,6 +402,7 @@ static void load_ir(Inst* w) {
     b.loaded = LibEntry();
     b.loaded.path = e.path;                    // don't retry a broken file in a loop
     b.loaded_shape = shape;
+    b.loaded_quality = q;
     b.shape_valid = true;
     w->eng->set_ir(nullptr);
     for (int c = 0; c < ReverbIR::kCols; c++) { w->wave[c] = 0; w->changed[P_WAVE0 + c] = 1; }
@@ -400,6 +411,7 @@ static void load_ir(Inst* w) {
     b.error.clear();
     b.loaded = e;
     b.loaded_shape = shape;
+    b.loaded_quality = q;
     b.shape_valid = true;
     b.loaded_stereo = r->stereo;
     for (int c = 0; c < ReverbIR::kCols; c++) { w->wave[c] = r->wave[c]; w->changed[P_WAVE0 + c] = 1; }
@@ -537,6 +549,7 @@ static void worker_main(Inst* w) {
       if (!w->ir.notice.empty() && now >= w->ir.notice_until) { w->ir.notice.clear(); w->update_display = 1; }
       if (!w->mp.armed_name.empty() && now >= w->mp.armed_until) { w->mp.armed_name.clear(); w->update_display = 1; }
       if (!w->mp.notice.empty() && now >= w->mp.notice_until) { w->mp.notice.clear(); w->update_display = 1; }
+      if (w->long_armed && now >= w->long_armed_until) { w->long_armed = false; w->changed[P_LONG_IR_INFO] = 1; w->update_display = 1; }
     }
     load_ir(w);
     std::lock_guard<std::mutex> lk(w->mu);
@@ -569,7 +582,7 @@ static void apply_preset(Inst* w, int k) {
   if (k == 0) {                                // Init: every setting at its default, no IR
     for (int i = 0; i < P_COUNT; i++)
       if (!is_browser(i) && !is_display(i) && !is_mp(i) && !PARAMS[i].momentary && i != P_PRESET && i != P_PRESET_OPEN &&
-          i != P_RESCAN && i != P_T3K_INFO && i != P_SOURCE && !is_menu(i)) {
+          i != P_RESCAN && i != P_T3K_INFO && i != P_SOURCE && !is_menu(i) && !is_long(i)) {
         w->norm[i] = def_norm(i); apply_param(w, i); w->changed[i] = 1;
       }
     std::lock_guard<std::mutex> lk(w->mu);
@@ -853,6 +866,28 @@ static void set_parameter(AEffect* e, int32_t i, float v) {
     return;
   }
   if (is_display(i)) return;                   // read-only: what the plugin shows
+  if (is_long(i)) {                            // LONG IR
+    if (i == P_LONG_IR_INFO) return;           // read-only
+    {
+      std::lock_guard<std::mutex> lk(w->mu);   // (kick() too: the worker reads work_req under mu)
+      const bool was = long_ir_on(w);
+      if (i == P_LONG_IR) {                      // set directly (a project, the host's parameter list): no warning
+        if (!platform::kGen2) w->norm[P_LONG_IR] = v >= 0.5f ? 1.0f : 0.0f;
+      } else if (v >= 0.5f && !platform::kGen2) {   // the button
+        const auto now = std::chrono::steady_clock::now();
+        if (w->norm[P_LONG_IR] > 0.5f) { w->norm[P_LONG_IR] = 0; w->long_armed = false; }   // off: one tap
+        else if (w->long_armed && now < w->long_armed_until) { w->norm[P_LONG_IR] = 1; w->long_armed = false; }
+        else { w->long_armed = true; w->long_armed_until = now + std::chrono::seconds(kArmSeconds); }   // warn first
+      }
+      if (long_ir_on(w) != was) {                // prepared again at the new quality (crossfaded in)
+        if (w->ir.want >= 0) w->ir.loading = true;
+        kick(w, false);
+      }
+      w->changed[P_LONG_IR] = 1; w->changed[P_LONG_IR_TAP] = 1; w->changed[P_LONG_IR_INFO] = 1;
+      w->update_display = 1;
+    }
+    return;
+  }
   if (is_mp(i)) { if (i != P_MP_INFO) set_mp_param(w, i, v); return; }
   if (is_menu(i)) { if (i != P_MENU && i != P_MENU_TITLE) set_menu_param(w, i, v); return; }
   if (i == P_PRESET) { apply_preset(w, (int)lroundf(v * kPresetCount)); return; }
@@ -958,6 +993,8 @@ static float get_parameter(AEffect* e, int32_t i) {
     return menu_row_on(w, i - P_ROW1) ? 1.0f : 0.0f;
   }
   if (is_mp(i)) return 0;
+  if (i == P_LONG_IR) return long_ir_on(w) ? 1.0f : 0.0f;
+  if (i == P_LONG_IR_TAP || i == P_LONG_IR_INFO) return 0;
   if (i == P_PLAYHEAD) return w->eng ? w->eng->playhead() / (float)ReverbEngine::kPlay : 0.0f;
   if (i == P_SONICS) return 0;
   if (is_display(i)) return w->wave[i - P_WAVE0] / 23.0f;
@@ -990,6 +1027,7 @@ static void notify(Inst* w) {                  // audio thread: report values th
       v = i == P_IR ? browser_norm(w->ir) : i == P_IR_SRC ? src_norm(w->ir) : menu_row_on(w, i - P_ROW1) ? 1.0f : 0.0f;
     }
     if (i == P_MENU) v = w->menu / 2.0f;
+    if (i == P_LONG_IR) v = long_ir_on(w) ? 1.0f : 0.0f;
     w->master(&w->fx, audioMasterAutomate, i, 0, nullptr, v);
   }
   if (disp) w->master(&w->fx, audioMasterUpdateDisplay, 0, 0, nullptr, 0);
@@ -1024,7 +1062,7 @@ static void copy_text(void* dst, const std::string& s, size_t limit) {
 }
 static size_t text_limit(int i) {
   return (i == P_IR || i == P_IR_INFO || i == P_IR_PACK || i == P_T3K_INFO || i == P_SONICS || i == P_MP_INFO ||
-          i == P_MENU_TITLE || is_row(i)) ? kTextLong : kText;
+          i == P_MENU_TITLE || is_row(i) || i == P_LONG_IR_INFO) ? kTextLong : kText;
 }
 static std::string gear_name(const std::string& g) {
   if (g == "space") return "Space";
@@ -1068,6 +1106,13 @@ static std::string display_of(Inst* w, int i) {
     return "IR: " + (p.ir_src == 0 ? factory_name(stem_of(p.ir_file)) : stem_of(p.ir_file));
   }
   if (i == P_MENU) return p.opts[std::max(0, std::min(2, w->menu.load()))];
+  if (i == P_LONG_IR_INFO) {
+    if (platform::kGen2) return "Gen 2 \xC2\xB7 always on";
+    std::lock_guard<std::mutex> lk(w->mu);
+    if (w->long_armed && std::chrono::steady_clock::now() < w->long_armed_until) return "CPU heavy \xC2\xB7 tap again";
+    return long_ir_on(w) ? "On \xC2\xB7 IRs up to 20 s" : "Off \xC2\xB7 IRs up to 5 s";
+  }
+  if (i == P_LONG_IR) return long_ir_on(w) ? "On" : "Off";
   if (i == P_MENU_TITLE || is_row(i)) {
     std::lock_guard<std::mutex> lk(w->mu);
     const int m = w->menu, sz = menu_page_size(m), n = menu_count(w, m);
@@ -1168,7 +1213,8 @@ static int get_chunk(Inst* w) {
   std::string s = "echo-vault=1\n";
   char buf[64];
   for (int i = 0; i < P_COUNT; i++) {
-    if (is_browser(i) || is_display(i) || is_mp(i) || is_menu(i) || PARAMS[i].momentary || i == P_T3K_INFO || PARAMS[i].popup_of >= 0) continue;
+    if (is_browser(i) || is_display(i) || is_mp(i) || is_menu(i) || PARAMS[i].momentary || i == P_T3K_INFO || PARAMS[i].popup_of >= 0 ||
+        i == P_LONG_IR_INFO) continue;
     snprintf(buf, sizeof buf, "%s=%.6g\n", PARAMS[i].key, real_of(i, w->norm[i]));
     s += buf;
   }
@@ -1206,7 +1252,7 @@ static bool set_chunk(Inst* w, const char* data, size_t len) {
     if (k == "mp_name") { mp_name = v; continue; }
     if (k == "mp_active") { mp_active = v == "1"; continue; }
     for (int i = 0; i < P_COUNT; i++) {
-      if (is_browser(i) || is_mp(i) || is_menu(i) || PARAMS[i].momentary || k != PARAMS[i].key) continue;
+      if (is_browser(i) || is_mp(i) || is_menu(i) || PARAMS[i].momentary || i == P_LONG_IR_INFO || k != PARAMS[i].key) continue;
       const param_t& p = PARAMS[i];
       float r = (float)atof(v.c_str());
       w->norm[i] = norm_of(i, r);
@@ -1265,7 +1311,8 @@ static intptr_t dispatcher(AEffect* e, int32_t op, int32_t idx, intptr_t v, void
     case effGetVendorVersion: return PLUG_VERSION;
     case effGetVstVersion: return 2400;
     // the display parameters (waveform, glow) are read-only: not automatable (what MPC showed working)
-    case effCanBeAutomated: return idx >= 0 && idx < P_COUNT && !is_display(idx) && idx != P_PRESET_OPEN && idx != P_MENU && idx != P_MENU_TITLE;
+    case effCanBeAutomated: return idx >= 0 && idx < P_COUNT && !is_display(idx) && idx != P_PRESET_OPEN && idx != P_MENU && idx != P_MENU_TITLE &&
+                                   !is_long(idx);   // (LONG IR is a device setting, never automation)
     case effGetParamName:
       if (idx >= 0 && idx < P_COUNT) { strncpy((char*)p, PARAMS[idx].name, 31); ((char*)p)[31] = 0; }
       return 1;

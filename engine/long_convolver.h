@@ -8,7 +8,7 @@
  *   tail  taps [2W, N):  uniformly partitioned in W-sample blocks (FFT 2W). Output block m of the tail needs input
  *                        only up to block m-2, which is complete one W-period before block m starts, so the tail
  *                        is computed one block ahead, with a whole W-period (W = 2048: 46 ms) to do it in.
- * Gen 2 (platform.h kFarBlock) adds a third, far stage for long IRs: taps [2F, N) in F-sample blocks (F = 16384, its own
+ * A third, far stage for long IRs (platform.h kFarBlock, both builds since 1.3.0): taps [2F, N) in F-sample blocks (F = 16384, its own
  * worker), and the 2048 stage then covers [2W, 2F). Each stage keeps the same rule (taps from twice its block on: a
  * whole block of time to compute), so the far stage has 371 ms per job; it moves most of a 20 s IR's work into big,
  * cheap FFTs (about 1/8 the memory traffic of 2048-sample partitions).

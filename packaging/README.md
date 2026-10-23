@@ -3,7 +3,7 @@
 *Real rooms, halls and echoes from impulse responses: the space for your NAM amp.*
 
 A convolution reverb for Gen 1 Akai Force and MPC units: load impulse responses of real rooms, halls, catacombs,
-plates and outboard echoes (up to 5 seconds, mono or stereo) and play through them, with a touchscreen page to browse
+plates and outboard echoes (up to 5 seconds, or 20 with LONG IR; mono or stereo) and play through them, with a touchscreen page to browse
 the IRs on your cards, make a room bigger or smaller (Decay), keep your sounds (My Presets), and download more IRs
 from TONE3000 from your phone. Version @VERSION@.
 Not affiliated with or endorsed by TONE3000 or Akai Professional.
@@ -34,7 +34,7 @@ plugin on your tracks.
 The plugin looks for folders named `reverbs` (any capitalisation) inside its own folder and anywhere on your cards
 and the internal drive, up to four folders deep. Subfolders are packs. After adding files, press RESCAN.
 - Mono or stereo WAV; 16/24/32-bit PCM, 32/64-bit float, also "extensible" WAVs; any sample rate.
-- Up to 5 seconds are used; longer IRs are cut to 5 s (faded out). LENGTH shortens them further.
+- Up to 5 seconds are used (20 with LONG IR on, see The page); longer IRs are cut there (faded out). END shortens them further.
 - Stereo IRs (most reverb IRs) take the mono sum of the input and give their own left and right; mono IRs process
   left and right separately, keeping your stereo image.
 
@@ -70,13 +70,18 @@ what they do. In the background, a doorway at the far end of an empty room.
   slow pads, and follows MIDI note-ons when the MPC sends MIDI to the plugin.
   - **trim**: Start and End. **fade**: Fade in, Fade out. **time**: Stretch (50-200%: longer and lower, or shorter
     and higher), **Decay** (50-300%: how long the room rings, band by band, without changing its pitch or colour;
-    100% = as recorded; still within 5 s) and Reverse (below Decay: the IR backwards, it swells into the sound).
+    100% = as recorded; within 5 s, or 20 s with LONG IR) and Reverse (below Decay: the IR backwards, it swells into the sound).
     Prepared in the background, crossfaded in.
 - **space**: **Mix** (the big one), Pre-delay (0-250 ms), Feedback (0-100%: the reverb fed back into itself for
   longer, building tails; from about 70% a long ring held at about the level you play, fading out over 30-40 s once
   you stop; it never runs away, and each repeat is a little darker, like a tape echo). **tone**: Low cut, High cut
   (on the reverb only; each octave gets the same turn of the knob), Width (0-200%). **out**: Output. Mix, Width,
   Output and Pre-delay glide to new values (no clicks).
+- **LONG IR** (lower right, under Reverse): IRs up to 20 s instead of 5, with higher-quality IR preparation (band-limited
+  resampling for other sample rates and Stretch, finer Decay analysis). It is CPU heavy, so it takes two taps: the first
+  only warns ("CPU heavy · tap again"), a second within 4 seconds turns it on; one tap turns it off. A project remembers
+  it; presets and Init leave it as it is. Long IRs then use more of the second core and more memory, and take longer to
+  prepare after each change.
 
 ## My Presets
 - Tap **MY PRESETS**: your presets, four to a page, over the browser (PREV / NEXT / CLOSE). **SAVE** keeps the
@@ -98,7 +103,7 @@ The page also has a **My Presets: name & save** button (see My Presets).
 ## Notes
 - Each plugin has its own page port (this one 8191; NAM A2 uses 8091), and a second instance takes the next free port
   (8191+1, ...), so several can be open at once: the TONE3000 line always shows the address to open.
-- **CPU** (a Force, 5 s stereo IR): about 3.5% of an audio block on MPC's audio thread (at most ~7%), plus about 8%
+- **CPU** (a Force, 5 s stereo IR, measured with 1.2.0): about 3.5% of an audio block on MPC's audio thread (at most ~7%), plus about 8%
   of another core for the IR's tail. Shorter IRs and LENGTH cost less on that core.
 - If the second core is ever too busy, a tail block arrives late: the detail line then says "Tail late ...".
 - Latency: none (the first part of the IR runs on the audio thread, in MPC's own blocks).

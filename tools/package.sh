@@ -60,10 +60,10 @@ rm -rf dist/stage
 # 3. Gen 2 (aarch64): the same plugin folder with the 64-bit .so and the Gen 2 limits (engine/platform.h)
 if [ -f "$B/aarch64/liminal_hz.so" ]; then
   mkdir -p dist/work64
-  sed -e 's/up to 5 seconds are used in full; longer ones are cut to 5 s/up to 20 seconds are used in full; longer ones are cut to 20 s/' \
+  sed -e 's/up to 5 seconds are used in full (20 seconds with LONG IR on)/up to 20 seconds are used in full (Gen 2: LONG IR is always on)/' \
       packaging/reverbs-README.txt > dist/work64/reverbs-README.txt
   grep -q "20 seconds" dist/work64/reverbs-README.txt || { echo "error: reverbs-README.txt changed; update the Gen 2 sed" >&2; exit 1; }
-  ABOUT64="$(python3 -c "import json;print(json.load(open('vst/vst.json'))['about'].replace('up to 5 seconds', 'up to 20 seconds'))") Gen 2 build (RK3588, 64-bit)."
+  ABOUT64="$(python3 -c "import json;print(json.load(open('vst/vst.json'))['about'].replace('up to 5 seconds (20 with LONG IR on)', 'up to 20 seconds'))") Gen 2 build (RK3588, 64-bit)."
   A64=()
   for ((i = 0; i < ${#REL_ARGS[@]}; i++)); do
     case "${REL_ARGS[$i]}" in

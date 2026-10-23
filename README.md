@@ -5,9 +5,9 @@
 *Real rooms, halls and echoes from impulse responses: the space for your NAM amp.*
 
 A convolution reverb for **Akai MPC and Force, Gen 1 and Gen 2**: play through impulse responses of real rooms, halls,
-strange spaces and echoes, mono or stereo: up to 5 seconds on Gen 1 (Force, MPC Live/One/X/Key), up to **20 seconds**
-on Gen 2 (MPC Live III and other RK3588 units, 64-bit), which also gets finer processing (see
-[Gen 2](#gen-2-rk3588-64-bit)). Make a room bigger or smaller with **Decay**, stretch its tail
+strange spaces and echoes, mono or stereo: up to 5 seconds on Gen 1 (Force, MPC Live/One/X/Key), or **20 seconds**
+with its **LONG IR** button, and always 20 seconds on Gen 2 (MPC Live III and other RK3588 units, 64-bit) (see
+[Gen 2 and LONG IR](#gen-2-rk3588-64-bit)). Make a room bigger or smaller with **Decay**, stretch its tail
 with **Feedback**, and keep your sounds as **My Presets**. It comes with 14 factory spaces, browses your own IRs, and
 downloads more from TONE3000 from your phone. A companion to [Liminal Amp](https://github.com/gmorb/mpc-vst-liminal-amp).
 Not affiliated with or endorsed by TONE3000 or Akai.
@@ -63,8 +63,11 @@ The shape display shows what the IR sounds like, after your shaping:
 - **Decay** changes how long the room rings without changing its pitch or its colour: each frequency band of the IR
   is measured and made to fade faster or slower, and where a band's real tail ends it is continued in kind. A small
   dark room stays a dark room, just bigger (Backrooms at 300% rings about 2.5x as long). At 100% the IR plays exactly
-  as recorded. IRs are capped at 5 s on Gen 1 (for the RK3288's CPU), so long IRs gain less there; on Gen 2 the cap is
-  20 s, so a 5 s room at 300% rings its full ~15 s. Feedback can take the tail further.
+  as recorded. IRs are capped at 5 s on Gen 1 (for the RK3288's CPU), so long IRs gain less there; with LONG IR on,
+  and always on Gen 2, the cap is 20 s, so a 5 s room at 300% rings its full ~15 s. Feedback can take the tail further.
+- **LONG IR** (lower right, under Reverse; Gen 1): 20 s IRs and the high-quality IR preparation of Gen 2. CPU heavy, so
+  two taps: the first warns ("CPU heavy · tap again"), the second (within 4 s) turns it on; one tap turns it off. A
+  project remembers it; presets and Init leave it alone. On Gen 2 it reads "Gen 2 · always on".
 
 Shaping happens in the background and crossfades in. Mix, Width, Output and Pre-delay glide to a new value, so moving
 them never clicks.
@@ -119,22 +122,22 @@ packs (subfolders) if you like; switch to **MY IRS**. The plugin remembers where
 
 Gen 2 units (MPC Live III and kin) run a 64-bit system that can't load Gen 1's 32-bit plugins, so each release has two
 zips: `Liminal-Hz-<version>-mpc-armv7.zip` (Gen 1) and `Liminal-Hz-<version>-mpc-aarch64.zip` (Gen 2). They are the
-same plugin, with the same page, parameters and presets, so a project moves between generations (a Gen 2 project with
-a 12 s IR plays it cut to 5 s on Gen 1). The Gen 2 build uses the RK3588's headroom where the Gen 1 build had to save:
+same plugin, with the same page, parameters and presets, so a project moves between generations.
 
-| | Gen 1 (RK3288) | Gen 2 (RK3588) |
-|---|---|---|
-| IR length used | 5 s | **20 s** |
-| Decay 300% on a 5 s room | stops at 5 s | **rings ~15 s** |
-| Convolution | head (128) + tail (2048, one worker) | head (128) + 2048 + **far stage (16384, its own worker)** |
-| IR resampling (other rates, Stretch) | cubic: -1.9 dB at 17 kHz, Stretch < 100% aliases | **windowed sinc**: flat, aliases -77 dB |
-| Decay analysis | STFT 2048 (21.5 Hz bins) | **STFT 4096 (10.8 Hz bins)**: real bass resolution |
-| FFT | scalar | **NEON** |
+| | Gen 1 | Gen 1 with LONG IR | Gen 2 |
+|---|---|---|---|
+| IR length used | 5 s | **20 s** | **20 s** |
+| Decay 300% on a 5 s room | stops at 5 s | **rings ~15 s** | **rings ~15 s** |
+| IR resampling (other rates, Stretch) | cubic: -1.9 dB at 17 kHz, Stretch < 100% aliases | **windowed sinc**: flat, aliases -77 dB | **windowed sinc** |
+| Decay analysis | STFT 2048 (21.5 Hz bins) | **STFT 4096 (10.8 Hz bins)** | **STFT 4096** |
+| Convolution | head (128) + 2048 + far stage (16384) | same | same |
+| FFT | NEON | NEON | NEON |
 
-The audio thread's cost doesn't grow with IR length on either: it always runs the same first 93 ms of the IR (zero
-latency); everything later runs on worker threads. Tested on an MPC Live III (MPC OS 3.9.1) and,
-for the Gen 1 build, on an Akai Force (3.9.1). As for every Gen 2 plugin today, installing needs root access on the unit
-(mpc-vst-plugins docs/GEN2.md).
+LONG IR is off by default on Gen 1 because 20 s IRs use more of the second core and more memory, and take longer to
+prepare after each change. The convolution and the FFT are the same everywhere since 1.3.0 (both made Gen 1 cheaper).
+The audio thread's cost doesn't grow with IR length: it always runs the same first 93 ms of the IR (zero latency);
+everything later runs on worker threads. 1.2.0 was tested on an MPC Live III and an Akai Force (MPC OS 3.9.1). As for
+every Gen 2 plugin today, installing on Gen 2 needs root access on the unit (mpc-vst-plugins docs/GEN2.md).
 
 ## Install
 
@@ -154,6 +157,8 @@ method, as NAM A2's cab IRs) it would cost far more than a whole audio block on 
 
 Measured on an Akai Force (RK3288), real time, % of one 2.9 ms audio block:
 
+Measured with 1.2.0 (before the far stage and NEON came to Gen 1):
+
 | 5 s stereo IR | audio thread mean / max | second thread | late blocks |
 |---|---|---|---|
 | all on the audio thread, 128-sample blocks | too heavy to run | | |
@@ -162,7 +167,15 @@ Measured on an Akai Force (RK3288), real time, % of one 2.9 ms audio block:
 
 Every method equals direct convolution to float precision (`tools/bench_reverb.cpp --check`, PC and ARM).
 
-On Gen 2, IRs past 0.74 s get a third stage: taps from 32768 on run in 16384-sample blocks on their own worker (each
+1.3.0 on a PC (`tools/bench_reverb --quick`, real time; the worker's load in % of one core, stereo IRs, 0 late blocks):
+
+| IR | tail in 2048 blocks only (Gen 1 up to 1.2.0) | with the far stage (1.3.0) |
+|---|---|---|
+| 5 s | 1.9% | **0.7%** |
+| 10 s | 3.3% | **0.8%** |
+| 20 s (LONG IR) | 7.0% | **1.3%** |
+
+Since 1.3.0 (on Gen 2 since 1.2.0), IRs past 0.74 s get a third stage: taps from 32768 on run in 16384-sample blocks on their own worker (each
 job has 371 ms to finish). A 20 s IR then costs the audio thread what a 5 s one does, and the 2048-sample worker's job
 stays the size it is on Gen 1; the far worker moves most of a long IR's work into a few large, cheap FFTs. Decay,
 Feedback's analysis and the playhead's note detection add little on top: the first two run when an IR is prepared,

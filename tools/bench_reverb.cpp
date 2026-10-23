@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 the mpc-vst-liminal-hz contributors
 // bench_reverb.cpp -- long-IR convolution on MPC's audio clock (44.1 kHz, 128-frame blocks, paced in real time).
-//   irrev-bench [-v] [--quick]   IR lengths 1, 2, 3, 5 s (and 10, 20 s built with -DLIMINAL_GEN2), mono and stereo, three methods (see long_convolver.h):
+//   irrev-bench [-v] [--quick]   IR lengths 1, 2, 3, 5, 10, 20 s, mono and stereo, four methods (2-stage: the tail in
+//                                2048-sample blocks only, Gen 1 before 1.3.0; 3-stage: plus the far stage, since 1.3.0), three methods (see long_convolver.h):
 //                                audio-thread cost per block (mean / p99 / max, % of 2902 us), the worker thread's
 //                                load (% of one core) and missed tail deadlines
 //   irrev-bench --check          the convolver against direct convolution (all three methods)
@@ -73,10 +74,10 @@ static int check() {
 
 struct Result { double mean, p99, mx, worker; long misses; };
 
-static Result run(double secs_ir, int chans, LongConvolver::Mode mode, double run_s) {
+static Result run(double secs_ir, int chans, LongConvolver::Mode mode, double run_s, int far = -1) {
   const size_t n = (size_t)(secs_ir * RATE);
   std::vector<std::unique_ptr<LongConvolver>> c;
-  for (int ch = 0; ch < chans; ch++) c.emplace_back(new LongConvolver(make_ir(n, 11 + ch), mode));
+  for (int ch = 0; ch < chans; ch++) c.emplace_back(new LongConvolver(make_ir(n, 11 + ch), mode, far));
   std::mt19937 r(7); std::normal_distribution<float> g(0.f, 0.1f);
   std::vector<float> in(B), out(B);
   std::vector<double> t;
@@ -112,19 +113,22 @@ int main(int argc, char** argv) {
   printf("Liminal Hz convolution on MPC's clock: 44.1 kHz, 128-frame blocks paced in real time (2902 us each).\n");
   printf("audio thread: %% of one block (mean / p99 / max); worker: %% of one core; misses: tail blocks late\n\n");
   printf("%-5s %-6s %-9s %8s %8s %8s %9s %7s\n", "IR", "chans", "method", "mean", "p99", "max", "worker", "misses");
-  std::vector<double> lens{1.0, 2.0, 3.0, 5.0};
-  if (platform::kMaxSeconds > 5.0) { lens.push_back(10.0); lens.push_back(platform::kMaxSeconds); }
-  for (double secs : lens)
+  // methods: uniform (no split), inline (tail on the audio thread), threaded with the 2048 tail only (Gen 1 before 1.3.0)
+  // and threaded with the far stage too (both builds since 1.3.0)
+  struct M { const char* name; LongConvolver::Mode mode; int far; };
+  const M methods[] = {{"uniform", LongConvolver::Uniform, 0}, {"inline", LongConvolver::Inline, 0},
+                       {"2-stage", LongConvolver::Threaded, 0}, {"3-stage", LongConvolver::Threaded, platform::kFarBlock}};
+  for (double secs : {1.0, 2.0, 3.0, 5.0, 10.0, 20.0})
     for (int ch : {1, 2})
-      for (auto mode : {LongConvolver::Uniform, LongConvolver::Inline, LongConvolver::Threaded}) {
-        if (mode == LongConvolver::Uniform && secs * ch > 3.0) {       // would take far longer than real time
-          printf("%-5.0fs %-6s %-9s %8s\n", secs, ch == 1 ? "mono" : "stereo", "uniform", "(skipped: too heavy)");
+      for (const M& m : methods) {
+        if (m.mode == LongConvolver::Uniform && secs * ch > 3.0) {       // would take far longer than real time
+          printf("%-5.0fs %-6s %-9s %8s\n", secs, ch == 1 ? "mono" : "stereo", m.name, "(skipped: too heavy)");
           continue;
         }
-        const char* name = mode == LongConvolver::Uniform ? "uniform" : mode == LongConvolver::Inline ? "inline" : "threaded";
-        if (verbose) printf("  running %.0f s %s %s...\n", secs, ch == 1 ? "mono" : "stereo", name);
-        Result r = run(secs, ch, mode, run_s);
-        printf("%-5.0fs %-6s %-9s %7.1f%% %7.1f%% %7.1f%% %8.1f%% %7ld\n", secs, ch == 1 ? "mono" : "stereo", name,
+        if (m.mode == LongConvolver::Inline && secs > 5.0) continue;      // (the point is made at 5 s)
+        if (verbose) printf("  running %.0f s %s %s...\n", secs, ch == 1 ? "mono" : "stereo", m.name);
+        Result r = run(secs, ch, m.mode, run_s, m.far);
+        printf("%-5.0fs %-6s %-9s %7.1f%% %7.1f%% %7.1f%% %8.1f%% %7ld\n", secs, ch == 1 ? "mono" : "stereo", m.name,
                r.mean, r.p99, r.mx, r.worker, r.misses);
       }
   printf("done\n");

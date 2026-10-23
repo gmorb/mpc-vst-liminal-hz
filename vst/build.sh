@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 the mpc-vst-liminal-hz contributors
 # Build Liminal Hz.
-#   vst/build.sh            the device plugin: armhf (Zig, glibc 2.36, Cortex-A17 NEON) + its page (MPC skin)
+#   vst/build.sh            the Gen 1 device plugin: armhf (Zig, glibc 2.36, Cortex-A17, NEON FFT) + its page (MPC skin)
 #   vst/build.sh gen2       the Gen 2 device plugin: aarch64 (Zig, glibc 2.36, RK3588's A76/A55: ARMv8.2-A, NEON FFT)
-#                           with the Gen 2 limits (engine/platform.h: 20 s IRs, a far convolution stage, sinc resampling)
+#                           with the high IR quality always on (engine/platform.h: 20 s IRs, sinc resampling)
 #   vst/build.sh host       the same plugin for this PC (tests); HOST_FLAGS adds flags (e.g. sanitizers)
 #   vst/build.sh host-gen2  the PC plugin with the Gen 2 limits (tests: tools/test.sh with GEN2=1)
 # Needs: mpc-vst-plugins in $MPC_VST (default ../mpc-vst-plugins), python3 + Pillow, Eigen 3.4 headers
@@ -75,7 +75,8 @@ else
     mkdir -p "$B/aarch64"; cp "$B/device-aarch64/liminal_hz.so" "$B/aarch64/liminal_hz.so"
     SO="$B/aarch64/liminal_hz.so"; WANT_ARCH="ARM aarch64"; CEIL=GLIBC_2.39
   else
-    TGT="-target arm-linux-gnueabihf.2.36 -mcpu=cortex_a17"
+    # PFFFT_ENABLE_NEON: PFFFT's NEON path (before 1.3.0 this build ran PFFFT scalar: the flag was never set)
+    TGT="-target arm-linux-gnueabihf.2.36 -mcpu=cortex_a17 -DPFFFT_ENABLE_NEON"
     build "$B/device" "$ZIG cc $TGT" "$ZIG c++ $TGT" "" "-Wl,-s -Wl,--no-undefined -lpthread"
     cp "$B/device/liminal_hz.so" "$B/liminal_hz.so"
     SO="$B/liminal_hz.so"; WANT_ARCH="ARM, EABI5"; CEIL=GLIBC_2.36

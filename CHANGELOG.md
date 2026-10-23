@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.3.0
+
+### New
+- **LONG IR** (Gen 1): a button under Reverse that brings Gen 2's IR quality to the Force and Gen 1 MPCs: IRs up to
+  **20 s** instead of 5 (so Decay 300% on a 5 s room rings its full ~15 s), band-limited sinc resampling for IRs at other
+  sample rates and for Stretch (no dulled top octave, no alias tones), and Decay analysed at twice the frequency detail.
+  It is CPU heavy, so it takes two taps: the first only warns ("CPU heavy · tap again"), a second within 4 s turns it on;
+  one tap turns it off. It's a device setting: a project remembers it, presets and Init leave it alone, and it is never
+  automation. On Gen 2 it reads "Gen 2 · always on".
+
+### Changed
+- **Gen 1 is cheaper to run, with LONG IR off too:**
+  - the third ("far") convolution stage, until now Gen 2 only, is on in both builds. Past 0.74 s an IR runs in
+    16384-sample blocks on its own worker, so a 5 s IR needs about a quarter of the partitions it did;
+  - the FFT runs PFFFT's NEON code. Until now the Gen 1 build ran PFFFT's scalar code, because the build flag that
+    enables NEON was never set.
+  Both give the same result as before (equal to direct convolution, `tools/bench_reverb --check`); only the CPU cost drops.
+  On a PC (`tools/bench_reverb`, real time, 5 s stereo IR) the worker's load falls from 1.9% to 0.7% of a core, and a
+  20 s IR with LONG IR on costs 1.3%: less than a 5 s IR did in 1.2.0. The audio thread's cost is unchanged. Not yet
+  measured on a Force (docs/HANDOFF.md lists what to measure).
+- **Faster re-preparation:** the resampled IR is kept, so turning Start, End, the fades, Decay or Reverse no longer
+  resamples the file again (only a new file, Stretch or LONG IR do). With LONG IR on, a 20 s 48 kHz IR re-prepares after
+  End, a fade or Reverse in about 0.12 s instead of about 1 s on a PC.
+- `engine/platform.h`: the IR quality (`Quality`: length cap, sinc, Decay FFT) is now a runtime setting instead of
+  build constants; `LIMINAL_GEN2` makes the high quality the only one.
+- Tests: the high-quality tests run in both builds; `ARM=1` now also runs the convolution check and the engine tests
+  as armv7 programs (NEON) under qemu-arm; plugin tests for LONG IR's two taps, its time-out, projects, Init and presets.
+
 ## 1.2.0
 
 ### New
