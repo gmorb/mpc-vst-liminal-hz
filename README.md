@@ -21,7 +21,8 @@ One page, made for the MPC's touchscreen, with nothing hidden on other tabs:
   beside it; the IR in use with **◀ ▶** to step through the list, its pack and details; **PREV PACK / NEXT PACK** and
   **DELETE** (for your own IRs: it asks twice); and the TONE3000 strip with **BROWSE** and its status line.
 - **Right, the shape** of the sound, and the shaping knobs: **trim**, **fade** and **time** (Stretch, Decay, Reverse).
-- **Below**, the mix controls: **space**, **tone** and **out**.
+- **Below**, the mix controls: **space**, **tone** and **out**; in the corner, **LONG IR** and its status line (20 s IRs
+  on Gen 1: it asks twice, as it is CPU heavy).
 
 Behind it all, a doorway at the far end of an empty room.
 
