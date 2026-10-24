@@ -23,6 +23,7 @@ ROLES = [  # (definition key prefix, label name, height, colour) -- large: MPC d
     ("shRow_", "Value", 30.0, IVORY),               # a list row (an IR, a saved preset)
     ("shReadout_226x36", "Value", 28.0, GREY),      # the list's title ("IRs 7-12 of 83")
     ("shReadout_520x36", "Value", 27.0, GREY),      # My Presets' status line
+    ("shReadout_236x34", "Value", 26.0, GREY),      # LONG IR's status line ("Off · IRs up to 5 s")
 ]
 
 

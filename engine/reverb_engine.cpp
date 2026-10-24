@@ -6,6 +6,7 @@
 #include <complex>
 #include <random>
 #include <cstring>
+#include <mutex>
 #include "Resample.h"
 #include "pffft.h"
 #include "wav_reader.h"
@@ -108,8 +109,9 @@ static std::string describe(const std::vector<std::vector<float>>& h, double rat
 // so it decays in m x T. Lengthening (m > 1): where the band's real tail reaches its noise floor (or the file ends) it
 // is continued with noise of the same spectrum, decaying at the new rate (random phase: a tail, not a loop). Done on
 // an STFT (2048 / hop 512, sqrt-Hann). Returns the new length; m == 1 is never called.
-static size_t decay_reshape(std::vector<std::vector<float>>& h, double rate, double m, size_t max_len, std::mt19937& rng) {
-  const int N = platform::kDecayFFT, H = platform::kDecayHop, K = N / 2 + 1;   // (2048 on Gen 1, 4096 on Gen 2; hop 512)
+static size_t decay_reshape(std::vector<std::vector<float>>& h, double rate, double m, size_t max_len, std::mt19937& rng,
+                            int fft) {
+  const int N = fft, H = platform::kDecayHop, K = N / 2 + 1;   // (2048 standard, 4096 high quality; hop 512)
   const float ola = (float)N / (2.0f * H);                  // sqrt-Hann both ways: the windows' product sums to N / 2H
   // frames of random phase add in power, not amplitude: sqrt(3N / 8H) against a coherent frame's N / 2H
   const float lift = ola / std::sqrt(3.0f * N / (8.0f * H));
@@ -203,12 +205,12 @@ static size_t decay_reshape(std::vector<std::vector<float>>& h, double rate, dou
   return out_len;
 }
 
-// ---- Gen 2: band-limited resampling (windowed sinc), off the audio thread ------------------------------------------------
+// ---- high quality (LONG IR, and Gen 2): band-limited resampling (windowed sinc), off the audio thread ------------------------------------------------
 // Output sample j is the input at time j * rate / target (sample 0 at time 0, as ResampleCubic on the zero-padded input
 // gives, and the same count: ceil(n * target / rate)). Kaiser-windowed sinc, 64 zero crossings each side, beta 9.6
 // (about -96 dB stopband); when the result has the lower rate (Stretch below 100%, or a 96 kHz IR) the sinc's cutoff
-// follows it (0.97 x its Nyquist), so nothing folds back. Cubic, on Gen 1, has neither: it dulls the top octave a little
-// and lets a shortened IR alias.
+// follows it (0.97 x its Nyquist), so nothing folds back. Cubic (standard quality) has neither: it dulls the top octave
+// a little and lets a shortened IR alias.
 static double bessel_i0(double x) {
   double s = 1, t = 1;
   for (int k = 1; k < 40; k++) { t *= (x / (2 * k)) * (x / (2 * k)); s += t; if (t < 1e-12 * s) break; }
@@ -248,18 +250,48 @@ static void resample_sinc(const std::vector<float>& in, double rate, double targ
   }
 }
 
+// The last resampling, kept: turning Start, End, the fades, Decay or Reverse prepares the IR again from the same
+// resampled channels (only the file, its rate, Stretch and the quality change them). With LONG IR's sinc this saves most
+// of a preparation (a 20 s 48 kHz stereo IR: about 1 s on a PC, several on a Force). One entry, shared by every
+// instance (preparations run on each instance's worker thread, so it is locked); the key is the content itself.
+namespace {
+struct ResampleCache {
+  std::mutex mu;
+  uint64_t key = 0;
+  bool valid = false;
+  std::vector<std::vector<float>> out;
+};
+ResampleCache& resample_cache() { static ResampleCache c; return c; }
+uint64_t resample_key(const std::vector<std::vector<float>>& ch, size_t nch, double rate, double target, const Quality& q) {
+  uint64_t h = 1469598103934665603ull;                     // FNV-1a over the samples and the settings
+  auto mix = [&h](const void* p, size_t n) { const unsigned char* b = (const unsigned char*)p; for (size_t i = 0; i < n; i++) { h ^= b[i]; h *= 1099511628211ull; } };
+  mix(&rate, sizeof rate); mix(&target, sizeof target); mix(&q.sinc, sizeof q.sinc); mix(&q.max_seconds, sizeof q.max_seconds);
+  for (size_t c = 0; c < nch; c++) { const size_t n = ch[c].size(); mix(&n, sizeof n); mix(ch[c].data(), n * sizeof(float)); }
+  return h;
+}
+}  // namespace
+
 std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& channels, double rate, double host_rate,
-                                         const IRShape& shape, std::string* err, LongConvolver::Mode mode) {
+                                         const IRShape& shape, std::string* err, LongConvolver::Mode mode,
+                                         const Quality& q) {
   if (channels.empty() || channels[0].empty() || rate <= 0 || host_rate <= 0) { if (err) *err = "Empty IR"; return nullptr; }
   const size_t nch = std::min<size_t>(2, channels.size());
   const double stretch = std::min(2.0, std::max(0.5, shape.stretch));
   const double target = host_rate * stretch;               // stretch: resampled for a longer (lower) or shorter IR
   std::vector<std::vector<float>> h(nch);
-  for (size_t c = 0; c < nch; c++) {                       // to the host rate: cubic, zero-padded (as NAM's cab IRs)
+  const bool resample = rate != target;
+  const uint64_t rkey = resample ? resample_key(channels, nch, rate, target, q) : 0;
+  bool cached = false;
+  if (resample) {
+    ResampleCache& rc = resample_cache();
+    std::lock_guard<std::mutex> lk(rc.mu);
+    if (rc.valid && rc.key == rkey && rc.out.size() == nch) { h = rc.out; cached = true; }
+  }
+  for (size_t c = 0; c < nch && !cached; c++) {           // to the host rate: cubic, zero-padded (as NAM's cab IRs)
     if (rate == target) { h[c] = channels[c]; continue; }
-    if (platform::kSincResample) {                          // Gen 2: band-limited (above)
+    if (q.sinc) {                                           // high quality: band-limited (above)
       // (only the part that can survive the cap is resampled: a long file costs no more than a 20 s one)
-      const size_t keep = std::min(channels[c].size(), (size_t)std::ceil((kMaxSeconds + 1.0) * rate / stretch) + 256);
+      const size_t keep = std::min(channels[c].size(), (size_t)std::ceil((q.max_seconds + 1.0) * rate / stretch) + 256);
       std::vector<float> src(channels[c].begin(), channels[c].begin() + keep);
       resample_sinc(src, rate, target, h[c]);
       continue;
@@ -268,9 +300,14 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
     memcpy(padded.data() + 1, channels[c].data(), channels[c].size() * sizeof(float));
     dsp::ResampleCubic<float>(padded, rate, target, 0.0, h[c]);
   }
+  if (resample && !cached) {
+    ResampleCache& rc = resample_cache();
+    std::lock_guard<std::mutex> lk(rc.mu);
+    rc.out = h; rc.key = rkey; rc.valid = true;
+  }
   size_t n = h[0].size();
   for (auto& v : h) n = std::min(n, v.size());
-  const size_t cap = (size_t)(kMaxSeconds * host_rate);
+  const size_t cap = (size_t)(q.max_seconds * host_rate);
   double decay_level = 1.0;                                // Decay: the early part keeps its level, the tail adds (or takes)
   const double dm = std::min(3.0, std::max(0.5, shape.decay));
   if (dm != 1.0) {
@@ -279,12 +316,12 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
     auto energy = [&](size_t upto) { double e = 0; for (auto& v : h) for (size_t i = 0; i < std::min(upto, v.size()); i++) e += (double)v[i] * v[i]; return e; };
     const double e0 = energy(cap);
     std::mt19937 rng(12345);                               // (the same continuation every time the IR is prepared)
-    n = decay_reshape(h, host_rate, dm, cap, rng);
+    n = decay_reshape(h, host_rate, dm, cap, rng, q.decay_fft);
     const double e1 = energy(cap);
     // half the tail's energy change, in dB: a longer decay is a little louder, as a bigger room is (+3 dB at 300%)
     if (e0 > 1e-20 && e1 > 1e-20) decay_level = std::min(1.5, std::max(0.5, std::pow(e1 / e0, 0.25)));
   }
-  n = std::min(n, cap);                                    // the cap (5 s Gen 1, 20 s Gen 2; after stretch: it's about CPU)
+  n = std::min(n, cap);                                    // the cap (5 s, or 20 s at high quality; after stretch: it's about CPU)
   for (auto& v : h) v.resize(n, 0.0f);
   if (shape.reverse) for (auto& v : h) std::reverse(v.begin(), v.end());
   // trim: [a, b) of the capped IR, at least 128 samples
@@ -367,10 +404,10 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
 }
 
 std::unique_ptr<ReverbIR> ReverbIR::load(const std::string& path, double host_rate, const IRShape& shape,
-                                         std::string* err) {
+                                         std::string* err, const Quality& q) {
   WavData w;
   if (!read_wav(path, &w, err)) return nullptr;
-  return make(w.channels, w.rate, host_rate, shape, err);
+  return make(w.channels, w.rate, host_rate, shape, err, LongConvolver::Threaded, q);
 }
 
 // ------------------------------------------------------------------------------------------------ ReverbEngine

@@ -245,3 +245,23 @@ display, the controls, factory presets, install; then the CPU design, build and 
 - Tests: `GEN2=1 tools/test.sh` and `AARCH64=1` (qemu-aarch64; needs libc6-arm64-cross). Device: 1.2.0
   tested by the user on an MPC Live III (Gen 2) and an Akai Force (Gen 1), both MPC OS 3.9.1, 2026-10-12 (tested.json).
   Not yet measured there: `bench_reverb` built for aarch64 (worker load and misses at 20 s stereo).
+
+## LONG IR, and Gen 2's engine on Gen 1 (1.3.0; offline only so far)
+- `engine/platform.h`: `Quality` {max_seconds, sinc, decay_fft} is a runtime setting. standard = 5 s, cubic, 2048;
+  high = 20 s, sinc, 4096. Gen 1: standard unless the LONG IR parameter is on; Gen 2 (`LIMINAL_GEN2`): always high.
+  `ReverbIR::make/load` take the Quality; `Browser::loaded_quality` makes a change prepare the IR again (crossfaded in).
+- Both builds now always have the far convolution stage (`platform::kFarBlock` 16384) and PFFFT NEON
+  (`-DPFFFT_ENABLE_NEON` in vst/build.sh's armv7 target too). Before 1.3.0 the Gen 1 build ran PFFFT scalar.
+- Parameters appended after `decay`: `long_ir` (Off/On, saved in the project chunk, not in presets, untouched by Init
+  and factory presets, not automatable), `long_ir_tap` (momentary: off -> arms for kArmSeconds (4 s), a second tap in
+  that time -> on; on -> off at once; Gen 2: no effect), `long_ir_info` (readout: "Off · IRs up to 5 s", "CPU heavy ·
+  tap again", "On · IRs up to 20 s", "Gen 2 · always on"). `P_PRESET_OPEN` (the popup's flag) moves 3 indices later:
+  projects store parameters by key, so nothing changes for them.
+- Page: `button cx=1160 cy=618 "LONG IR"` and `readout cx=1160 cy=660 w=236` under REVERSE (skin_post role
+  shReadout_236x34). No new skin_check warnings (the 19 there are the lists laid over the page, as before).
+- To do on a Force: `tools/bench_reverb` built for armv7 (2-stage vs 3-stage worker load, 5 s and 20 s stereo, misses),
+  MPC's CPU meter with LONG IR off and on, and how long a 20 s IR at Decay 300% takes to prepare.
+- Resampling cache (engine/reverb_engine.cpp `ResampleCache`): one entry, keyed by an FNV-1a hash of the channels plus
+  rate, target rate and quality; a shape change re-prepares from it. PC: 20 s 48 kHz stereo at high quality, first
+  load ~1.05 s, End/fade/Reverse ~0.12 s, Decay 150% ~0.57 s, Stretch (resamples) ~1.0 s. PC bench (worker, % of a core,
+  stereo): 5 s 1.9 -> 0.7, 10 s 3.3 -> 0.8, 20 s 7.0 -> 1.3 (2048-only vs with the far stage).

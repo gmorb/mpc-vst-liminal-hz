@@ -89,7 +89,7 @@ for nm,val,v in knobs:
     cx=int(x+size/2); d.text((cx,438),nm,font=fS(24),fill=GR,anchor='ms'); d.text((cx,478),val,font=fS(32),fill=IV,anchor='ms')
     x+=size+gap
 wordmark(d, 64, 150, 60)
-d.text((66,560),'14 factory spaces & echoes  \u00b7  IRs up to 5 s  \u00b7  decay, stretch, reverse, fades  \u00b7  My Presets  \u00b7  TONE3000 browsing',font=fR(22),fill=DIM,anchor='ls')
+d.text((66,560),'14 factory spaces & echoes  \u00b7  IRs up to 20 s with LONG IR  \u00b7  decay, stretch, reverse, fades  \u00b7  My Presets  \u00b7  TONE3000',font=fR(22),fill=DIM,anchor='ls')
 im.convert('RGB').save(os.path.join(OUTD,'controls.png'))
 
 # 5. The lists and the phone pages (when their renders are given)

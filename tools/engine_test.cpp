@@ -21,9 +21,10 @@ static std::unique_ptr<ReverbIR> ir_of(std::vector<std::vector<float>> ch, doubl
   IRShape s; s.length = length;
   return ReverbIR::make(ch, RATE, RATE, s, &err, LongConvolver::Inline);
 }
-static std::unique_ptr<ReverbIR> ir_shaped(std::vector<std::vector<float>> ch, const IRShape& s) {
+static std::unique_ptr<ReverbIR> ir_shaped(std::vector<std::vector<float>> ch, const IRShape& s,
+                                           const Quality& q = platform::default_quality()) {
   std::string err;
-  return ReverbIR::make(ch, RATE, RATE, s, &err, LongConvolver::Inline);
+  return ReverbIR::make(ch, RATE, RATE, s, &err, LongConvolver::Inline, q);
 }
 // the engine's response to a single impulse (mix 1, filters open): where its two largest peaks are
 static std::vector<float> impulse_response(std::unique_ptr<ReverbIR> ir, size_t n) {
@@ -278,8 +279,8 @@ int main(int argc, char** argv) {
     IRShape a1; auto i1 = ir_shaped({L, Rr}, a1), i2 = ir_shaped({L, Rr}, a1);
     CHECK(i1 && i2 && i1->sonics == i2->sonics && i1->t60 == i2->t60, "Decay 100%%: the IR as prepared before (the reshaping is skipped)");
   }
-#if defined(LIMINAL_GEN2)
-  { // Gen 2 (platform.h): long IRs, Decay past 5 s, band-limited resampling
+  { // high quality (LONG IR on Gen 1, always on Gen 2; platform.h): long IRs, Decay past 5 s, band-limited resampling
+    const Quality HQ = Quality::high();
     auto impulse_response = [](ReverbIR& ir, size_t n) {      // the prepared IR, read back through its convolver
       n = (n + 127) / 128 * 128;
       std::vector<float> x(n, 0.0f), y(n, 0.0f); x[0] = 1.0f;
@@ -293,7 +294,8 @@ int main(int argc, char** argv) {
     };
     std::string err;
     {
-      auto ir = ir_of({decay((size_t)(44100 * 15), 21, 0.2f)});
+      IRShape s15;
+      auto ir = ir_shaped({decay((size_t)(44100 * 15), 21, 0.2f)}, s15, HQ);
       CHECK(ir && ir->frames == (size_t)(15 * RATE) && ir->l->stages() == 2,
             "a 15 s IR is used whole, with the far convolution stage (%zu frames, %zu stages)", ir ? ir->frames : 0, ir ? ir->l->stages() : 0);
     }
@@ -303,7 +305,7 @@ int main(int argc, char** argv) {
       std::vector<float> L5(n5);
       for (size_t i = 0; i < n5; i++) L5[i] = g5(r5) * std::exp(-3.45f * (float)i / (float)RATE);   // T60 2.0 s, recorded 5 s
       IRShape s; s.decay = 3.0; s.fade_out = 0;
-      auto ir = ir_shaped({L5}, s);
+      auto ir = ir_shaped({L5}, s, HQ);
       CHECK(ir && ir->frames > (size_t)(12 * RATE) && ir->t60 > 4.5f,
             "Decay 300%% on a 5 s IR goes past 5 s: %.1f s long, decay %.1f s", ir ? ir->frames / RATE : 0.0, ir ? ir->t60 : 0.0f);
     }
@@ -312,23 +314,43 @@ int main(int argc, char** argv) {
       std::vector<float> c(n);
       for (size_t i = 0; i < n; i++) c[i] = (float)((std::sin(2 * M_PI * 1000 * i / r48) + std::sin(2 * M_PI * 17000 * i / r48)) * std::exp(-2.0 * i / r48));
       IRShape s; s.fade_out = 0;
-      auto ir = ReverbIR::make({c}, r48, RATE, s, &err, LongConvolver::Inline);
+      auto ir = ReverbIR::make({c}, r48, RATE, s, &err, LongConvolver::Inline, HQ);
       double db = -99;
       if (ir) { auto y = impulse_response(*ir, ir->frames); db = 20 * std::log10(amp(y, 17000, RATE, 2000, 12000) / amp(y, 1000, RATE, 2000, 12000)); }
       CHECK(ir && std::fabs(db) < 0.3, "sinc resampling 48 -> 44.1 kHz keeps 17 kHz level with 1 kHz (%+.2f dB)", db);
+    }
+    {   // the resampling is kept between preparations (a trim or fade doesn't resample again): the same IR either way
+      const double r48 = 48000; const size_t n = (size_t)(1.5 * r48);
+      std::vector<float> c(n);
+      for (size_t i = 0; i < n; i++) c[i] = (float)(std::sin(0.37 * i) * std::exp(-3.0 * i / r48));
+      IRShape a1, a2; a2.length = 0.5;
+      auto x1 = ReverbIR::make({c}, r48, RATE, a1, &err, LongConvolver::Inline, HQ);    // resampled
+      auto x2 = ReverbIR::make({c}, r48, RATE, a2, &err, LongConvolver::Inline, HQ);    // from the kept resampling
+      auto x3 = ReverbIR::make({c}, r48, RATE, a1, &err, LongConvolver::Inline, HQ);    // as the first
+      bool same = x1 && x3 && x1->frames == x3->frames && x1->sonics == x3->sonics;
+      if (same) { auto y1 = impulse_response(*x1, x1->frames), y3 = impulse_response(*x3, x3->frames); same = y1 == y3; }
+      CHECK(same && x2 && x2->frames == x1->frames / 2, "a kept resampling gives the same IR (%zu, %zu frames; End 50%%: %zu)",
+            x1 ? x1->frames : 0, x3 ? x3->frames : 0, x2 ? x2->frames : 0);
+    }
+    {   // the standard quality (Gen 1 with LONG IR off) keeps 5 s, and a 5 s IR also uses the far stage (both builds)
+      IRShape s0;
+      auto lo = ir_shaped({decay((size_t)(44100 * 12), 22, 0.2f)}, s0, Quality::standard());
+      auto hi = ir_shaped({decay((size_t)(44100 * 12), 22, 0.2f)}, s0, HQ);
+      CHECK(lo && hi && lo->frames == (size_t)(5 * RATE) && hi->frames == (size_t)(12 * RATE) && lo->l->stages() == 2,
+            "a 12 s IR: %zu frames standard (5 s), %zu at high quality (12 s); far stage at 5 s: %zu stages",
+            lo ? lo->frames : 0, hi ? hi->frames : 0, lo ? lo->l->stages() : 0);
     }
     {   // Stretch 50% (resampled to half the rate, played at the full one): 15 kHz can't fit, so it must not fold back
       const size_t n = (size_t)(0.5 * RATE);
       std::vector<float> c(n);
       for (size_t i = 0; i < n; i++) c[i] = (float)((std::sin(2 * M_PI * 1000 * i / RATE) + std::sin(2 * M_PI * 15000 * i / RATE)) * std::exp(-2.0 * i / RATE));
       IRShape s; s.stretch = 0.5; s.fade_out = 0;
-      auto ir = ReverbIR::make({c}, RATE, RATE, s, &err, LongConvolver::Inline);
+      auto ir = ReverbIR::make({c}, RATE, RATE, s, &err, LongConvolver::Inline, HQ);
       double db = 0;   // 1 kHz plays at 2 kHz; an alias of 15 kHz would be at 22050 - 15000 = 7050 Hz, playing at 14.1 kHz
       if (ir) { auto y = impulse_response(*ir, ir->frames); db = 20 * std::log10(amp(y, 14100, RATE, 500, 6000) / amp(y, 2000, RATE, 500, 6000) + 1e-12); }
       CHECK(ir && db < -60, "Stretch 50%%: no alias of a 15 kHz partial (%.0f dB under the kept one)", db);
     }
   }
-#endif
   { // the playhead's note detection (onset.h): hits, plucks and pads with slow attacks over long releases; a held,
     // beating chord or tremolo doesn't keep restarting it
     const double R2 = 48000;

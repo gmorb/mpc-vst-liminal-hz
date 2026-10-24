@@ -6,8 +6,8 @@
  *          -> width (mid/side) -> mix with the dry signal -> output gain
  * Mono IR: L and R are convolved separately (the stereo image is kept). Stereo IR (2+ channels): the input's mono sum
  * feeds the IR's first two channels, L and R (how reverb IRs of spaces are recorded).
- * IRs are prepared off the audio thread (ReverbIR::make: resampled to the host rate (cubic on Gen 1, windowed sinc on
- * Gen 2: platform.h), cut to
+ * IRs are prepared off the audio thread (ReverbIR::make: resampled to the host rate (cubic, or windowed sinc at the
+ * high Quality: platform.h), cut to
  * kMaxSeconds and the Length setting, faded out at the end, normalised to unit energy) and handed over without
  * locks; a new IR crossfades in over kFade samples. Convolvers (and their worker threads) are never freed on the
  * audio thread: collect() frees them.
@@ -52,13 +52,15 @@ struct IRShape {
 
 class ReverbIR {
  public:
-  static constexpr double kMaxSeconds = platform::kMaxSeconds;   // 5 s on Gen 1, 20 s on Gen 2
+  static constexpr double kMaxSeconds = platform::kGen2 ? 20.0 : 5.0;   // the default quality's cap (Quality::max_seconds)
+  static constexpr double kMaxSecondsHigh = 20.0;                         // LONG IR (Quality::high)
   // channels[c][frame] at `rate`, shaped by `shape` (stretch, 5 s cap, reverse, start/length trim, fades, level)
   static std::unique_ptr<ReverbIR> make(const std::vector<std::vector<float>>& channels, double rate, double host_rate,
                                         const IRShape& shape, std::string* err,
-                                        LongConvolver::Mode mode = LongConvolver::Threaded);
+                                        LongConvolver::Mode mode = LongConvolver::Threaded,
+                                        const Quality& q = platform::default_quality());
   static std::unique_ptr<ReverbIR> load(const std::string& wav_path, double host_rate, const IRShape& shape,
-                                        std::string* err);
+                                        std::string* err, const Quality& q = platform::default_quality());
   bool stereo = false;                    // the IR has its own L and R
   float fb_gain = 0;                      // feedback: 1 / the loop's peak gain (the loop stays below 1)
   size_t frames = 0;                      // at the host rate, as used

@@ -798,6 +798,32 @@
       "max": 300,
       "unit": "%",
       "default": 100
+    },
+    {
+      "key": "long_ir",
+      "name": "Long IR",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "long_ir_tap",
+      "name": "Long IR Button",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "momentary": true
+    },
+    {
+      "key": "long_ir_info",
+      "name": "Long IR Info",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string",
+      "type": "readout"
     }
   ]
 }

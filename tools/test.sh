@@ -9,7 +9,8 @@
 #   presets_test, presets_web_test  My Presets: the files, and the phone page over a real socket
 #   plugin_test   the .so as MPC uses it, with tools/t3k_mock.py standing in for TONE3000
 # SANITIZE=asan|tsan: the plugin and plugin_test with AddressSanitizer+UBSan or ThreadSanitizer.
-# ARM=1: also plugin_test against the device .so (vst/build/liminal_hz.so) under qemu-arm.
+# ARM=1: also the convolution check, engine_test and plugin_test as armv7 programs under qemu-arm (NEON FFT),
+#        plugin_test against the Gen 1 device .so (vst/build/liminal_hz.so).
 # GEN2=1: everything with the Gen 2 limits (-DLIMINAL_GEN2, engine/platform.h), against vst/build/host-gen2.
 # AARCH64=1: also the convolution check, engine_test and plugin_test as aarch64 programs under qemu-aarch64 (NEON FFT),
 #            plugin_test against the Gen 2 device .so (vst/build/aarch64/liminal_hz.so; vst/build.sh gen2 first).
@@ -61,8 +62,18 @@ kill $MOCK 2>/dev/null || true
 
 if [ "${ARM:-0}" = 1 ]; then
   ZIG="${ZIG:-python3 -m ziglang}"
-  $ZIG c++ -target arm-linux-gnueabihf.2.36 -mcpu=cortex_a17 -O2 -std=c++17 -w tools/plugin_test.cpp -o "$T/plugin_test_arm" -ldl -lpthread 2>/dev/null
-  run plugin_test_arm env MPCNAM_FACTORY="$PWD/packaging/factory" QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf qemu-arm "$T/plugin_test_arm" "$PWD/vst/build/liminal_hz.so" "$T/wavs"
+  A32="-target arm-linux-gnueabihf.2.36 -mcpu=cortex_a17 -DPFFFT_ENABLE_NEON -O2 -w"
+  QA="env QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf qemu-arm"
+  zc32() { "$@" > "$T/zig32.log" 2>&1 || { grep -i error "$T/zig32.log" | head -5; echo "FAIL: armv7 compile" >&2; exit 1; }; }
+  zc32 $ZIG cc $A32 -fsigned-char -Iengine/pffft -c engine/pffft/pffft.c -o "$T/pffft_a32.o"
+  zc32 $ZIG cc $A32 -fsigned-char -Iengine/pffft -c engine/pffft/pffft_common.c -o "$T/pffft_common_a32.o"
+  PFO32="$T/pffft_a32.o $T/pffft_common_a32.o"
+  zc32 $ZIG c++ $A32 -fsigned-char -std=c++17 -Iengine -Iengine/pffft tools/bench_reverb.cpp engine/long_convolver.cpp $PFO32 -o "$T/bench_a32" -lpthread
+  run convolution_arm $QA "$T/bench_a32" --check
+  zc32 $ZIG c++ $A32 -fsigned-char -std=c++17 -D_FILE_OFFSET_BITS=64 -Iengine -Iengine/pffft -Isrc/audiodsptools -Isrc/nlohmann tools/engine_test.cpp engine/reverb_engine.cpp engine/long_convolver.cpp engine/wav_reader.cpp $PFO32 -o "$T/engine_test_a32" -lpthread
+  run engine_test_arm $QA "$T/engine_test_a32" "$T/wavs"
+  zc32 $ZIG c++ -target arm-linux-gnueabihf.2.36 -mcpu=cortex_a17 -O2 -std=c++17 -w tools/plugin_test.cpp -o "$T/plugin_test_arm" -ldl -lpthread
+  run plugin_test_arm env MPCNAM_FACTORY="$PWD/packaging/factory" $QA "$T/plugin_test_arm" "$PWD/vst/build/liminal_hz.so" "$T/wavs"
 fi
 if [ "${AARCH64:-0}" = 1 ]; then
   ZIG="${ZIG:-python3 -m ziglang}"
