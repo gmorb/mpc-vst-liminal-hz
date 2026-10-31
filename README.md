@@ -12,6 +12,23 @@ with **Feedback**, and keep your sounds as **My Presets**. It comes with 14 fact
 downloads more from TONE3000 from your phone. A companion to [Liminal Amp](https://github.com/gmorb/mpc-vst-liminal-amp).
 Not affiliated with or endorsed by TONE3000 or Akai.
 
+## Hear it
+
+Three short demos (sound on): each plays the dry sound first, then the same phrase through Liminal Hz. The audio is
+the plugin's real output, and the page shows what the plugin reported while it played. Levels are matched with the
+plugin's Output knob, so the comparison isn't louder-is-better. Tap a picture to play it.
+
+<table>
+  <tr>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-pad.mp4"><img src="docs/demos/liminal-hz-demo-pad.jpg" width="250" alt="Demo: a synth pad in the Backrooms (Decay 300%, Feedback 40%, LONG IR)"></a><br><b>Your MPC, in the Backrooms</b><br><sub>Backrooms · Decay 300% · Feedback 40% · LONG IR</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-drums.mp4"><img src="docs/demos/liminal-hz-demo-drums.jpg" width="250" alt="Demo: dry drums, then the Empty Mall preset"></a><br><b>Dry drums, into an empty mall</b><br><sub>Factory preset: Empty Mall</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-hits.mp4"><img src="docs/demos/liminal-hz-demo-hits.jpg" width="250" alt="Demo: kick and snare through the Reverse Bloom preset"></a><br><b>Reverse reverb, live</b><br><sub>Factory preset: Reverse Bloom · Mix 55%</sub></td>
+  </tr>
+</table>
+
+The sounds in the demos are synthesized (no samples), and the videos are made by `tools/demos/` from the plugin
+itself.
+
 ## What it looks like
 
 ![The Liminal Hz page](docs/images/page.png)
