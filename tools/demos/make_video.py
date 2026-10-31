@@ -25,6 +25,10 @@ DEMOS = {
                   settings="Factory preset: Empty Mall", dry_end=5.6),
     "hits": dict(src="hits", title=["Reverse reverb,", "live on your MPC"],
                  settings="Factory preset: Reverse Bloom · Mix 55%", dry_end=6.3),
+    "keys": dict(src="keys", title=["Keys, bouncing", "down the hallway"],
+                 settings="Factory preset: Dream Ping-Pong", dry_end=5.6),
+    "stabs": dict(src="stabs", title=["The signature:", "Liminal Hz"],
+                  settings="Factory preset: Liminal Hz · Mix 60%", dry_end=3.9),
 }
 
 def F(name, size): return ImageFont.truetype(FONTS + name, size)

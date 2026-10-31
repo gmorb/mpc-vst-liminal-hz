@@ -4,7 +4,7 @@
 # The README's demo videos (docs/demos/), made from the plugin itself:
 #   vst/build.sh host                 (the PC plugin and the page; needs mpc-vst-plugins as for the build)
 #   tools/demos/render_audio.sh       (this: dry phrases, then the plugin's real output and page state)
-#   for d in pad drums hits; do python3 tools/demos/make_video.py $d docs/demos/liminal-hz-demo-$d.mp4; done
+#   for d in pad drums hits keys stabs; do python3 tools/demos/make_video.py $d docs/demos/liminal-hz-demo-$d.mp4; done
 #   python3 tools/demos/make_posters.py   (the README thumbnails)
 # gen_audio.py synthesizes the dry phrases (no samples). demo_host runs vst/build/host/liminal_hz.so over them in real
 # time (128-frame blocks, as MPC) and records the page; a render with a late tail block (a busy PC) is run again.
@@ -23,3 +23,5 @@ go() { local src=$1; shift
 go pad 4 decay=300 mix=55 feedback=40 predelay=30 width=160 output=-9 long_ir=1   # Backrooms (preset 4)
 go drums 1 output=2                                                               # Empty Mall (preset 1)
 go hits 11 mix=55 output=5                                                        # Reverse Bloom (preset 11)
+go keys 7                                                                         # Dream Ping-Pong (preset 7)
+go stabs 14 mix=60 output=-6                                                      # Liminal Hz (preset 14)

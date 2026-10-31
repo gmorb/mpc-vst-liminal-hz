@@ -7,7 +7,7 @@ import os, subprocess, tempfile
 from PIL import Image, ImageDraw
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 D = os.path.join(ROOT, "docs", "demos")
-for name, t in (("pad", 8.0), ("drums", 8.5), ("hits", 9.2)):
+for name, t in (("pad", 8.0), ("drums", 8.5), ("hits", 9.2), ("keys", 8.6), ("stabs", 6.2)):
     with tempfile.TemporaryDirectory() as tmp:
         png = os.path.join(tmp, "f.png")
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(t), "-i", os.path.join(D, "liminal-hz-demo-%s.mp4" % name),

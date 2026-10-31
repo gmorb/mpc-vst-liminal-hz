@@ -5,6 +5,8 @@
   pad.wav     two soft, detuned-saw pad chords (A minor add9, F major 7), for the Backrooms demo
   drums.wav   two bars of a synthesized kit at 92 bpm, for the Empty Mall demo
   hits.wav    two bars of sparse kick and snare at 80 bpm, for the reverse-swell demo
+  keys.wav    a two-bar electric-piano arpeggio at 100 bpm, for the Dream Ping-Pong demo
+  stabs.wav   three short synth chord stabs, for the Liminal Hz preset demo
 Each file is the phrase followed by silence, so the reverb's tail has room to play out."""
 import os, sys, wave
 import numpy as np
@@ -91,6 +93,30 @@ def hits(total_s, bpm=80):
         for k in (1, 3): place(out, snare() * 1.1, b0 + k * beat)
     return out
 
+def epiano(m, n, vel=1.0):                    # a soft FM electric-piano note (2:1 bell over a sine), plucked
+    t = np.arange(n) / SR; f = note_hz(m)
+    mod = np.sin(2 * np.pi * f * 2 * t) * 1.6 * np.exp(-t * 9)
+    v = np.sin(2 * np.pi * f * t + mod) * np.exp(-t * 2.6) * (1 - np.exp(-t * 400))
+    return v * vel
+
+def keys(total_s, bpm=100):                   # a two-bar arpeggio in D minor (8ths), for the ping-pong echoes
+    out = np.zeros((int(total_s * SR), 2)); e8 = 30 / bpm
+    seq = [62, 65, 69, 72, 69, 65, 62, 65, 60, 64, 67, 72, 67, 64, 60, 57]   # Dm, then C ending low
+    for k, m in enumerate(seq):
+        x = epiano(m, int(1.2 * SR), 0.9 if k % 4 == 0 else 0.7)
+        place(out, x * 0.5, 0.15 + k * e8, pan=0.0)
+    return out
+
+def stabs(total_s):                           # three short chord stabs (Am9, Fmaj7, Em7), the room left to the tail
+    out = np.zeros((int(total_s * SR), 2))
+    for notes, t0 in (([57, 60, 64, 67, 71], 0.2), ([53, 57, 60, 64, 69], 1.4), ([52, 55, 59, 62, 67], 2.6)):
+        n = int(0.6 * SR); e = env_adsr(n, 0.004, 0.08, 0.6, 0.16, 0.05)
+        for m in notes:
+            for side, det in ((0, -0.08), (1, 0.08)):
+                v = lp(saw(note_hz(m) * 2 ** (det / 12), n, rng.random()) * e * 0.08, 2600, 2)
+                i0 = int(t0 * SR); out[i0:i0 + n, side] += v
+    return out
+
 def norm(x, peak=0.7):
     m = np.max(np.abs(x)); return x * (peak / m) if m > 0 else x
 
@@ -99,4 +125,6 @@ if __name__ == "__main__":
     write(os.path.join(d, "pad.wav"), norm(pad(13.0)))        # 5 s of chords, then room for the tail
     write(os.path.join(d, "drums.wav"), norm(drums(9.5)))     # 2 bars (5.2 s), then the tail
     write(os.path.join(d, "hits.wav"), norm(hits(9.5)))       # 2 bars (6.0 s), then the tail
+    write(os.path.join(d, "keys.wav"), norm(keys(10.0)))      # 2 bars (4.8 s), then the echoes
+    write(os.path.join(d, "stabs.wav"), norm(stabs(11.0)))    # 3 stabs (3.2 s), then the long tail
     print("wrote", d)
