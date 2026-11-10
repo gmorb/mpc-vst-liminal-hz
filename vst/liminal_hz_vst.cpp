@@ -230,7 +230,13 @@ static const Preset kPresets[] = {
   {"Reverse Bloom", "Strange", 40, 0, 120, 10000, 140, 100, 0, 0, 0, 4, 100, 0, 0},
   {"Sub Tunnel", "Strange", 30, 20, 30, 5000, 120, 100, 0, 0, 0, 12, 100, 0, 0},
   {"Shimmer Fog", "Strange", 38, 50, 250, 16000, 170, 100, 0, 0, 10, 15, 100, 0, 12},
-  {"Liminal Hz", "Strange", 40, 35, 80, 11000, 150, 100, 0, 0, 5, 15, 100, 0, 50}
+  {"Liminal Hz", "Strange", 40, 35, 80, 11000, 150, 100, 0, 0, 5, 15, 100, 0, 50},
+  // Textures: not rooms. The input played through an object, a cloud of grains, a chord, a breath, a bounce
+  {"Struck Pipe", "Textures", 30, 0, 120, 12000, 130, 100, 0, 0, 0, 10, 100, 0, 0},
+  {"Grain Cloud", "Textures", 40, 10, 150, 14000, 160, 100, 0, 0, 0, 15, 100, 0, 0},
+  {"Tuned Chord", "Textures", 30, 0, 100, 10000, 130, 100, 0, 0, 0, 10, 100, 0, 0},
+  {"Breath", "Textures", 35, 0, 200, 12000, 140, 100, 0, 0, 0, 15, 100, 0, 0},
+  {"Bouncing Ball", "Textures", 35, 0, 120, 12000, 150, 100, 0, 0, 0, 10, 100, 0, 0}
 };
 static const int kPresetCount = (int)(sizeof kPresets / sizeof kPresets[0]);
 

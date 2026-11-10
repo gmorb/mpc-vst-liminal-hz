@@ -638,7 +638,12 @@
         "Reverse Bloom",
         "Sub Tunnel",
         "Shimmer Fog",
-        "Liminal Hz"
+        "Liminal Hz",
+        "Struck Pipe",
+        "Grain Cloud",
+        "Tuned Chord",
+        "Breath",
+        "Bouncing Ball"
       ],
       "default": 0
     },

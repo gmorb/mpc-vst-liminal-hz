@@ -37,7 +37,7 @@ enum { P_MIX, P_PREDELAY, P_LOWCUT, P_HIGHCUT, P_WIDTH, P_LENGTH, P_OUTPUT, P_IR
        P_MP_INFO, P_MP_SAVE, P_MP_DELETE, P_MP_PHONE, P_MENU, P_IR_LIST, P_MP_LIST, P_MENU_CLOSE, P_MENU_PREV, P_MENU_NEXT,
        P_MENU_TITLE, P_ROW1, P_ROW6 = P_ROW1 + 5, P_DECAY, P_LONG_IR, P_LONG_IR_TAP, P_LONG_IR_INFO, P_DUCK, P_PREDELAY_SYNC,
        P_PRESET_OPEN, P_TOTAL };
-static const int kPresets = 14;                 // factory presets after Init (PRESET's options: Init + 14)
+static const int kPresets = 19;                 // factory presets after Init (PRESET's options: Init + 19)
 static int fails = 0;
 #define CHECK(c, ...) do { printf("%s ", (c) ? "ok  " : "FAIL"); printf(__VA_ARGS__); printf("\n"); if (!(c)) fails++; } while (0)
 static AEffect* (*entry)(hostcb);
@@ -265,6 +265,16 @@ int main(int argc, char** argv) {
       play_paced(pz, 0.3);
       CHECK(n_update >= 2 && n_update <= 6 && disp(pz, P_MIX) == "49%", "a knob turned for 0.4 s: %d UpdateDisplays (paced, at most one per 100 ms), mix %s",
             n_update.load(), disp(pz, P_MIX).c_str());
+    }
+    {   // the fourth column: Textures (not rooms), each with its IR
+      const char* tex[] = {"Struck Pipe", "Grain Cloud", "Tuned Chord", "Breath", "Bouncing Ball"};
+      int found = 0;
+      for (int k = 0; k < 5; k++) {
+        pz->setP(pz, P_PRESET, (15.0f + k) / kPresets);
+        if (wait_for([&] { return idle(pz) && disp(pz, P_IR) == tex[k]; }, 20) && disp(pz, P_PRESET) == tex[k] && disp(pz, P_IR_PACK) == "Textures") found++;
+      }
+      bool tf = false; const double tt = tail_rms(pz, &tf);
+      CHECK(found == 5 && tf && tt > 1e-5, "the Textures presets: %d of 5 load their IR, [%s] sounds (%.4f)", found, disp(pz, P_IR).c_str(), tt);
     }
     pz->setP(pz, P_PRESET, 0.0f);                              // Init
     wait_for([&] { return idle(pz); });

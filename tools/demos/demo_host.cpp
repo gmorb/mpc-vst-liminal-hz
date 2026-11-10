@@ -2,7 +2,7 @@
 // Copyright (c) 2026 the mpc-vst-liminal-hz contributors
 // demo_host.cpp -- runs the Liminal Hz plugin (.so) over a stereo float WAV the way MPC does (128-frame blocks) and
 // records what its page would show, for the demo videos.
-//   demo_host <plugin.so> <in.wav> <out.wav> <state.json> <preset 0..14> [key=value ...] [long_ir=1]
+//   demo_host <plugin.so> <in.wav> <out.wav> <state.json> <preset 0..19> [key=value ...] [long_ir=1]
 // key=value: a parameter by its params.json key, as a real value (mix=55, decay=300); applied after the preset.
 // state.json: every parameter's normalised value and display text after loading, and the playhead (0..24) and the
 // 12 wave columns at 30 frames a second while the audio plays.
@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
   auto wait = [&] { for (int k = 0; k < 3000 && !idle(); k++) std::this_thread::sleep_for(std::chrono::milliseconds(10)); };
   wait();
   const int preset = atoi(argv[5]);
-  a->setP(a, idx("Preset"), preset / 14.0f);
+  a->setP(a, idx("Preset"), preset / 19.0f);   // (PRESET: Init + 19 factory presets, vst/params.json)
   wait();
   // overrides: params.json key=real value; the plugin's own normalisation is found by bisection on its display text
   // being reached is overkill: each key's range is given here (the page shows real values, the plugin takes 0..1)
