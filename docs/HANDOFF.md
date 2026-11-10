@@ -305,8 +305,10 @@ display, the controls, factory presets, install; then the CPU design, build and 
 - **Best on**: kBestOn (factory IR name -> "drums, vocals"...), appended to the pack line for the Factory list
   ("Strange · best on chords, pads"); My IRs and TONE3000 packs unchanged. README has the table.
 - **Marketing kit**: tools/demos (12 demos; make_video.py takes several wet parts for before/after, demo_host takes
-  bpm=), tools/trailer (score.py synthesizes 8 stems, render.sh plays 7 through the plugin, mix.py masters, make_trailer.py
-  draws wide 1920x1080 ~63 s and tall 1080x1920 ~37 s from the real page states and the vst/art paintings), and
+  bpm=), tools/trailer (score.py has two scores on one 26-bar plan, dark (80s synth horror: octave bass pulse, string
+  machine, bells) and bright (clean, modern: wide pads, held lead, four-on-the-floor), every note on the grid; render.sh
+  <style> plays each stem through a factory preset, mix.py <style> masters, make_trailer.py wide|tall --style <style>
+  draws 1920x1080 ~63 s and 1080x1920 ~37 s from the real page states and the vst/art paintings, graded to match), and
   tools/make_feature_images.py (docs/images/feature-*.png, plus 1080x1080 posts). The trailer files are not in the repo
   (~40 MB): upload them (YouTube, socials) and link them.
 

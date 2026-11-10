@@ -22,8 +22,8 @@
   are kept.
 - **What each IR suits**: under the IR's name, a factory IR's category now says what it's best on ("Strange · best
   on chords, pads"); the README has the table.
-- Seven more demos (the five Textures, Duck, SYNC), a trailer kit (`tools/trailer/`: a synthesized score played
-  through the plugin, and the video), and images explaining the new features (`tools/make_feature_images.py`).
+- Seven more demos (the five Textures, Duck, SYNC), a trailer kit (`tools/trailer/`: two synthesized scores,
+  dark and bright, played through the plugin, and the videos), and images explaining the new features (`tools/make_feature_images.py`).
 
 ### Changed
 - **The pause when picking a preset or after DELETE.** MPC answers each "update the display" call from a plugin by

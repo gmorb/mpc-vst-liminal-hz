@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 the mpc-vst-liminal-hz contributors
-"""make_trailer.py wide|tall <out.mp4> [--frames t1,t2,...] -- the Liminal Hz trailer.
+"""make_trailer.py wide|tall <out.mp4> [--style dark|bright] [--frames t1,t2,...] -- the Liminal Hz trailer.
 
 wide: 1920x1080, the whole score (~63 s). tall: 1080x1920, a ~31 s cut of the same score at bar boundaries (Reels,
-TikTok, Shorts). The music is tools/trailer/mix.wav (render.sh, mix.py: synthesized, every part played through Liminal
+TikTok, Shorts). --style picks the score (score.py: dark, 80s synth horror; bright, clean and modern) and the
+picture's grade to match (dark: red titles, a cold-red grade; bright: lifted, cooler). The music is <style>/mix.wav (render.sh, mix.py: synthesized, every part played through Liminal
 Hz). The pages are the plugin's real page (tools/demos/render_page.py) in the states the demos recorded
 (tools/demos/render_audio.sh), the paintings are the plugin's own IR art (vst/art/bg_*.png).
 --frames: those moments (seconds of the video) as PNGs instead of a video."""
@@ -21,8 +22,14 @@ BAR, BEAT = score.BAR, score.BEAT
 FONTS = render_page.FONTS
 ART = os.path.join(ROOT, "vst", "art")
 DEMOS = os.path.join(ROOT, "vst", "build", "demos")
-MIX = os.path.join(ROOT, "vst", "build", "trailer", "mix.wav")
+def _style():
+    a = sys.argv
+    return a[a.index("--style") + 1] if "--style" in a else "dark"
+STYLE = _style()
+MIX = os.path.join(ROOT, "vst", "build", "trailer", STYLE, "mix.wav")
 IV, GR, AMB, DIM = (236, 230, 218), (160, 154, 144), (222, 186, 120), (96, 92, 86)
+if STYLE == "dark": AMB = (214, 52, 44)                         # (the accent: Carpenter red)
+GRADE = {"dark": (np.array([1.06, 0.84, 0.80], np.float32), 0.0), "bright": (np.array([1.0, 1.04, 1.1], np.float32), 10.0)}[STYLE]
 IMPACTS = [score.t_of(6), score.t_of(18), score.t_of(23)]
 DROP_KICKS = [score.t_of(b, k) for b in range(18, 23) for k in (0, 0.75, 1.5, 2.5, 3.25)]
 
@@ -169,6 +176,7 @@ class Canvas:
             dx, dy = (r.uniform(-1, 1, 2) * shake).astype(int)
             a = np.roll(np.roll(a, dy, 0), dx, 1)
         a = a * self.vignette
+        a = a * GRADE[0] + GRADE[1]                                     # the style's grade
         g = self.grain[int(t * FPS / 6) % len(self.grain)]          # (a new grain every 0.2 s)
         a = a + np.repeat(np.repeat(g, 2, 0), 2, 1)[: self.H, : self.W]
         if flash > 0: a = a + (255 - a) * flash
@@ -205,6 +213,7 @@ class Trailer:
 
     def bg(self, name, t, t0, dur, zoom=(1.0, 1.12), dim=1.0):
         im = self.C.cover(PAINT[name], zoom[0] + (zoom[1] - zoom[0]) * min(1, (t - t0) / dur), 0.5, 0.55)
+        dim *= 1.6 if STYLE == "bright" else 1.0                        # (bright: the rooms lit)
         return ImageEnhance.Brightness(im).enhance(dim) if dim != 1.0 else im
 
     def page_img(self, name, t, open_list=False):
@@ -334,8 +343,8 @@ def main():
             if t < b - a: return a + t
             t -= b - a
         return segs[-1][1]
-    if len(sys.argv) > 3 and sys.argv[3] == "--frames":
-        for t in [float(x) for x in sys.argv[4].split(",")]:
+    if "--frames" in sys.argv:
+        for t in [float(x) for x in sys.argv[sys.argv.index("--frames") + 1].split(",")]:
             T.frame(src(t)).save(out.replace(".mp4", "_%05.2f.png" % t))
         print("%s: %.1f s" % (mode, total)); return
     x = read_mix(); parts = []; xf = int(0.012 * SR)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 the mpc-vst-liminal-hz contributors
-"""mix.py -- the trailer's stems (as Liminal Hz played them, render.sh) mixed and mastered: vst/build/trailer/mix.wav
+"""mix.py dark|bright -- a score's stems (as Liminal Hz played them, render.sh) mixed and mastered: vst/build/trailer/<style>/mix.wav
 (44.1 kHz, 16-bit stereo). Each stem is set to a level against the drums (LEVEL, dB, by its loudness while it plays),
 then the sum is high-passed, driven gently and peak-limited to -1 dBFS (a 5 ms look-ahead, 120 ms release)."""
 import os, sys, wave
@@ -11,9 +11,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import score
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-T = os.path.join(ROOT, "vst", "build", "trailer")
+STYLE = sys.argv[1] if len(sys.argv) > 1 else "dark"
+T = os.path.join(ROOT, "vst", "build", "trailer", STYLE)
 SR = score.SR
-LEVEL = {"drums": 0.0, "braam": 1.0, "sub": -3.0, "texperc": -2.0, "swell": -5.0, "stabs": -7.0, "drone": -8.0, "tick": -15.0}
+LEVEL = score.LEVEL[STYLE]
 
 def read(p):
     with open(p, "rb") as f: d = f.read()
@@ -44,8 +45,8 @@ def limiter(x, ceiling=10 ** (-1 / 20), look=int(0.005 * SR), rel=0.12):
 
 def main():
     stems = {}
-    for k in score.STEMS:
-        p = os.path.join(T, k + ("_wet.wav" if score.STEMS[k] else ".wav"))
+    for k in score.STEMS[STYLE]:
+        p = os.path.join(T, k + ("_wet.wav" if score.STEMS[STYLE][k] else ".wav"))
         stems[k] = read(p)
     n = min(len(v) for v in stems.values())
     ref = active_rms(stems["drums"][:n])
