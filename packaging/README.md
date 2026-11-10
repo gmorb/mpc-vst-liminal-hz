@@ -44,7 +44,9 @@ and the internal drive, up to four folders deep. Subfolders are packs. After add
   Pool Rooms, Fluorescent Hall, Backrooms), **Echoes** (Stairwell Flutter, Tape Corridor, Dream Ping-Pong, Parking
   Slap, Intercom Echo), **Strange** (Glass Void, Reverse Bloom, Sub Tunnel, Shimmer Fog, Liminal Hz) and **Textures**,
   which aren't rooms: your sound played through something (Struck Pipe, Grain Cloud, Tuned Chord, Breath, Bouncing
-  Ball). A preset loads its factory IR with settings to match; change anything afterwards.
+  Ball). A preset loads its factory IR with settings to match; change anything afterwards. The same presets are in MPC's own preset menu at
+  the top of the screen ("Space: Empty Mall", "Texture: Breath" ...), and each factory IR's line under its name says
+  what it suits ("Strange · best on chords, pads").
 - **MY PRESETS** (beside PRESET): your own presets (see My Presets below).
 - **FACTORY / MY IRS** chooses what ◀ ▶, PREV/NEXT PACK and **IR LIST** step through: the factory IRs, or your own (`reverbs`
   folders and TONE3000 downloads). Switching never changes what's playing.

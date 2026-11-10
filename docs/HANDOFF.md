@@ -296,4 +296,17 @@ display, the controls, factory presets, install; then the CPU design, build and 
 - Textures: tools/make_factory_irs.py appends 5 builders (seeds continue: the 14 earlier files are byte-identical);
   packaging/factory/Textures (3.2 MB); 5 presets appended (PRESET: Init + 19; norm = k / 19); the popup is cols=4
   cw=300 (it was 3 x 340, which a fourth column pushed off the page). tools/demos/demo_host divides by 19.
+- **MPC's preset menu** (added the same day): VST programs = Init + kPresets, named program_name() "Space|Echo|Strange|
+  Texture: <name>" (<= 23 chars, VST's 24-byte buffer); effSetProgram -> set_parameter(P_PRESET), then host_view[P_PRESET]
+  = -1 and changed (the host didn't write it); re-selecting the current program is ignored (JUCE re-selects at load;
+  the kit's rule, mpc-vst-plugins NOTES.md 2026-10-07). effGetProgram is the PRESET param's index (after a My Preset
+  it shows whatever PRESET holds). **Device check:** the menu lists 20 names, picking one loads it and our PRESET field
+  follows; a project reload keeps edits.
+- **Best on**: kBestOn (factory IR name -> "drums, vocals"...), appended to the pack line for the Factory list
+  ("Strange · best on chords, pads"); My IRs and TONE3000 packs unchanged. README has the table.
+- **Marketing kit**: tools/demos (12 demos; make_video.py takes several wet parts for before/after, demo_host takes
+  bpm=), tools/trailer (score.py synthesizes 8 stems, render.sh plays 7 through the plugin, mix.py masters, make_trailer.py
+  draws wide 1920x1080 ~63 s and tall 1080x1920 ~37 s from the real page states and the vst/art paintings), and
+  tools/make_feature_images.py (docs/images/feature-*.png, plus 1080x1080 posts). The trailer files are not in the repo
+  (~40 MB): upload them (YouTube, socials) and link them.
 

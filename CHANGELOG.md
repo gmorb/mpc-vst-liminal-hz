@@ -16,6 +16,15 @@
   Bouncing Ball, each with a preset. The PRESET list now opens in four columns. Like the other factory IRs they are
   synthetic and free to use. (Any .wav can be an IR: README, Your own IRs.)
 
+- **MPC's own preset menu** (at the top of the screen) now lists Init and the 19 factory presets, named by category
+  ("Space: Empty Mall", "Echo: Tape Corridor", "Strange: Glass Void", "Texture: Breath"); picking one there is the
+  same as picking it in the plugin's PRESET list. Re-selecting the current one changes nothing, so a project's edits
+  are kept.
+- **What each IR suits**: under the IR's name, a factory IR's category now says what it's best on ("Strange · best
+  on chords, pads"); the README has the table.
+- Seven more demos (the five Textures, Duck, SYNC), a trailer kit (`tools/trailer/`: a synthesized score played
+  through the plugin, and the video), and images explaining the new features (`tools/make_feature_images.py`).
+
 ### Changed
 - **The pause when picking a preset or after DELETE.** MPC answers each "update the display" call from a plugin by
   reading every parameter again and redrawing its screen. A preset pick asked for that twice (once for the pick, again

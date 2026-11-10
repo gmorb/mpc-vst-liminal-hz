@@ -16,7 +16,7 @@ Not affiliated with or endorsed by TONE3000 or Akai.
 
 ## Hear it
 
-Five short demos (sound on): each plays the dry sound first, then the same phrase through Liminal Hz. The audio is
+Twelve short demos (sound on): each plays the dry sound first, then the same phrase through Liminal Hz. The audio is
 the plugin's real output, and the page shows what the plugin reported while it played. Levels are matched with the
 plugin's Output knob, so the comparison isn't louder-is-better. Tap a picture to play it.
 
@@ -29,12 +29,30 @@ plugin's Output knob, so the comparison isn't louder-is-better. Tap a picture to
   <tr>
     <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-keys.mp4"><img src="docs/demos/liminal-hz-demo-keys.jpg" width="250" alt="Demo: an electric-piano arpeggio through the Dream Ping-Pong preset"></a><br><b>Keys, bouncing down the hallway</b><br><sub>Factory preset: Dream Ping-Pong</sub></td>
     <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-stabs.mp4"><img src="docs/demos/liminal-hz-demo-stabs.jpg" width="250" alt="Demo: synth chord stabs through the Liminal Hz preset"></a><br><b>The signature: Liminal Hz</b><br><sub>Factory preset: Liminal Hz · Mix 60%</sub></td>
-    <td></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-pipe.mp4"><img src="docs/demos/liminal-hz-demo-pipe.jpg" width="250" alt="Demo: drums through the Struck Pipe texture"></a><br><b>Drums, through a struck metal pipe</b><br><sub>Textures preset: Struck Pipe</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-grain.mp4"><img src="docs/demos/liminal-hz-demo-grain.jpg" width="250" alt="Demo: a sung line through the Grain Cloud texture"></a><br><b>A voice, scattered into a grain cloud</b><br><sub>Textures preset: Grain Cloud</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-chord.mp4"><img src="docs/demos/liminal-hz-demo-chord.jpg" width="250" alt="Demo: drums through the Tuned Chord texture"></a><br><b>Drums that play a chord</b><br><sub>Textures preset: Tuned Chord</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-breath.mp4"><img src="docs/demos/liminal-hz-demo-breath.jpg" width="250" alt="Demo: hi-hats through the Breath texture"></a><br><b>Hi-hats that breathe</b><br><sub>Textures preset: Breath</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-ball.mp4"><img src="docs/demos/liminal-hz-demo-ball.jpg" width="250" alt="Demo: one snare through the Bouncing Ball texture"></a><br><b>One snare, a bouncing ball</b><br><sub>Textures preset: Bouncing Ball</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-duck.mp4"><img src="docs/demos/liminal-hz-demo-duck.jpg" width="250" alt="Demo: drums in the Backrooms, Duck off and then Duck 80%"></a><br><b>Big reverb, out of the way</b><br><sub>Duck off, then Duck 80%</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-sync.mp4"><img src="docs/demos/liminal-hz-demo-sync.jpg" width="250" alt="Demo: drums through Parking Slap, pre-delay 70 ms and then synced to 1/8 D"></a><br><b>Pre-delay, locked to the beat</b><br><sub>SYNC off, then 1/8 D at 100 BPM</sub></td>
   </tr>
 </table>
 
-The sounds in the demos are synthesized (no samples), and the videos are made by `tools/demos/` from the plugin
+The Duck and SYNC demos play the same phrase twice through Liminal Hz, before and after (each matched to the dry
+level). The sounds in the demos are synthesized (no samples), and the videos are made by `tools/demos/` from the plugin
 itself.
+
+## New in 1.4
+
+![Duck: the reverb turned down while you play](docs/images/feature-duck.png)
+![Tempo SYNC: pre-delay in note values](docs/images/feature-sync.png)
+![Textures: five IRs that aren't rooms](docs/images/feature-textures.png)
+![MPC's preset menu, and what each IR suits](docs/images/feature-presets.png)
 
 ## What it looks like
 
@@ -110,12 +128,28 @@ End, Fade In, Fade Out, Reverse, Output. What you turn while playing comes first
 
 ## Factory presets
 
-Tap **PRESET** for a menu of 19 presets in four columns, plus **Init** (no IR: your sound passes through):
-- **Spaces**: Empty Mall, Pool Rooms, Fluorescent Hall, Backrooms
-- **Echoes**: Stairwell Flutter, Tape Corridor, Dream Ping-Pong, Parking Slap, Intercom Echo
-- **Strange**: Glass Void, Reverse Bloom, Sub Tunnel, Shimmer Fog, Liminal Hz
-- **Textures** (not rooms: your sound played through something): Struck Pipe, Grain Cloud, Tuned Chord, Breath,
-  Bouncing Ball
+Tap **PRESET** for a menu of 19 presets in four columns, plus **Init** (no IR: your sound passes through). They're
+also in **MPC's own preset menu** at the top of the screen, named by category ("Space: Empty Mall", "Echo: Tape
+Corridor", "Strange: Glass Void", "Texture: Breath"): picking one there is the same as picking it here. Under the IR's
+name, each factory IR says what it suits ("Strange · best on chords, pads"):
+
+| Spaces | Best on | Echoes | Best on |
+|---|---|---|---|
+| Empty Mall | drums, vocals | Stairwell Flutter | snares, claps |
+| Pool Rooms | snares, vocals | Tape Corridor | vocals, keys |
+| Fluorescent Hall | keys, pads | Dream Ping-Pong | keys, plucks |
+| Backrooms | pads, drones | Parking Slap | drums, rap vocals |
+| | | Intercom Echo | vocals, FX |
+
+| Strange | Best on | Textures (not rooms) | Best on |
+|---|---|---|---|
+| Glass Void | pads, vocals | Struck Pipe | drums, percussion |
+| Reverse Bloom | drums, vocals | Grain Cloud | vocals, pads |
+| Sub Tunnel | drums, drones | Tuned Chord | drums, vocals |
+| Shimmer Fog | pads, guitars | Breath | vocals, hi-hats |
+| Liminal Hz | chords, pads | Bouncing Ball | snares, one-shots |
+
+They're starting points: any of them on anything is fair game.
 
 The factory IRs are synthetic (generated by `tools/make_factory_irs.py`, not recorded), so they're free to use like
 the rest of the plugin.
