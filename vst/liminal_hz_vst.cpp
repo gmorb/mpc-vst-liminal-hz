@@ -119,7 +119,7 @@ struct Browser {
   std::string notice;
 };
 static const int kArmSeconds = 4;
-static const double kDispGapMs = 100, kDispHoldMs = 300;   // UpdateDisplay pacing (notify())
+static const double kDispGapMs = 100, kDispHoldMs = 600;   // UpdateDisplay pacing (notify())
 
 // My Presets (engine/presets.h): the saved presets, the one selected, and what the worker is asked to do
 struct MyPresets {

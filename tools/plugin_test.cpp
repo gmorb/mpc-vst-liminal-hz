@@ -256,10 +256,17 @@ int main(int argc, char** argv) {
       const auto t0 = std::chrono::steady_clock::now();
       pz->setP(pz, P_PRESET, 6.0f / kPresets);                 // "Tape Corridor"
       const double set_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+      std::atomic<double> ready_ms{-1};                        // when the IR was ready (the UI thread's view)
+      std::thread ui([&] { while (ready_ms < 0) { if (idle(pz) && disp(pz, P_IR) == "Tape Corridor")
+          ready_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        else if (std::chrono::steady_clock::now() - t0 > std::chrono::seconds(5)) break; std::this_thread::sleep_for(std::chrono::milliseconds(2)); } });
       play_paced(pz, 1.0);
-      CHECK(set_ms < 5 && n_update == 1 && n_automate <= 32 && disp(pz, P_IR) == "Tape Corridor",
-            "a preset pick: setParameter %.2f ms, %d UpdateDisplay, %d Automate, [%s]", set_ms, n_update.load(), n_automate.load(),
-            disp(pz, P_IR).c_str());
+      ui.join();
+      // one redraw when the IR is ready within the hold (600 ms; a factory IR: ~30 ms on a PC, ~400 under qemu-arm)
+      const int want = ready_ms >= 0 && ready_ms < 500 ? 1 : 2;
+      CHECK(set_ms < 5 && n_update >= 1 && n_update <= want && n_automate <= 32 && disp(pz, P_IR) == "Tape Corridor",
+            "a preset pick: setParameter %.2f ms, %d UpdateDisplay (IR ready in %.0f ms), %d Automate, [%s]", set_ms, n_update.load(),
+            ready_ms.load(), n_automate.load(), disp(pz, P_IR).c_str());
       n_update = 0;
       for (int k = 0; k < 20; k++) { pz->setP(pz, P_MIX, 0.3f + 0.01f * k); play_paced(pz, 0.02); }   // a knob turned for 0.4 s
       play_paced(pz, 0.3);
