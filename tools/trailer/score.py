@@ -12,7 +12,7 @@ Three different songs (the style comes from argv, or TRAILER_STYLE when imported
   cyber   100 BPM in 4/4, D minor, 32 bars (77 s): slow, heavy cyberpunk. A broken kick (1, the and of 3), a
           backbeat snare, a pulsing 8th bass, warm 8th-gated chords, a soft square hook, glitches.
   trap    140 BPM in 4/4 (a half-time feel), D minor, 28 bars (53 s): modern trap. 808s that slide, a clap on 3,
-          hats in 8ths and 16ths with triplet and 32nd rolls, a dark FM bell figure (3-3-2) through Dream Ping-Pong,
+          hats in 8ths and 16ths with triplet and 32nd rolls, a breathy flute figure (3-3-2) through Dream Ping-Pong,
           a theremin-like counter-line through the Liminal Hz preset, a stop before the drop.
           bars 0-3 boot, 4 IMPACT (title), 4-11 groove, 12-15 features, 16-19 breakdown and build, 20 IMPACT (drop),
           20-27 drop with the hook, 28 IMPACT (end)
@@ -417,10 +417,23 @@ def trap_hits():
     return ([t_of(b, x[0]) for b in range(BARS) for x in trap_808(b)],
             [t_of(b, 2) for b in list(range(4, 18)) + list(range(20, 28))])
 
+def trap_flute(m, dur, level=0.22):
+    """the trap lead: a breathy flute. A sine with soft 2nd and 3rd harmonics, a chiff of breath on the attack and a
+    little air under it, a vibrato that comes in late, a quick fall-off"""
+    n = int((dur + 0.18) * SR); t = np.arange(n) / SR; f = hz(m)
+    vib = 1 + 0.006 * np.sin(2 * np.pi * 5.5 * t) * np.clip((t - 0.18) / 0.25, 0, 1)
+    ph = 2 * np.pi * np.cumsum(f * vib) / SR
+    tone = np.sin(ph) + 0.22 * np.sin(2 * ph + 0.4) + 0.08 * np.sin(3 * ph + 1.1)
+    noise = rng.standard_normal(n)
+    chiff = bp(noise, f * 1.5, min(f * 6, 16000)) * np.exp(-t * 40) * 0.5
+    air = bp(noise, f * 0.9, f * 2.2) * 0.12
+    x = (tone + chiff + air) * env(n, 0.025, 0.08, 0.8, dur, 0.09)
+    return lp(x, 5000) * level
+
 def build_trap():
     S = {k: stem() for k in ("drone", "hits", "swell", "drums", "bass", "bells", "lead", "pad", "texperc", "fx")}
     CH = [(26, [62, 65, 69]), (34, [58, 62, 65]), (31, [55, 58, 62]), (33, [57, 61, 64])]   # Dm Bb Gm A
-    MEL = [[(81, 0), (77, .75), (74, 1.5), (81, 2), (77, 2.75), (76, 3.5)],              # the bell: 3-3-2, twice a bar
+    MEL = [[(81, 0), (77, .75), (74, 1.5), (81, 2), (77, 2.75), (76, 3.5)],              # the flute: 3-3-2, twice a bar
            [(77, 0), (74, .75), (70, 1.5), (77, 2), (74, 2.75), (72, 3.5)],
            [(74, 0), (70, .75), (67, 1.5), (74, 2), (72, 2.75), (70, 3.5)],
            [(73, 0), (76, .75), (69, 1.5), (76, 2), (73, 2.75), (81, 3.5)]]
@@ -432,9 +445,9 @@ def build_trap():
     for bar in range(0, 28):
         root, chord = CH[bar % 4]
         place(S["pad"], strings(chord, BAR - 0.05, 0.07), t_of(bar))
-        if bar < 18 or bar >= 20:          # the bell (filtered open over the intro)
+        if bar < 18 or bar >= 20:          # the flute (filtered open over the intro)
             for m, b in MEL[bar % 4]:
-                x = bell(m, 1.3, 0.24)
+                x = trap_flute(m, 0.62 * BEAT if b % 1 else 0.45 * BEAT, 0.26)
                 if bar < 4: x = lp(x, 900 + 900 * bar)
                 place(S["bells"], x, t_of(bar, b), pan=0.25 if b % 1 else -0.15)
         for b, o, d, fr in trap_808(bar):
@@ -471,7 +484,7 @@ def build_trap():
     place(S["bass"], tr808(26, 1.6 * BEAT, 0.5, 38, 0.5), t_of(3, 2.4))   # the slide into the title
     for bar in (4, 20, 28): place(S["hits"], impact(1.0, 0.04, 0.5), t_of(bar))
     place(S["bass"], tr808(26, 2.5, 0.6), t_of(28))
-    for m, b in [(74, 0), (77, 0.5), (81, 1.0), (86, 1.5)]: place(S["bells"], bell(m, 3.0, 0.22), t_of(28, b))
+    for m, b, d in [(74, 0, 0.45), (77, 0.5, 0.45), (81, 1.0, 0.45), (86, 1.5, 2.5)]: place(S["bells"], trap_flute(m, d * BEAT if d < 1 else d, 0.24), t_of(28, b))
     silence_before(S, (4, 20), ("drums", "bass", "bells", "pad", "lead", "texperc", "fx"))
     silence_before(S, (28,), ("drums", "bass", "lead"), 0.25)
     return S
@@ -511,7 +524,7 @@ STEMS = {
         "swell":   "11 mix=70",                                                # Reverse Bloom
         "drums":   "2 mix=10 duck=30",                                         # Pool Rooms: clap and hats, tight
         "bass":    "12 mix=6",                                                 # Sub Tunnel, a touch: the 808s
-        "bells":   "7 mix=35 duck=50",                                         # Dream Ping-Pong, ducked: the bell
+        "bells":   "7 mix=35 duck=50",                                         # Dream Ping-Pong, ducked: the flute
         "lead":    "14 mix=50 decay=140",                                      # Liminal Hz: the counter-line
         "pad":     "10 mix=60 decay=150",                                      # Glass Void: a far pad
         "texperc": "17 mix=75",                                                # Tuned Chord

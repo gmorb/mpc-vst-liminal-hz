@@ -308,7 +308,7 @@ display, the controls, factory presets, install; then the CPU design, build and 
   bpm=), tools/trailer (score.py: two songs, the style setting the tempo and meter: dark, 120 BPM in
   5/4, a round sub ostinato (sine + triangle, under ~700 Hz), heartbeat, a glass pad, a theremin-like falling lead,
   toms; cyber, 100 BPM, slow and heavy: a broken kick, a backbeat snare, an 8th bass pulse, 8th-gated chords, a soft
-  square hook; trap, 140 BPM half-time: sliding 808s, a clap on 3, hat rolls, a dark FM bell through Dream
+  square hook; trap, 140 BPM half-time: sliding 808s, a clap on 3, hat rolls, a breathy flute through Dream
   Ping-Pong. render.sh <style> plays every stem (none dry) through a factory preset, mix.py <style>
   cuts the tails that would ring over a hit (GATES) and masters, make_trailer.py wide|tall --style <style> draws the
   dark edit (paintings, red titles), cyber's own edit in the plugin's amber and ivory (a terminal boot, HUD
