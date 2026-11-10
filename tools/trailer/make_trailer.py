@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(ROOT, "tools", "demos")); sys.path.insert(0, HERE)
+if "--style" in sys.argv: os.environ["TRAILER_STYLE"] = sys.argv[sys.argv.index("--style") + 1]   # (sets the score's tempo)
 import render_page, score
 
 FPS, SR = 30, 44100
@@ -33,10 +34,18 @@ if STYLE == "dark": AMB = (214, 52, 44)                         # (the accent: C
 if STYLE == "cyber": AMB = (40, 232, 255)                        # (neon cyan; MAG for the second accent)
 MAG = (255, 54, 186)
 GRADE = {"dark": (np.array([1.06, 0.84, 0.80], np.float32), 0.0), "cyber": (np.array([0.95, 0.9, 1.22], np.float32), 4.0)}[STYLE]
-IMPACTS = [score.t_of(6), score.t_of(18), score.t_of(23)]
-DROP_KICKS = [score.t_of(b, k) for b in range(18, 23) for k in (0, 1, 2, 3)]   # (the drop's four-on-the-floor)
-GLITCHES = IMPACTS + DROP_KICKS + [score.t_of(5, 2 + k * 0.125) for k in range(12)] + \
-    [score.t_of(b, 3 + k * 0.125) for b in (9, 21) for k in range(8)] + [score.t_of(b, 3.5) for b in list(range(6, 14)) + list(range(18, 23))]
+if STYLE == "dark":                                               # 5/4: the drop's kicks on 1, 2.5, 4, 5
+    IMPACTS = [score.t_of(6), score.t_of(18), score.t_of(23)]
+    DROP_KICKS = [score.t_of(b, k) for b in range(18, 23) for k in (0, 1.5, 3, 4)]
+else:                                                             # cyber: four on the floor
+    IMPACTS = [score.t_of(4), score.t_of(20), score.t_of(28)]
+    DROP_KICKS = [score.t_of(b, k) for b in range(20, 28) for k in range(4)]
+GLITCHES = IMPACTS + DROP_KICKS + [score.t_of(b, 3 + k * 0.125) for b in (11, 23) for k in range(8)] + \
+    [score.t_of(19, 2.5 + k * 0.125) for k in range(8)] + [score.t_of(b, 3.5) for b in range(3, 28, 4)]
+MONO = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"     # (the HUD's type; Titillium if it isn't there)
+def M(size):
+    try: return ImageFont.truetype(MONO, max(8, int(size)))
+    except OSError: return F("r", size)
 
 def F(style, size): return ImageFont.truetype(FONTS + {"r": "TitilliumWeb-Regular.ttf", "s": "TitilliumWeb-SemiBold.ttf",
                                                          "b": "TitilliumWeb-Bold.ttf"}[style], max(8, int(size)))
@@ -218,7 +227,7 @@ DROP = [("SPACE: EMPTY MALL", "drums"), ("ECHO: DREAM PING-PONG", "keys"), ("STR
         ("SPACE: BACKROOMS", "pad"), ("STRANGE: LIMINAL HZ", "stabs"), ("TEXTURE: TUNED CHORD", "chord"),
         ("ECHO: PARKING SLAP", "sync_on"), ("TEXTURE: GRAIN CLOUD", "grain"), ("TEXTURE: STRUCK PIPE", "pipe"),
         ("TEXTURE: BOUNCING BALL", "ball")]
-END = score.t_of(23) + 7.8
+END = score.t_of(23) + 7.8 if STYLE == "dark" else score.t_of(28) + 4.6
 
 class Trailer:
     def __init__(self, mode):
@@ -341,10 +350,171 @@ class Trailer:
         return C.finish(fr, t, min(1.0, flash), shake, fade=fade, glitch=min(1.0, glitch + flash))
 
 # ---- the cuts --------------------------------------------------------------------------------------------------------
+class CyberTrailer(Trailer):
+    """cyber's own edit: a terminal boot, a HUD title over a moving neon grid, spec panels, callouts, oscilloscope
+    traces of the Textures, a countdown, beat-synced punch-ins on the drop"""
+    BOOT = ["> boot liminal_hz.vst", "> host: akai mpc / force   gen 1 + gen 2", "> factory IRs .......... 19 ok",
+            "> long_ir .............. 20 s ok", "> duck ................. ok", "> sync ................. 128 bpm ok",
+            "> textures ............. 5 ok", "> ready_"]
+    TEX = [("STRUCK PIPE", "Struck_Pipe"), ("GRAIN CLOUD", "Grain_Cloud"), ("TUNED CHORD", "Tuned_Chord"),
+           ("BREATH", "Breath"), ("BOUNCING BALL", "Bouncing_Ball")]
+    def __init__(self, mode):
+        super().__init__(mode)
+        import wave as _w
+        self.traces = []
+        for _, fn in self.TEX:                                    # the IRs' own waveforms, for the scope
+            w = _w.open(os.path.join(ROOT, "packaging", "factory", "Textures", fn + ".wav"))
+            a = np.frombuffer(w.readframes(w.getnframes()), dtype=np.uint8).reshape(-1, 6)
+            v = ((a[:, 0].astype(np.int32) | (a[:, 1].astype(np.int32) << 8) | (a[:, 2].astype(np.int32) << 16)) << 8 >> 8) / 8388608.0
+            self.traces.append(v / max(1e-9, np.abs(v).max()))
+
+    def grid(self, fr, t, bright=1.0):
+        """a neon floor grid rushing toward the camera, and a horizon glow"""
+        W, H = self.C.W, self.C.H; d = ImageDraw.Draw(fr)
+        hy = int(H * (0.58 if not self.C.tall else 0.62)); cx = W / 2
+        for k in range(12):                                       # horizontal lines (perspective, moving)
+            z = ((k + (t * 2.0) % 1.0) / 12.0)
+            y = hy + (H - hy) * z ** 2.2
+            c = tuple(int(v * bright * (0.25 + 0.75 * z)) for v in MAG)
+            d.line((0, y, W, y), fill=c, width=1 + int(2 * z))
+        for k in range(-14, 15):                                  # rays to the vanishing point
+            x1 = cx + k * W / 9
+            d.line((cx + k * 6, hy, x1, H), fill=tuple(int(v * bright * 0.45) for v in MAG), width=1)
+        d.line((0, hy, W, hy), fill=tuple(int(v * bright) for v in AMB), width=2)
+
+    def bracket(self, fr, box, col=None, L=26, w=3):
+        d = ImageDraw.Draw(fr); x0, y0, x1, y1 = box; col = col or AMB
+        for (px, py, dx, dy) in ((x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)):
+            d.line((px, py, px + dx * L, py), fill=col, width=w); d.line((px, py, px, py + dy * L), fill=col, width=w)
+
+    def mono(self, fr, s, xy, size, col=None, alpha=1.0, anchor="la"):
+        layer = Image.new("RGBA", fr.size, (0, 0, 0, 0)); d = ImageDraw.Draw(layer)
+        d.text(xy, s, font=M(size), fill=(col or AMB) + (int(255 * alpha),), anchor=anchor)
+        fr.paste(Image.alpha_composite(fr.convert("RGBA"), layer).convert("RGB"))
+
+    def panel(self, fr, pg, region, box, label, t, slide=1.0):
+        """a page crop in a HUD panel, sliding in"""
+        x0, y0, x1, y1 = box; w, h = x1 - x0, y1 - y0
+        rx, ry, rw, rh = region
+        asp = w / h
+        if rw / rh > asp: ch = rw / asp; cy = ry + rh / 2; view = (rx, max(0, min(628 - ch, cy - ch / 2)), rw, min(628, ch))
+        else: cw = rh * asp; cx = rx + rw / 2; view = (max(0, min(1280 - cw, cx - cw / 2)), ry, min(1280, cw), rh)
+        vx, vy, vw, vh = view
+        im = pg.transform((w, h), Image.EXTENT, (vx, vy, vx + vw, vy + vh), Image.BILINEAR)
+        off = int((1 - ease(slide)) * self.C.W * 0.6)
+        fr.paste(im, (x0 + off, y0))
+        self.bracket(fr, (x0 + off - 6, y0 - 6, x1 + off + 6, y1 + 6))
+        self.mono(fr, label, (x0 + off, y0 - 40), 28 if not self.C.tall else 30)
+
+    def frame(self, t):
+        C, W, H = self.C, self.C.W, self.C.H
+        tall = C.tall; T = score.t_of
+        flash = sum(max(0.0, 0.8 * np.exp(-(t - i) / 0.1)) for i in IMPACTS if t >= i)
+        shake = sum(22 * np.exp(-(t - i) / 0.3) for i in IMPACTS if t >= i) + sum(10 * np.exp(-(t - k) / 0.07) for k in DROP_KICKS if 0 <= t - k < 0.3)
+        fade = 1.0
+        fr = Image.new("RGB", (W, H), (6, 6, 12))
+        if t < T(4):                                              # boot
+            self.grid(fr, t, 0.25 + 0.5 * t / T(4))
+            n_chars = int((t - 0.3) * 38)
+            y = H * (0.16 if not tall else 0.2); size = 44 if not tall else 36
+            for ln in self.BOOT:
+                if n_chars <= 0: break
+                shown = ln[:n_chars]; n_chars -= len(ln) + 6
+                cur = "_" if n_chars < 0 and int(t * 4) % 2 else ""
+                self.mono(fr, shown + cur, (W * 0.08, y), size, IV if "ok" not in shown else AMB)
+                y += size * 1.6
+            if t > T(3, 3): fade = max(0.0, 1 - (t - T(3, 3)) / (BEAT * 0.9))
+        elif t < T(8):                                            # the title, HUD
+            u = (t - T(4)) / (4 * BAR)
+            self.grid(fr, t, 1.0)
+            C.wordmark(fr, H * (0.4 if not tall else 0.42), (150 if not tall else 112) * (1.08 - 0.08 * ease(u * 4)))
+            self.mono(fr, "CONVOLUTION REVERB // AKAI MPC + FORCE", (W / 2, H * (0.52 if not tall else 0.5)), 36 if not tall else 28,
+                      MAG, ease((t - T(4) - 0.6) / 0.4), "mm")
+            self.bracket(fr, (W * 0.18, H * 0.24, W * 0.82, H * 0.56) if not tall else (W * 0.06, H * 0.32, W * 0.94, H * 0.53))
+        elif t < T(12):                                           # spec panels, one a bar
+            self.grid(fr, t, 0.6)
+            k = int((t - T(8)) / BAR)
+            specs = [("stabs", "shape", "> ir_shape"), ("stabs", "preset", "> 19 factory IRs"),
+                     ("pad", "longir", "> long_ir: 20 s"), ("LIST", "list", "> your IRs + TONE3000")]
+            if not tall: boxes = [(120, 170, 900, 500), (1020, 170, 1800, 500), (120, 620, 900, 950), (1020, 620, 1800, 950)]
+            else: boxes = [(60, 260, 1020, 640), (60, 740, 1020, 1120), (60, 1220, 1020, 1600), (60, 1700, 1020, 1880)]
+            for j in range(k + 1):
+                st, reg, lab = specs[j]
+                pg = self.list_page if st == "LIST" else self.P.at(st, t)
+                self.panel(fr, pg, REGIONS[reg], boxes[j], lab, t, (t - T(8 + j)) / (BEAT * 1.2))
+        elif t < T(16):                                           # callouts, one a bar
+            k = int((t - T(12)) / BAR); u = (t - T(12 + k)) / BAR
+            items = [("DUCK", "the reverb ducks under your hits", "duck80", "duck"),
+                     ("TEMPO SYNC", "pre-delay locked to the grid", "sync_on", "sync"),
+                     ("LONG IR", "twenty seconds of tail", "pad", "longir"),
+                     ("PRESET MENU", "all 19 in MPC's own menu", "stabs", "preset")]
+            word, sub, st, reg = items[k]
+            self.grid(fr, t, 0.5)
+            if not tall:
+                self.big(fr, word, H * 0.36, 120, color=AMB if k % 2 == 0 else MAG, track=0.04, x=W * 0.27)
+                self.mono(fr, "> " + sub, (W * 0.27, H * 0.46), 34, IV, ease(u / 0.15), "mm")
+                self.panel(fr, self.P.at(st, t), REGIONS[reg], (int(W * 0.55), int(H * 0.22), int(W * 0.93), int(H * 0.72)), "", t, u / 0.12)
+            else:
+                self.big(fr, word, H * 0.2, 130, color=AMB if k % 2 == 0 else MAG, track=0.04)
+                self.mono(fr, "> " + sub, (W / 2, H * 0.26), 30, IV, ease(u / 0.15), "mm")
+                self.panel(fr, self.P.at(st, t), REGIONS[reg], (60, int(H * 0.33), W - 60, int(H * 0.6)), "", t, u / 0.12)
+        elif t < T(20) - BEAT * 0.5:                              # textures on the scope, then the countdown
+            self.grid(fr, t, 0.35)
+            if t < T(19):
+                k = min(4, int((t - T(16)) / (3 * BAR / 5)))
+                name, _ = self.TEX[k]; tr = self.traces[k]
+                d = ImageDraw.Draw(fr)
+                x0, x1 = W * 0.08, W * 0.92; yc = H * 0.5; amp = H * (0.18 if not tall else 0.12)
+                n = int(x1 - x0); idx = np.linspace(0, min(len(tr) - 1, int(1.6 * SR)), n).astype(int)
+                pts = [(x0 + i, yc - tr[j] * amp) for i, j in enumerate(idx)]
+                reveal = int(n * ease((t - T(16) - k * 3 * BAR / 5) / 0.6))
+                if reveal > 1: d.line(pts[:reveal], fill=AMB, width=3)
+                self.mono(fr, "> textures // irs that aren't rooms", (W * 0.08, H * 0.22), 28, MAG)
+                self.big(fr, name, H * 0.76, 110 if not tall else 96, color=IV, track=0.06)
+            else:
+                n = 3 - int((t - T(19)) / BEAT)
+                if n >= 1: self.big(fr, str(n), H * 0.5, 420 if not tall else 520, color=AMB if n != 2 else MAG, style="b")
+        elif t < T(20):
+            pass
+        elif t < T(28):                                           # the drop: a punch-in on every kick
+            k = int((t - T(20)) / BEAT); u = (t - T(20) - k * BEAT) / BEAT; bar = int((t - T(20)) / BAR) + 20
+            names = ["SPACE: EMPTY MALL", "ECHO: TAPE CORRIDOR", "STRANGE: GLASS VOID", "TEXTURE: TUNED CHORD",
+                     "STRANGE: LIMINAL HZ", "ECHO: DREAM PING-PONG", "TEXTURE: GRAIN CLOUD", "SPACE: BACKROOMS"]
+            states = ["drums", "keys", "hits", "chord", "stabs", "keys", "grain", "pad"]
+            regs = [None, "shape", "knobs", "list", None, "shape", "knobs", None]
+            if bar in (24, 25):
+                self.grid(fr, t, 1.0)
+                self.big(fr, "FREE." if bar == 24 else "GEN 1 // GEN 2", H * 0.45, 230 if bar == 24 else 120,
+                         color=AMB if bar == 24 else MAG, style="b", track=0.05)
+                self.mono(fr, "> no subscription. no account. on your mpc." if bar == 24 else "> armv7 + aarch64. one page.",
+                          (W / 2, H * 0.6), 30, IV, 1.0, "mm")
+            else:
+                j = k % len(names)
+                bg = self.bg(FLICKER[j % len(FLICKER)], t, T(20) + k * BEAT, BEAT, (1.25, 1.1), dim=0.6)
+                fr.paste(bg)
+                self.grid(fr, t, 0.6)
+                z = 1.0 - 0.25 * ease(u * 3)                          # the punch: in on the kick, settling
+                C.page(fr, self.P.at(states[j], t), region=REGIONS.get(regs[j]), zoom_to=1.0 if regs[j] else 0,
+                       width_frac=(0.72 if not tall else 0.98) / z, y_frac=0.56)
+                self.mono(fr, "> load " + names[j].lower(), (W / 2, H * (0.12 if not tall else 0.2)), 40 if not tall else 34, AMB, 1.0, "mm")
+        else:                                                     # end
+            self.grid(fr, t, 0.8)
+            C.wordmark(fr, H * (0.38 if not tall else 0.4), 150 if not tall else 112)
+            self.mono(fr, "free convolution reverb // akai mpc + force", (W / 2, H * 0.5), 32 if not tall else 26, IV,
+                      ease((t - T(28) - 0.4) / 0.4), "mm")
+            self.mono(fr, "github.com/gmorb/mpc-vst-liminal-hz", (W / 2, H * 0.58), 36 if not tall else 30, AMB,
+                      ease((t - T(28) - 1.0) / 0.4), "mm")
+            self.bracket(fr, (W * 0.12, H * 0.25, W * 0.88, H * 0.64) if not tall else (W * 0.04, H * 0.3, W * 0.96, H * 0.63))
+            fade = 1 - ease((t - (END - 1.4)) / 1.4)
+        glitch = max([np.exp(-(t - g) / 0.07) for g in GLITCHES if 0 <= t - g < 0.3] + [0.0])
+        return C.finish(fr, t, min(1.0, flash), shake, fade=fade, glitch=min(1.0, glitch + flash))
+
 def segments(mode):
     """(source start, source end) on the score's clock, joined in order"""
     if mode == "wide": return [(0.0, END)]
     T = score.t_of
+    if STYLE == "cyber":
+        return [(T(2), T(4)), (T(4), T(6)), (T(12), T(16)), (T(18), T(20)), (T(20), T(24)), (T(28), END)]
     return [(T(4), T(6)), (T(6), T(8)), (T(12), T(14)), (T(16), T(18)), (T(18), T(21)), (T(22), T(23)), (T(23), END)]
 
 def read_mix():
@@ -353,7 +523,7 @@ def read_mix():
 
 def main():
     mode, out = sys.argv[1], sys.argv[2]
-    T = Trailer(mode); segs = segments(mode)
+    T = (CyberTrailer if STYLE == "cyber" else Trailer)(mode); segs = segments(mode)
     total = sum(b - a for a, b in segs)
     def src(t):                                                       # video time -> score time
         for a, b in segs:

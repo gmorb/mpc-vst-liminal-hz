@@ -305,10 +305,11 @@ display, the controls, factory presets, install; then the CPU design, build and 
 - **Best on**: kBestOn (factory IR name -> "drums, vocals"...), appended to the pack line for the Factory list
   ("Strange · best on chords, pads"); My IRs and TONE3000 packs unchanged. README has the table.
 - **Marketing kit**: tools/demos (12 demos; make_video.py takes several wet parts for before/after, demo_host takes
-  bpm=), tools/trailer (score.py has two scores on one 26-bar plan, dark (80s synth horror: a heartbeat intro, a galloping
-  octave bass pulse, string machine, bells) and cyber (cyberpunk: reese bass and arp in 16ths, metallic snare, glitches), every note on the grid; render.sh
-  <style> plays each stem through a factory preset, mix.py <style> masters, make_trailer.py wide|tall --style <style>
-  draws 1920x1080 ~63 s and 1080x1920 ~37 s from the real page states and the vst/art paintings, graded to match), and
-  tools/make_feature_images.py (docs/images/feature-*.png, plus 1080x1080 posts). The trailer files are not in the repo
+  bpm=), tools/trailer (score.py: two songs, the style setting the tempo and meter: dark, 120 BPM in
+  5/4, a dry octave ostinato, heartbeat, string machine, a falling lead, toms; cyber, 128 BPM four-on-the-floor, a
+  rolling bass, gated chords, a square hook. render.sh <style> plays each stem through a factory preset, mix.py <style>
+  cuts the tails that would ring over a hit (GATES) and masters, make_trailer.py wide|tall --style <style> draws the
+  dark edit (paintings, red titles) or cyber's own edit (a terminal boot, HUD panels, a scope, a countdown, punch-ins),
+  from the real page states), and tools/make_feature_images.py (docs/images/feature-*.png, plus 1080x1080 posts). The trailer files are not in the repo
   (~40 MB): upload them (YouTube, socials) and link them.
 

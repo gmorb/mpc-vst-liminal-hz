@@ -8,6 +8,7 @@ import os, sys, wave
 import numpy as np
 from scipy.signal import butter, sosfilt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+if len(sys.argv) > 1: os.environ["TRAILER_STYLE"] = sys.argv[1]       # (the style sets the score's tempo and meter)
 import score
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -48,6 +49,9 @@ def main():
     for k in score.STEMS[STYLE]:
         p = os.path.join(T, k + ("_wet.wav" if score.STEMS[STYLE][k] else ".wav"))
         stems[k] = read(p)
+    for k, bar in score.GATES[STYLE]:                                  # tails cut where they'd ring over a hit
+        a = int(score.t_of(bar) * SR); f = int(0.015 * SR); b = int(score.t_of(bar + 2) * SR)
+        x = stems[k]; x[a - f:a] *= np.linspace(1, 0, f)[:, None]; x[a:b] = 0
     n = min(len(v) for v in stems.values())
     ref = active_rms(stems["drums"][:n])
     mix = np.zeros((n, 2))
