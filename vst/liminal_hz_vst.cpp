@@ -233,10 +233,12 @@ static const Preset kPresets[] = {
   {"Shimmer Fog", "Strange", 38, 50, 250, 16000, 170, 100, 0, 0, 10, 15, 100, 0, 12},
   {"Liminal Hz", "Strange", 40, 35, 80, 11000, 150, 100, 0, 0, 5, 15, 100, 0, 50},
   // Textures: not rooms. The input played through an object, a cloud of grains, a chord, a breath, a bounce
-  {"Struck Pipe", "Textures", 30, 0, 120, 12000, 130, 100, 0, 0, 0, 10, 100, 0, 0},
-  {"Grain Cloud", "Textures", 40, 10, 150, 14000, 160, 100, 0, 0, 0, 15, 100, 0, 0},
-  {"Tuned Chord", "Textures", 30, 0, 100, 10000, 130, 100, 0, 0, 0, 10, 100, 0, 0},
-  {"Breath", "Textures", 35, 0, 200, 12000, 140, 100, 0, 0, 0, 15, 100, 0, 0},
+  // (resonant IRs: unit energy puts much more gain on their peaks than a room's, so their Output is trimmed until a
+  // -12 dBFS sine sweep peaks no higher than Backrooms does, about -2 dBFS)
+  {"Struck Pipe", "Textures", 30, 0, 120, 12000, 130, 100, -2, 0, 0, 10, 100, 0, 0},
+  {"Grain Cloud", "Textures", 40, 10, 150, 14000, 160, 100, -4, 0, 0, 15, 100, 0, 0},
+  {"Tuned Chord", "Textures", 30, 0, 100, 10000, 130, 100, -3, 0, 0, 10, 100, 0, 0},
+  {"Breath", "Textures", 35, 0, 200, 12000, 140, 100, -5, 0, 0, 15, 100, 0, 0},
   {"Bouncing Ball", "Textures", 35, 0, 120, 12000, 150, 100, 0, 0, 0, 10, 100, 0, 0}
 };
 static const int kPresetCount = (int)(sizeof kPresets / sizeof kPresets[0]);

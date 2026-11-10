@@ -217,7 +217,9 @@ def struck_pipe(n, rng):
     return out[0], out[1]
 
 def grain_cloud(n, rng):
-    """hundreds of tiny grains (short windowed bursts of pitched noise) scattered across the IR, thinning out"""
+    """hundreds of tiny grains (short windowed bursts of band-passed noise, each about half an octave wide) scattered
+    across the IR, thinning out. Noise, not sine tones: pure-tone grains gave the IR needle-sharp resonances (~118 dB
+    over its median) that rang out any steady partial landing on one (a synth's harmonics, or its aliasing)"""
     L, R = np.zeros(n), np.zeros(n)
     for _ in range(420):
         t0 = rng.exponential(0.7)
@@ -225,10 +227,12 @@ def grain_cloud(n, rng):
         g_n = int(rng.uniform(0.012, 0.06) * SR)
         if i + g_n >= n: continue
         f = 2 ** rng.uniform(np.log2(300), np.log2(5000))
-        tt = np.arange(g_n) / SR
-        grain = np.hanning(g_n) * np.sin(2 * np.pi * f * tt + rng.uniform(0, 2 * np.pi)) * np.exp(-t0 / 1.4)
+        fq = np.fft.rfftfreq(g_n, 1 / SR)
+        band = np.exp(-0.5 * (np.log2(np.maximum(fq, 1.0) / f) / 0.25) ** 2)               # ~half an octave
         p = rng.beta(0.3, 0.3)                                                       # each grain its own place, mostly to a side
-        L[i:i + g_n] += grain * np.sqrt(1 - p); R[i:i + g_n] += grain * np.sqrt(p)
+        for out, gain in ((L, np.sqrt(1 - p)), (R, np.sqrt(p))):                     # (its own noise on each side)
+            g = np.fft.irfft(np.fft.rfft(rng.standard_normal(g_n)) * band, g_n); g /= np.sqrt(np.mean(g ** 2)) + 1e-12
+            out[i:i + g_n] += np.hanning(g_n) * g * np.exp(-t0 / 1.4) * gain
     return L, R
 
 def tuned_chord(n, rng):

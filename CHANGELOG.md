@@ -14,15 +14,17 @@
   off.
 - **Textures**: a fourth factory category of IRs that aren't rooms: Struck Pipe, Grain Cloud, Tuned Chord, Breath,
   Bouncing Ball, each with a preset. The PRESET list now opens in four columns. Like the other factory IRs they are
-  synthetic and free to use. (Any .wav can be an IR: README, Your own IRs.)
+  synthetic and free to use. (Any .wav can be an IR: README, Your own IRs.) Grain Cloud's grains are short bursts
+  of band-passed noise, not sine tones, so it doesn't whistle on steady synth partials, and the Textures presets'
+  Output is trimmed (resonant IRs put more gain on their peaks) so none peaks hotter than Backrooms.
 - **MPC's own preset menu** (at the top of the screen) now lists Init and the 19 factory presets, named by category
   ("Space: Empty Mall", "Echo: Tape Corridor", "Strange: Glass Void", "Texture: Breath"); picking one there is the
   same as picking it in the plugin's PRESET list. Re-selecting the current one changes nothing, so a project's edits
   are kept.
 - **What each IR suits**: under the IR's name, a factory IR's category now says what it's best on ("Strange · best
   on chords, pads"); the README has the table.
-- Seven more demos (the five Textures, Duck, SYNC), a trailer kit (`tools/trailer/`: two synthesized scores,
-  dark and cyberpunk, played through the plugin, and the videos), and images explaining the new features (`tools/make_feature_images.py`).
+- Seven more demos (the five Textures, Duck, SYNC), a trailer kit (`tools/trailer/`: three synthesized scores,
+  dark, cyberpunk and trap, played through the plugin, and the videos), and images explaining the new features (`tools/make_feature_images.py`).
 
 ### Changed
 - **The pause when picking a preset or after DELETE.** MPC answers each "update the display" call from a plugin by
