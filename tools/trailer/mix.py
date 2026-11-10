@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 the mpc-vst-liminal-hz contributors
-"""mix.py dark|cyber -- a score's stems (as Liminal Hz played them, render.sh) mixed and mastered: vst/build/trailer/<style>/mix.wav
+"""mix.py dark|cyber|trap -- a score's stems (as Liminal Hz played them, render.sh) mixed and mastered: vst/build/trailer/<style>/mix.wav
 (44.1 kHz, 16-bit stereo). Each stem is set to a level against the drums (LEVEL, dB, by its loudness while it plays),
 then the sum is high-passed, driven gently and peak-limited to -1 dBFS (a 5 ms look-ahead, 120 ms release)."""
 import os, sys, wave

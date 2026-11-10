@@ -308,10 +308,12 @@ display, the controls, factory presets, install; then the CPU design, build and 
   bpm=), tools/trailer (score.py: two songs, the style setting the tempo and meter: dark, 120 BPM in
   5/4, a round sub ostinato (sine + triangle, under ~700 Hz), heartbeat, a glass pad, a theremin-like falling lead,
   toms; cyber, 100 BPM, slow and heavy: a broken kick, a backbeat snare, an 8th bass pulse, 8th-gated chords, a soft
-  square hook. render.sh <style> plays every stem (none dry) through a factory preset, mix.py <style>
+  square hook; trap, 140 BPM half-time: sliding 808s, a clap on 3, hat rolls, a dark FM bell through Dream
+  Ping-Pong. render.sh <style> plays every stem (none dry) through a factory preset, mix.py <style>
   cuts the tails that would ring over a hit (GATES) and masters, make_trailer.py wide|tall --style <style> draws the
-  dark edit (paintings, red titles) or cyber's own edit in the plugin's amber and ivory (a terminal boot, HUD
-  panels, a scope, a countdown, punch-ins),
+  dark edit (paintings, red titles), cyber's own edit in the plugin's amber and ivory (a terminal boot, HUD
+  panels, a scope, a countdown, punch-ins) or trap's (hard cuts on the 808s and claps, huge stacked words, a ghost
+  word drifting behind, page punch-ins),
   from the real page states), and tools/make_feature_images.py (docs/images/feature-*.png, plus 1080x1080 posts). The trailer files are not in the repo
   (~40 MB): upload them (YouTube, socials) and link them.
 

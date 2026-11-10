@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 the mpc-vst-liminal-hz contributors
-"""score.py dark|cyber <out dir> -- the trailer's music, synthesized (no samples), as dry stems for the plugin to play.
+"""score.py dark|cyber|trap <out dir> -- the trailer's music, synthesized (no samples), as dry stems for the plugin to play.
 
-Two different songs (the style comes from argv, or TRAILER_STYLE when imported; it sets the tempo and the meter):
+Three different songs (the style comes from argv, or TRAILER_STYLE when imported; it sets the tempo and the meter):
   dark    120 BPM in 5/4 (3+2), D minor, 26 bars (65 s): an 80s synth-horror score. A round sub ostinato (sine and
           triangle, never brighter than ~700 Hz) creeping in under Sub Tunnel, a heartbeat, a soft glass pad, a slow
           falling theremin-like lead through the Liminal Hz preset, toms and a heavy snare; tight impacts, and
@@ -11,6 +11,9 @@ Two different songs (the style comes from argv, or TRAILER_STYLE when imported; 
           bars 0-3 intro, 4-5 swell, 6 IMPACT (title), 6-13 groove, 14-17 breakdown, 18 IMPACT (drop), 18-22, 23 end
   cyber   100 BPM in 4/4, D minor, 32 bars (77 s): slow, heavy cyberpunk. A broken kick (1, the and of 3), a
           backbeat snare, a pulsing 8th bass, warm 8th-gated chords, a soft square hook, glitches.
+  trap    140 BPM in 4/4 (a half-time feel), D minor, 28 bars (53 s): modern trap. 808s that slide, a clap on 3,
+          hats in 8ths and 16ths with triplet and 32nd rolls, a dark FM bell figure (3-3-2) through Dream Ping-Pong,
+          a theremin-like counter-line through the Liminal Hz preset, a stop before the drop.
           bars 0-3 boot, 4 IMPACT (title), 4-11 groove, 12-15 features, 16-19 breakdown and build, 20 IMPACT (drop),
           20-27 drop with the hook, 28 IMPACT (end)
 Every note is on the grid, with fixed (not random) tuning. Each stem is a 44.1 kHz stereo float WAV, and every
@@ -20,9 +23,9 @@ import os, sys
 import numpy as np
 from scipy.signal import butter, sosfilt
 
-STYLE = os.environ.get("TRAILER_STYLE") or (sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in ("dark", "cyber") else "dark")
+STYLE = os.environ.get("TRAILER_STYLE") or (sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in ("dark", "cyber", "trap") else "dark")
 SR = 44100
-BPM, BPB, BARS = {"dark": (120, 5, 26), "cyber": (100, 4, 32)}[STYLE]
+BPM, BPB, BARS = {"dark": (120, 5, 26), "cyber": (100, 4, 32), "trap": (140, 4, 31)}[STYLE]
 BEAT = 60 / BPM; BAR = BPB * BEAT
 TOTAL = BARS * BAR + 5.0
 N = int(TOTAL * SR)
@@ -382,6 +385,97 @@ def build_cyber():
     silence_before(S, (4, 20), ("drums", "texperc", "bass", "sub", "chords", "hook", "fx"))
     return S
 
+# ---- trap ----------------------------------------------------------------------------------------------------------
+def tr808(m, dur, level=0.5, from_m=None, glide=0.08):
+    """an 808: a sine with a pitch punch (or a slide from from_m), saturated so it carries on small speakers"""
+    n = int((dur + 0.06) * SR); t = np.arange(n) / SR
+    if from_m is None: f = hz(m) * (1 + 0.9 * np.exp(-t * 45))
+    else: f = hz(m) * 2 ** ((from_m - m) / 12 * np.clip(1 - t / glide, 0, 1) ** 2)
+    x = np.sin(2 * np.pi * np.cumsum(f) / SR)
+    x = np.tanh(x * 2.4) / np.tanh(2.4) + hp(rng.standard_normal(n), 4000) * np.exp(-t * 500) * (0.12 if from_m is None else 0)
+    return lp(x, 3000) * env(n, 0.002, 0.0, 1.0, dur, 0.05) * np.exp(-t * 0.5) * level
+
+def clap(level=0.6):
+    """a trap clap: three tight bursts and a short band-passed tail, layered on a snare's body"""
+    n = int(0.4 * SR); t = np.arange(n) / SR; out = np.zeros(n)
+    for d in (0.0, 0.009, 0.019, 0.03):
+        i = int(d * SR); m = n - i
+        out[i:] += bp(rng.standard_normal(m), 1000, 6000) * np.exp(-np.arange(m) / SR * 160) * 0.6
+    out += bp(rng.standard_normal(n), 1100, 5000) * np.exp(-t * 16) * 0.35 * (t > 0.03)
+    body = np.sin(2 * np.pi * 200 * t) * np.exp(-t * 25) * 0.4
+    return np.tanh((out + body) * 1.6) * level
+
+V808 = [(0, 0, 1.4, None), (1.5, 0, 1.1, None), (2.75, 0, 1.2, None)]          # (beat, +semitones, beats, slide from)
+D808 = [(0, 0, 1.4, None), (1.5, 0, 0.9, None), (2.5, 12, 0.45, 0), (3.0, 0, 0.9, 12)]
+def trap_808(bar):
+    if 4 <= bar < 12: return V808
+    if 12 <= bar < 18: return [(0, 0, 3.6, None)]
+    if 20 <= bar < 28: return D808 if bar % 4 != 3 else D808[:2] + [(2.5, 7, 0.45, 0), (3.0, 12, 0.9, 7)]
+    return []
+def trap_hits():
+    """the 808s' times and the claps' times (the edit cuts on them)"""
+    return ([t_of(b, x[0]) for b in range(BARS) for x in trap_808(b)],
+            [t_of(b, 2) for b in list(range(4, 18)) + list(range(20, 28))])
+
+def build_trap():
+    S = {k: stem() for k in ("drone", "hits", "swell", "drums", "bass", "bells", "lead", "pad", "texperc", "fx")}
+    CH = [(26, [62, 65, 69]), (34, [58, 62, 65]), (31, [55, 58, 62]), (33, [57, 61, 64])]   # Dm Bb Gm A
+    MEL = [[(81, 0), (77, .75), (74, 1.5), (81, 2), (77, 2.75), (76, 3.5)],              # the bell: 3-3-2, twice a bar
+           [(77, 0), (74, .75), (70, 1.5), (77, 2), (74, 2.75), (72, 3.5)],
+           [(74, 0), (70, .75), (67, 1.5), (74, 2), (72, 2.75), (70, 3.5)],
+           [(73, 0), (76, .75), (69, 1.5), (76, 2), (73, 2.75), (81, 3.5)]]
+    LINE = [[(81, 0, 4)], [(82, 0, 4)], [(79, 0, 2), (77, 2, 2)], [(76, 0, 2.5), (73, 2.5, 1.5)]]   # the counter-line
+    t_end = t_of(28) + 4.5
+    tt = np.arange(int(t_end * SR)) / SR
+    air = lp(rng.standard_normal(len(tt)), 220) * 0.3 + np.sin(2 * np.pi * hz(38) * tt) * 0.15
+    place(S["drone"], air * np.clip(tt / 3.0, 0, 1) * np.clip((t_end - tt) / 3.0, 0, 1), 0.0)
+    for bar in range(0, 28):
+        root, chord = CH[bar % 4]
+        place(S["pad"], strings(chord, BAR - 0.05, 0.07), t_of(bar))
+        if bar < 18 or bar >= 20:          # the bell (filtered open over the intro)
+            for m, b in MEL[bar % 4]:
+                x = bell(m, 1.3, 0.24)
+                if bar < 4: x = lp(x, 900 + 900 * bar)
+                place(S["bells"], x, t_of(bar, b), pan=0.25 if b % 1 else -0.15)
+        for b, o, d, fr in trap_808(bar):
+            place(S["bass"], tr808(root + o, d * BEAT, 0.55, None if fr is None else root + fr), t_of(bar, b))
+        drop = bar >= 20
+        if 4 <= bar < 18 or drop:
+            place(S["drums"], clap(0.9 if drop else 0.8), t_of(bar, 2))
+            step = 0.25 if drop else 0.5
+            for k in range(int(4 / step)):
+                b = k * step
+                if bar % 2 == 1 and b >= 3: continue              # (the roll's place)
+                if 12 <= bar < 16 and k % 2: continue
+                place(S["drums"], hat(level=0.06 if k % 2 == 0 else 0.045), t_of(bar, b), pan=0.25)
+            if bar % 2 == 1:                                      # rolls: triplets, then 32nds rising
+                rate = 1 / 6 if bar % 4 == 1 else 1 / 8
+                for k in range(int(1 / rate)):
+                    place(S["drums"], hat(level=0.035 + 0.035 * k * rate), t_of(bar, 3 + k * rate), pan=0.25)
+            if drop and bar % 2 == 0: place(S["drums"], hat(True, 0.05), t_of(bar, 3.5), pan=-0.3)
+            if drop and bar % 4 == 2: place(S["drums"], clap(0.35), t_of(bar, 3.75))
+        if drop:
+            for m, b, d in LINE[bar % 4]: place(S["lead"], ghost_lead(m, d * BEAT - 0.1, 0.18, 2000), t_of(bar, b))
+        if 12 <= bar < 18:                                        # the features: a rim pattern through Tuned Chord
+            for b in (0.75, 1.5, 3.25): place(S["texperc"], snare(0.6) * 0.6, t_of(bar, b))
+    for bar in (18, 19):                                          # the build: claps in 8ths, 16ths, 32nds
+        step = 0.5 if bar == 18 else 0.25
+        for k in range(int(4 / step)):
+            b = k * step
+            if bar == 19 and b >= 2.5: continue
+            place(S["drums"], clap(0.3 + 0.5 * ((bar - 18) * 4 + b) / 8), t_of(bar, b))
+        if bar == 19:
+            for k in range(8): place(S["drums"], clap(0.75), t_of(19, 2.5 + k * 0.125))
+    place(S["fx"], riser(2 * BAR - 0.3, 0.6), t_of(18))
+    place(S["swell"], reverse_swell(BAR - 0.2, 0.8), t_of(3))
+    place(S["bass"], tr808(26, 1.6 * BEAT, 0.5, 38, 0.5), t_of(3, 2.4))   # the slide into the title
+    for bar in (4, 20, 28): place(S["hits"], impact(1.0, 0.04, 0.5), t_of(bar))
+    place(S["bass"], tr808(26, 2.5, 0.6), t_of(28))
+    for m, b in [(74, 0), (77, 0.5), (81, 1.0), (86, 1.5)]: place(S["bells"], bell(m, 3.0, 0.22), t_of(28, b))
+    silence_before(S, (4, 20), ("drums", "bass", "bells", "pad", "lead", "texperc", "fx"))
+    silence_before(S, (28,), ("drums", "bass", "lead"), 0.25)
+    return S
+
 def dist_kick(level=1.0):
     return np.tanh(kick(1.0) * 2.4) * 0.92 * level
 
@@ -411,18 +505,33 @@ STEMS = {
         "texperc": "17 mix=75",                                                # Tuned Chord
         "sub":     "12 mix=8",                                                 # Sub Tunnel, a touch
     },
+    "trap": {
+        "drone":   "10 mix=55",                                                # Glass Void: the air
+        "hits":    "4 mix=20 decay=90 width=160",                              # Backrooms, short
+        "swell":   "11 mix=70",                                                # Reverse Bloom
+        "drums":   "2 mix=10 duck=30",                                         # Pool Rooms: clap and hats, tight
+        "bass":    "12 mix=6",                                                 # Sub Tunnel, a touch: the 808s
+        "bells":   "7 mix=35 duck=50",                                         # Dream Ping-Pong, ducked: the bell
+        "lead":    "14 mix=50 decay=140",                                      # Liminal Hz: the counter-line
+        "pad":     "10 mix=60 decay=150",                                      # Glass Void: a far pad
+        "texperc": "17 mix=75",                                                # Tuned Chord
+        "fx":      "7 mix=40",                                                 # Dream Ping-Pong
+    },
 }
 LEVEL = {   # dB against the drums, by loudness while each plays (mix.py)
     "dark": {"drums": 0.0, "hits": 0.0, "beat": -1.0, "pulse": -2.0, "sub": -5.0, "texperc": -2.0, "swell": -5.0,
              "strings": -9.0, "lead": -7.0, "drone": -9.0},
     "cyber": {"drums": 0.0, "hits": -1.0, "bass": -3.0, "sub": -7.0, "chords": -6.0, "hook": -6.0, "fx": -12.0,
               "texperc": -2.0, "swell": -5.0, "drone": -12.0},
+    "trap": {"drums": 0.0, "hits": -1.0, "bass": 1.0, "bells": -5.0, "lead": -9.0, "pad": -13.0, "drone": -15.0,
+             "texperc": -4.0, "swell": -6.0, "fx": -10.0},
 }
 # where a stem's sound (reverb tails included) is cut, so nothing rings over a hit: (stem, bar)
 # (stems with nothing of their own to play for the two bars after that bar: their tails are cut there)
 GATES = {"dark": [("texperc", 18), ("swell", 18), ("swell", 6)],
-         "cyber": [("texperc", 20), ("swell", 20), ("swell", 4), ("fx", 4)]}
-BUILD = {"dark": build_dark, "cyber": build_cyber}
+         "cyber": [("texperc", 20), ("swell", 20), ("swell", 4), ("fx", 4)],
+         "trap": [("texperc", 20), ("swell", 20), ("swell", 4), ("fx", 20)]}
+BUILD = {"dark": build_dark, "cyber": build_cyber, "trap": build_trap}
 
 def write(path, x):
     x = np.asarray(x, dtype=np.float32)

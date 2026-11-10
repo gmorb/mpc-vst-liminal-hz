@@ -3,9 +3,9 @@
 # Copyright (c) 2026 the mpc-vst-liminal-hz contributors
 # The trailer (made from the plugin itself, like the demos):
 #   vst/build.sh host                              (the PC plugin and the page)
-#   tools/trailer/render.sh dark|cyber           (this: that score's stems, each played through Liminal Hz)
-#   python3 tools/trailer/mix.py dark|cyber       (mixed and mastered: vst/build/trailer/<style>/mix.wav)
-#   python3 tools/trailer/make_trailer.py wide|tall out.mp4 --style dark|cyber   (1920x1080 ~63 s, 1080x1920 ~37 s)
+#   tools/trailer/render.sh dark|cyber|trap           (this: that score's stems, each played through Liminal Hz)
+#   python3 tools/trailer/mix.py dark|cyber|trap       (mixed and mastered: vst/build/trailer/<style>/mix.wav)
+#   python3 tools/trailer/make_trailer.py wide|tall out.mp4 --style dark|cyber|trap   (1920x1080 ~63 s, 1080x1920 ~37 s)
 # Each stem runs through tools/demos/demo_host in real time (128-frame blocks, as on MPC); a render with a late block
 # (a busy PC) is run again.
 set -u

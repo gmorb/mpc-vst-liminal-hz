@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 the mpc-vst-liminal-hz contributors
-"""make_trailer.py wide|tall <out.mp4> [--style dark|cyber] [--frames t1,t2,...] -- the Liminal Hz trailer.
+"""make_trailer.py wide|tall <out.mp4> [--style dark|cyber|trap] [--frames t1,t2,...] -- the Liminal Hz trailer.
 
 wide: 1920x1080, the whole score (~63 s). tall: 1080x1920, a ~31 s cut of the same score at bar boundaries (Reels,
 TikTok, Shorts). --style picks the score (score.py: dark, 80s synth horror; cyber, cyberpunk) and the
 picture's look to match (dark: red titles, a cold-red grade; cyber: the plugin's own amber and ivory, a warm grade,
-scanlines, a colour split, and glitched slices on the hits). The music is <style>/mix.wav (render.sh, mix.py: synthesized, every part played through Liminal
+scanlines, a colour split, and glitched slices on the hits; trap: amber and ivory, hard cuts on the 808s and
+claps, a punch-in on every 808). The music is <style>/mix.wav (render.sh, mix.py: synthesized, every part played through Liminal
 Hz). The pages are the plugin's real page (tools/demos/render_page.py) in the states the demos recorded
 (tools/demos/render_audio.sh), the paintings are the plugin's own IR art (vst/art/bg_*.png).
 --frames: those moments (seconds of the video) as PNGs instead of a video."""
@@ -32,13 +33,18 @@ MIX = os.path.join(ROOT, "vst", "build", "trailer", STYLE, "mix.wav")
 IV, GR, AMB, DIM = (236, 230, 218), (160, 154, 144), (222, 186, 120), (96, 92, 86)
 if STYLE == "dark": AMB = (214, 52, 44)                         # (the accent: Carpenter red)
 MAG = (246, 226, 188)                                            # (cyber's second accent: the page's warm ivory)
-GRADE = {"dark": (np.array([1.06, 0.84, 0.80], np.float32), 0.0), "cyber": (np.array([1.05, 0.98, 0.88], np.float32), 3.0)}[STYLE]
+GRADE = {"dark": (np.array([1.06, 0.84, 0.80], np.float32), 0.0), "cyber": (np.array([1.05, 0.98, 0.88], np.float32), 3.0),
+         "trap": (np.array([1.06, 0.99, 0.88], np.float32), 1.0)}[STYLE]
 if STYLE == "dark":                                               # 5/4: the drop's kicks on 1, 2.5, 4, 5
     IMPACTS = [score.t_of(6), score.t_of(18), score.t_of(23)]
     DROP_KICKS = [score.t_of(b, k) for b in range(18, 23) for k in (0, 1.5, 3, 4)]
-else:                                                             # cyber: the drop's kicks on 1, the a of 2, the and of 3
+elif STYLE == "cyber":                                           # cyber: the drop's kicks on 1, the a of 2, the and of 3
     IMPACTS = [score.t_of(4), score.t_of(20), score.t_of(28)]
     DROP_KICKS = [score.t_of(b, k) for b in range(20, 28) for k in (0, 1.75, 2.5)]
+else:                                                             # trap: the cuts land on the 808s and the claps
+    IMPACTS = [score.t_of(4), score.t_of(20), score.t_of(28)]
+    HITS808, CLAPS = score.trap_hits()
+    DROP_KICKS = [t for t in HITS808 if score.t_of(20) <= t < score.t_of(28)]
 GLITCHES = IMPACTS + DROP_KICKS + [score.t_of(b, 3 + k * 0.125) for b in (11, 23) for k in range(8)] + \
     [score.t_of(19, 2.5 + k * 0.125) for k in range(8)] + [score.t_of(b, 3.5) for b in range(3, 28, 4)]
 MONO = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"     # (the HUD's type; Titillium if it isn't there)
@@ -111,7 +117,7 @@ class Canvas:
         box = (x0 / s, y0 / s, (x0 + self.W) / s, (y0 + self.H) / s)
         return im.transform((self.W, self.H), Image.EXTENT, box, Image.BILINEAR)
 
-    def page(self, frame, pg, t_frac=0.0, region=None, zoom_to=0.0, width_frac=None, y_frac=None, alpha=1.0, mark=None):
+    def page(self, frame, pg, t_frac=0.0, region=None, zoom_to=0.0, width_frac=None, y_frac=None, alpha=1.0, mark=None, x_frac=None):
         """the page, scaled into the frame; zoom_to (0..1) moves the view toward region; mark draws an amber box"""
         wf = width_frac or (0.98 if self.tall else 0.80)
         full = (0, 0, 1280, 628)
@@ -134,7 +140,7 @@ class Canvas:
             rx, ry, rw, rh = mark
             sx, sy = ow / vw, oh / vh
             d.rounded_rectangle(((rx - vx) * sx, (ry - vy) * sy, (rx + rw - vx) * sx, (ry + rh - vy) * sy), 12, outline=AMB, width=4)
-        x = (self.W - ow) // 2; y = int(self.H * (y_frac if y_frac is not None else (0.42 if self.tall else 0.5)) - oh / 2)
+        x = (self.W - ow) // 2 if x_frac is None else int(self.W * x_frac - ow / 2); y = int(self.H * (y_frac if y_frac is not None else (0.42 if self.tall else 0.5)) - oh / 2)
         bd = ImageDraw.Draw(frame)
         if alpha >= 1:
             bd.rectangle((x - 3, y - 3, x + ow + 2, y + oh + 2), outline=(70, 66, 60), width=2)
@@ -226,7 +232,7 @@ DROP = [("SPACE: EMPTY MALL", "drums"), ("ECHO: DREAM PING-PONG", "keys"), ("STR
         ("SPACE: BACKROOMS", "pad"), ("STRANGE: LIMINAL HZ", "stabs"), ("TEXTURE: TUNED CHORD", "chord"),
         ("ECHO: PARKING SLAP", "sync_on"), ("TEXTURE: GRAIN CLOUD", "grain"), ("TEXTURE: STRUCK PIPE", "pipe"),
         ("TEXTURE: BOUNCING BALL", "ball")]
-END = score.t_of(23) + 7.8 if STYLE == "dark" else score.t_of(28) + 4.6
+END = score.t_of(23) + 7.8 if STYLE == "dark" else score.t_of(28) + (4.6 if STYLE == "cyber" else 4.5)
 
 class Trailer:
     def __init__(self, mode):
@@ -508,12 +514,136 @@ class CyberTrailer(Trailer):
         glitch = max([np.exp(-(t - g) / 0.07) for g in GLITCHES if 0 <= t - g < 0.3] + [0.0])
         return C.finish(fr, t, min(1.0, flash), shake, fade=fade, glitch=min(1.0, glitch + flash))
 
+class TrapTrailer(Trailer):
+    """trap's own edit, in the plugin's amber and ivory: black and a slow reveal, then hard cuts on the 808s and the
+    claps: huge stacked words with a ghost word drifting behind, page close-ups punching in, a strobe on each clap"""
+    VERSE = [("19", "FACTORY IRs", "stabs", "preset", True), ("YOUR", "OWN IRs", "LIST", "list", False),
+             ("20 SECOND", "TAILS", "pad", "longir", False), ("RESHAPE", "ANY IR", "hits", "time", False)]
+    FEAT = [("DUCK", "the reverb gets out of your 808's way", "duck80", "duck"),
+            ("SYNC", "pre-delay in note values, at your tempo", "sync_on", "sync"),
+            ("TEXTURES", "five IRs that aren't rooms", None, "shape"),
+            ("PRESETS", "all 19 in MPC's own preset menu", "stabs", None)]
+    TEX = [("STRUCK PIPE", "pipe"), ("GRAIN CLOUD", "grain"), ("TUNED CHORD", "chord"), ("BREATH", "breath"), ("BOUNCING BALL", "ball")]
+
+    def ghost(self, fr, word, t, t0, y):
+        """a huge word, faint, drifting left behind everything"""
+        C = self.C; size = int(C.H * (0.42 if not C.tall else 0.2))
+        C.text(fr, word, y, size, color=AMB, alpha=0.07, style="b", x=C.W * 0.62 - (t - t0) * 70, anchor="mm")
+
+    def stack(self, fr, a, b, u, x=None):
+        """two lines, stacked: a in amber, b in ivory, the second landing a beat later"""
+        C, W, H = self.C, self.C.W, self.C.H
+        if not C.tall:
+            x = x if x is not None else W * 0.28
+            sa = C.fit(a, 150, "b", maxw=W * 0.46); sb = C.fit(b, 110, "b", maxw=W * 0.46)
+            C.text(fr, a, H * 0.42, sa, color=AMB, style="b", x=x)
+            C.text(fr, b, H * 0.42 + sa * 0.95, sb, color=IV, style="b", x=x, alpha=ease((u - 0.25) / 0.06))
+        else:
+            sa = C.fit(a, 170, "b", maxw=W * 0.9); sb = C.fit(b, 120, "b", maxw=W * 0.9)
+            C.text(fr, a, H * 0.17, sa, color=AMB, style="b")
+            C.text(fr, b, H * 0.17 + sa * 0.95, sb, color=IV, style="b", alpha=ease((u - 0.25) / 0.06))
+
+    def frame(self, t):
+        C, W, H = self.C, self.C.W, self.C.H
+        tall = C.tall; T = score.t_of
+        flash = sum(max(0.0, 0.8 * np.exp(-(t - i) / 0.1)) for i in IMPACTS if t >= i) + \
+            sum(0.16 * np.exp(-(t - c) / 0.05) for c in CLAPS if 0 <= t - c < 0.25)
+        shake = sum(20 * np.exp(-(t - i) / 0.3) for i in IMPACTS if t >= i)
+        last808 = max([h for h in HITS808 if h <= t] + [-9.0])
+        punch = 1 + 0.045 * np.exp(-(t - last808) / 0.09) if T(4) <= t < T(28) else 1.0
+        fade = 1.0
+        fr = Image.new("RGB", (W, H), (8, 7, 6))
+        if t < T(4):                                              # black, a name, the page coming up out of the dark
+            if t < T(2, 2):
+                C.text(fr, "GM0RB  PRESENTS", H * 0.5, 34 if not tall else 30, color=GR, track=0.4,
+                       alpha=ease((t - T(0, 2)) / 0.8) * (1 - ease((t - T(2)) / 0.5)))
+            if t > T(2):
+                fr.paste(self.bg("threshold_deep", t, T(2), 2 * BAR, (1.0, 1.08), dim=0.45 * ease((t - T(2)) / BAR)))
+                C.page(fr, self.P.at("stabs", t), alpha=0.85 * ease((t - T(2, 2)) / BAR), width_frac=(0.6 if not tall else 0.9) + 0.04 * (t - T(2)) / (2 * BAR))
+            if t > T(3, 3): fade = max(0.0, 1 - (t - T(3, 3)) / (BEAT * 0.5))
+        elif t < T(8):                                            # the title
+            fr.paste(self.bg("backrooms", t, T(4), 4 * BAR, (1.05, 1.15), dim=0.55))
+            self.ghost(fr, "REVERB", t, T(4), H * 0.5)
+            C.wordmark(fr, H * (0.47 if not tall else 0.46), (170 if not tall else 120))
+            C.text(fr, "CONVOLUTION REVERB  ·  AKAI MPC + FORCE", H * (0.62 if not tall else 0.56), 34 if not tall else 28,
+                   color=IV, track=0.12, alpha=ease((t - T(5)) / 0.5))
+        elif t < T(12):                                           # the verse: a cut on each 808, words stacked
+            k = int((t - T(8)) / BAR); u = (t - T(8 + k)) / BAR
+            a, b, st, reg, ol = self.VERSE[k]
+            fr.paste(self.bg(FLICKER[k], t, T(8 + k), BAR, (1.1, 1.18), dim=0.3))
+            self.ghost(fr, b.split()[-1], t, T(8 + k), H * 0.5)
+            pg = self.list_page if st == "LIST" else self.P.at(st, t, ol)
+            close = u < 0.5                                       # close up until the clap, then the whole page
+            if not tall:
+                C.page(fr, pg, region=REGIONS[reg], zoom_to=1.0 if close else 0.0, width_frac=0.5 * punch, x_frac=0.72,
+                       mark=None if close else REGIONS[reg])
+            else:
+                C.page(fr, pg, region=REGIONS[reg], zoom_to=1.0 if close else 0.0, width_frac=0.96 * punch, y_frac=0.6,
+                       mark=None if close else REGIONS[reg])
+            self.stack(fr, a, b, u)
+        elif t < T(19, 2):                                        # the features, two bars each
+            k = min(3, int((t - T(12)) / (2 * BAR))); u = (t - T(12 + 2 * k)) / (2 * BAR)
+            word, sub, st, reg = self.FEAT[k]
+            fr.paste(self.bg(FLICKER[(k + 4) % 8], t, T(12 + 2 * k), 2 * BAR, (1.05, 1.15), dim=0.3))
+            self.ghost(fr, word, t, T(12 + 2 * k), H * 0.5)
+            if st is None:                                        # textures: a new one on each beat-and-a-half
+                j = min(4, int((t - T(16)) / (2 * BAR / 5))); name, st = self.TEX[j]
+                sub = "> " + name.lower()
+            pg = self.P.at(st, t, open_list=(word == "PRESETS"))
+            z = ease(u * 2.2) if reg else 0.0
+            mark = REGIONS[reg] if reg and u > 0.5 else None
+            if not tall:
+                C.page(fr, pg, region=REGIONS.get(reg), zoom_to=z, width_frac=0.52 * punch, x_frac=0.7, mark=mark)
+                C.text(fr, "0%d / 04" % (k + 1), H * 0.3, 30, color=AMB, track=0.3, x=W * 0.24)
+                C.text(fr, word, H * 0.44, C.fit(word, 170, "b", maxw=W * 0.4), color=IV, style="b", x=W * 0.24)
+                C.text(fr, sub, H * 0.56, 32, color=GR, x=W * 0.24, alpha=ease((u - 0.1) / 0.1))
+            else:
+                C.page(fr, pg, region=REGIONS.get(reg), zoom_to=z, width_frac=0.96 * punch, y_frac=0.62, mark=mark)
+                C.text(fr, "0%d / 04" % (k + 1), H * 0.14, 30, color=AMB, track=0.3)
+                C.text(fr, word, H * 0.24, C.fit(word, 190, "b", maxw=W * 0.9), color=IV, style="b")
+                C.text(fr, sub, H * 0.32, 32, color=GR, alpha=ease((u - 0.1) / 0.1))
+        elif t < T(20) - BEAT * 0.5:                              # three words on the last claps, then black
+            words = ["FREE.", "ON YOUR", "MPC."]
+            j = min(2, int((t - T(19, 2)) / (BEAT * 0.5)))
+            self.big(fr, words[j], H * 0.5, 300 if not tall else 230, color=AMB if j != 1 else IV, style="b")
+        elif t < T(20):
+            pass
+        elif t < T(28):                                           # the drop: a cut on every 808
+            k = sum(1 for h in DROP_KICKS if h <= t) - 1
+            bar = int((t - T(20)) / BAR) + 20
+            if bar in (24, 25):
+                fr.paste(self.bg("great_hall" if bar == 24 else "chamber", t, T(bar), BAR, (1.1, 1.2), dim=0.18 if bar == 24 else 0.3))
+                self.ghost(fr, "FREE" if bar == 24 else "GEN 2", t, T(bar), H * 0.5)
+                self.big(fr, "NO SUBSCRIPTION." if bar == 24 else "GEN 1 + GEN 2", H * 0.47, 190 if not tall else 130, color=AMB, style="b")
+                C.text(fr, "no account. on your mpc." if bar == 24 else "armv7 + aarch64. one page.", H * 0.6, 40 if not tall else 34, color=IV, track=0.08)
+            else:
+                name, st = DROP[k % len(DROP)]; cat, nm = name.split(": ")
+                fr.paste(self.bg(FLICKER[k % 8], t, DROP_KICKS[k], BEAT, (1.12, 1.2), dim=0.35))
+                self.ghost(fr, cat, t, T(20), H * 0.5)
+                C.page(fr, self.P.at(st, t), width_frac=(0.66 if not tall else 0.98) * punch, y_frac=0.58 if not tall else 0.55)
+                C.text(fr, cat, H * (0.12 if not tall else 0.2), 34, color=AMB, track=0.4)
+                C.text(fr, nm, H * (0.2 if not tall else 0.26), C.fit(nm, 96, "b", maxw=W * 0.9), color=IV, style="b")
+        else:                                                     # end
+            fr.paste(self.bg("threshold_open", t, T(28), 4.5, (1.0, 1.06), dim=0.4))
+            C.wordmark(fr, H * (0.42 if not tall else 0.44), 160 if not tall else 116)
+            C.text(fr, "FREE CONVOLUTION REVERB  ·  AKAI MPC + FORCE", H * (0.55 if not tall else 0.53), 32 if not tall else 26,
+                   color=IV, track=0.12, alpha=ease((t - T(28) - 0.4) / 0.4))
+            C.text(fr, "github.com/gmorb/mpc-vst-liminal-hz", H * (0.63 if not tall else 0.6), 38 if not tall else 32,
+                   color=AMB, alpha=ease((t - T(28) - 1.0) / 0.4))
+            fade = 1 - ease((t - (END - 1.4)) / 1.4)
+        if punch > 1.001 and t >= T(8):                           # the whole frame punches in on the 808
+            s2 = (int(W * punch), int(H * punch)); big = fr.resize(s2, Image.BILINEAR)
+            fr = big.crop(((s2[0] - W) // 2, (s2[1] - H) // 2, (s2[0] - W) // 2 + W, (s2[1] - H) // 2 + H))
+        return C.finish(fr, t, min(1.0, flash), shake, fade=fade)
+
 def segments(mode):
     """(source start, source end) on the score's clock, joined in order"""
     if mode == "wide": return [(0.0, END)]
     T = score.t_of
     if STYLE == "cyber":
         return [(T(2), T(4)), (T(4), T(6)), (T(12), T(16)), (T(18), T(20)), (T(20), T(24)), (T(28), END)]
+    if STYLE == "trap":
+        return [(T(2), T(4)), (T(4), T(6)), (T(8), T(10)), (T(12), T(18)), (T(18), T(20)), (T(20), T(24)), (T(28), END)]
     return [(T(4), T(6)), (T(6), T(8)), (T(12), T(14)), (T(16), T(18)), (T(18), T(21)), (T(22), T(23)), (T(23), END)]
 
 def read_mix():
@@ -522,7 +652,7 @@ def read_mix():
 
 def main():
     mode, out = sys.argv[1], sys.argv[2]
-    T = (CyberTrailer if STYLE == "cyber" else Trailer)(mode); segs = segments(mode)
+    T = {"cyber": CyberTrailer, "trap": TrapTrailer}.get(STYLE, Trailer)(mode); segs = segments(mode)
     total = sum(b - a for a, b in segs)
     def src(t):                                                       # video time -> score time
         for a, b in segs:
