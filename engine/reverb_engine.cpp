@@ -595,6 +595,12 @@ void ReverbEngine::block(const float* in_l, const float* in_r, float* out_l, flo
   const float mix0 = mix_prev_ < 0 ? mix : mix_prev_, width0 = width_prev_ < 0 ? width : width_prev_,
               gain0 = gain_prev_ < 0 ? gain : gain_prev_;
   mix_prev_ = mix; width_prev_ = width; gain_prev_ = gain;
+  const float duck = std::min(1.0f, std::max(0.0f, (float)params.duck)), duck0 = duck_prev_ < 0 ? duck : duck_prev_;
+  duck_prev_ = duck;
+  auto coef = [this](float secs) { return 1.0f - std::exp(-1.0f / (secs * (float)rate_)); };
+  const float d_fol = coef(kDuckFollow), d_att = coef(kDuckAttack), d_rel = coef(kDuckRelease);
+  const bool ducking = duck > 0.0f || duck0 > 0.0f;         // (Duck 0: not a multiply more, the output as before)
+  if (!ducking) { duck_env_ = 0.0f; duck_red_ = 0.0f; }   // (turned on again: from no reduction)
   for (int i = 0; i < B; i++) {
     const float t = (float)(i + 1) / B;
     const float mix = mix0 + (mix_prev_ - mix0) * t, width = width0 + (width_prev_ - width0) * t,
@@ -606,6 +612,15 @@ void ReverbEngine::block(const float* in_l, const float* in_r, float* out_l, flo
     float l = lp_[0].run(hp_[0].run(wl_[i])), r = lp_[1].run(hp_[1].run(wr_[i]));
     const float m = 0.5f * (l + r), s = 0.5f * (l - r) * width;   // width: mid/side
     l = m + s; r = m - s;
+    if (ducking) {                             // Duck (followed only while on: Duck 0 is the output as before)
+      const float x = std::max(std::fabs(in_l[i]), std::fabs(in_r[i]));
+      duck_env_ = x > duck_env_ ? x : duck_env_ + d_fol * (x - duck_env_);
+      const float db = 20.0f * std::log10(duck_env_ + 1e-9f);
+      const float want = kDuckDb * std::min(1.0f, std::max(0.0f, (db - kDuckLoDb) / (kDuckHiDb - kDuckLoDb)));
+      duck_red_ += (want > duck_red_ ? d_att : d_rel) * (want - duck_red_);
+      const float g = std::exp(-0.11512925f * duck_red_ * (duck0 + (duck - duck0) * t));   // (ln 10 / 20)
+      l *= g; r *= g;
+    }
     const float dry = 1.0f - mix * presence_;
     out_l[i] = gain * (dry * in_l[i] + mix * l);
     out_r[i] = gain * (dry * in_r[i] + mix * r);

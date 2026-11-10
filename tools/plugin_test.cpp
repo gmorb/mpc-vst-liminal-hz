@@ -35,15 +35,26 @@ enum { P_MIX, P_PREDELAY, P_LOWCUT, P_HIGHCUT, P_WIDTH, P_LENGTH, P_OUTPUT, P_IR
        P_START, P_FADE_IN, P_FADE_OUT, P_STRETCH, P_REVERSE, P_FEEDBACK,
        P_WAVE0, P_PLAYHEAD = P_WAVE0 + kCols, P_SOURCE, P_PRESET, P_SONICS,
        P_MP_INFO, P_MP_SAVE, P_MP_DELETE, P_MP_PHONE, P_MENU, P_IR_LIST, P_MP_LIST, P_MENU_CLOSE, P_MENU_PREV, P_MENU_NEXT,
-       P_MENU_TITLE, P_ROW1, P_ROW6 = P_ROW1 + 5, P_DECAY, P_LONG_IR, P_LONG_IR_TAP, P_LONG_IR_INFO, P_PRESET_OPEN, P_TOTAL };
+       P_MENU_TITLE, P_ROW1, P_ROW6 = P_ROW1 + 5, P_DECAY, P_LONG_IR, P_LONG_IR_TAP, P_LONG_IR_INFO, P_DUCK, P_PREDELAY_SYNC,
+       P_PRESET_OPEN, P_TOTAL };
 static const int kPresets = 14;                 // factory presets after Init (PRESET's options: Init + 14)
 static int fails = 0;
 #define CHECK(c, ...) do { printf("%s ", (c) ? "ok  " : "FAIL"); printf(__VA_ARGS__); printf("\n"); if (!(c)) fails++; } while (0)
 static AEffect* (*entry)(hostcb);
 static std::atomic<int> n_update{0}, n_automate{0};   // the host calls a plugin makes (UpdateDisplay, Automate)
+struct VstTimeInfo {
+  double samplePos, sampleRate, nanoSeconds, ppqPos, tempo, barStartPos, cycleStartPos, cycleEndPos;
+  int32_t timeSigNumerator, timeSigDenominator, smpteOffset, smpteFrameRate, samplesToNextClock, flags;
+};
+static std::atomic<double> host_tempo{0};              // the project tempo the host gives (0: none, as no tempo valid)
 static intptr_t host(AEffect*, int32_t op, int32_t, intptr_t, void*, float) {
   if (op == 42) n_update++;
   if (op == 0) n_automate++;
+  if (op == 7) {                                       // audioMasterGetTime
+    static thread_local VstTimeInfo ti;
+    ti = VstTimeInfo(); ti.sampleRate = 44100; ti.tempo = host_tempo; ti.flags = host_tempo > 0 ? (1 << 10) : 0;
+    return (intptr_t)&ti;
+  }
   return op == 1 ? 2400 : 0;
 }
 static void play_paced(AEffect* a, double secs) {   // audio at MPC's pace (the plugin reports to the host from process)
@@ -638,6 +649,61 @@ int main(int argc, char** argv) {
 #endif
     d->setP(d, P_MIX, 0.3f);
     wait_for([&] { return idle(d); }, 30);
+  }
+  {   // Duck and SYNC: in projects and My Presets, off after Init or a factory preset; SYNC follows the host's tempo
+    AEffect* q = open_plugin();
+    wait_for([&] { return idle(q); });
+    q->setP(q, P_PRESET, 1.0f / kPresets);                      // Empty Mall
+    wait_for([&] { return idle(q) && disp(q, P_IR) == "Empty Mall"; }, 30);
+    CHECK(disp(q, P_DUCK) == "0%" && disp(q, P_PREDELAY_SYNC) == "Off", "Duck and SYNC start off: [%s] [%s]",
+          disp(q, P_DUCK).c_str(), disp(q, P_PREDELAY_SYNC).c_str());
+    q->setP(q, P_MIX, 1.0f);
+    auto onset = [&] {                                          // where a click's reverb starts (samples), mix 100%
+      std::vector<float> l(128), ol(128), orr(128);
+      for (int b = 0; b < 2400; b++) { std::fill(l.begin(), l.end(), 0.0f);   // (7 s of silence: the last click's tail gone)
+        float* in[2] = {l.data(), l.data()}; float* out[2] = {ol.data(), orr.data()}; q->pr(q, in, out, 128); }
+      for (long b = 0; b < (long)(2.5 * 44100 / 128); b++) {
+        std::fill(l.begin(), l.end(), 0.0f); if (b == 0) l[0] = 1.0f;
+        float* in[2] = {l.data(), l.data()}; float* out[2] = {ol.data(), orr.data()};
+        q->pr(q, in, out, 128);
+        for (int i = 0; i < 128; i++) if (std::fabs(ol[i]) > 1e-4f || std::fabs(orr[i]) > 1e-4f) return b * 128 + i;
+      }
+      return -1L;
+    };
+    q->setP(q, P_PREDELAY, 0.0f);
+    const long base = onset();
+    host_tempo = 100;
+    q->setP(q, P_PREDELAY_SYNC, 1.0f);
+    q->setP(q, P_PREDELAY, 1.0f);                               // the knob's top: 1/4
+    const long q100 = onset() - base;
+    const std::string n100 = disp(q, P_PREDELAY);
+    host_tempo = 150;
+    const long q150 = onset() - base;
+    q->setP(q, P_PREDELAY, 0.8f);                               // 1/8
+    const long e150 = onset() - base;
+    const std::string n8 = disp(q, P_PREDELAY);
+    CHECK(n100 == "1/4" && n8 == "1/8" && std::labs(q100 - 26460) <= 2 && std::labs(q150 - 17640) <= 2 && std::labs(e150 - 8820) <= 2,
+          "SYNC: [%s] at 100 BPM %ld samples (600 ms), at 150 BPM %ld (400 ms); [%s] %ld (200 ms)", n100.c_str(), q100, q150, n8.c_str(), e150);
+    host_tempo = 0;
+    CHECK(disp(q, P_PREDELAY).find("1/8") == 0, "a host without a tempo: the note at 120 BPM [%s]", disp(q, P_PREDELAY).c_str());
+    q->setP(q, P_DUCK, 0.4f);
+    const std::string st = chunk_of(q);
+    CHECK(disp(q, P_DUCK) == "40%" && st.find("\nduck=40\n") != std::string::npos && st.find("\npredelay_sync=1\n") != std::string::npos,
+          "Duck [%s] and SYNC are saved in the project", disp(q, P_DUCK).c_str());
+    AEffect* r = open_plugin();                                 // ... and come back with it
+    r->d(r, 24, 0, (intptr_t)st.size() + 1, (void*)st.c_str(), 0);
+    CHECK(disp(r, P_DUCK) == "40%" && disp(r, P_PREDELAY_SYNC) == "On" && disp(r, P_PREDELAY).find("1/8") == 0,
+          "a project reopens with Duck %s, SYNC %s, Pre-delay [%s]", disp(r, P_DUCK).c_str(), disp(r, P_PREDELAY_SYNC).c_str(), disp(r, P_PREDELAY).c_str());
+    wait_for([&] { return idle(r); }, 30);
+    r->d(r, 1, 0, 0, nullptr, 0);
+    q->setP(q, P_PRESET, 4.0f / kPresets);                      // a factory preset: both off
+    const bool fp = disp(q, P_DUCK) == "0%" && disp(q, P_PREDELAY_SYNC) == "Off" && disp(q, P_PREDELAY).find(" ms") != std::string::npos;
+    q->setP(q, P_DUCK, 0.4f); q->setP(q, P_PREDELAY_SYNC, 1.0f);
+    q->setP(q, P_PRESET, 0.0f);                                 // Init: both off
+    CHECK(fp && disp(q, P_DUCK) == "0%" && disp(q, P_PREDELAY_SYNC) == "Off", "a factory preset and Init turn Duck and SYNC off [%s]",
+          disp(q, P_PREDELAY).c_str());
+    wait_for([&] { return idle(q); }, 30);
+    q->d(q, 1, 0, 0, nullptr, 0);
   }
   std::atomic<bool> run{true}, sane{true}; std::atomic<long> blocks{0};
   std::thread audio([&] {

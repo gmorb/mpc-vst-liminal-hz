@@ -824,6 +824,23 @@
       "default": 0,
       "display": "string",
       "type": "readout"
+    },
+    {
+      "key": "duck",
+      "name": "Duck",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 0
+    },
+    {
+      "key": "predelay_sync",
+      "name": "Pre-delay Sync",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
     }
   ]
 }

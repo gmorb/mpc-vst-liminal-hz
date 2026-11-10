@@ -59,7 +59,11 @@ enum {
   effCanBeAutomated = 26, effGetPlugCategory = 35, effGetEffectName = 45, effGetVendorString = 47,
   effGetProductString = 48, effGetVendorVersion = 49, effCanDo = 51, effGetVstVersion = 58,
 };
-enum { audioMasterAutomate = 0, audioMasterUpdateDisplay = 42 };
+enum { audioMasterAutomate = 0, audioMasterGetTime = 7, audioMasterUpdateDisplay = 42, kVstTempoValid = 1 << 10 };
+struct VstTimeInfo {                           // (audioMasterGetTime's answer; MPC gives a valid tempo: mpc-vst-plugins docs/NOTES.md)
+  double samplePos, sampleRate, nanoSeconds, ppqPos, tempo, barStartPos, cycleStartPos, cycleEndPos;
+  int32_t timeSigNumerator, timeSigDenominator, smpteOffset, smpteFrameRate, samplesToNextClock, flags;
+};
 enum { effFlagsCanReplacing = 1 << 4, effFlagsProgramChunks = 1 << 5 };
 enum { kPlugCategEffect = 1 };
 struct VstEvent { int32_t type, byteSize, deltaFrames, flags; char data[16]; };   // type 1: MIDI (VstMidiEvent)
@@ -92,6 +96,8 @@ enum {
   P_LONG_IR,                                   // LONG IR: the high IR quality (engine/platform.h); a device setting, not a sound's
   P_LONG_IR_TAP,                               // its button: two taps turn it on (the first warns: CPU heavy), one turns it off
   P_LONG_IR_INFO,                              // read-only: "Off · IRs up to 5 s", "CPU heavy · tap again", "On · IRs up to 20 s"
+  P_DUCK,                                      // Duck: the reverb turned down while the input plays (engine: ReverbParams::duck)
+  P_PREDELAY_SYNC,                             // SYNC: Pre-delay in note values at the project tempo
   P_PRESET_OPEN,                               // the PRESET popup's open flag (added by the layout's popup)
   P_COUNT
 };
@@ -135,7 +141,14 @@ struct MyPresets {
 static const struct { const char* key; int p; } kPresetParams[] = {
   {"mix", P_MIX}, {"predelay", P_PREDELAY}, {"lowcut", P_LOWCUT}, {"highcut", P_HIGHCUT}, {"width", P_WIDTH},
   {"length", P_LENGTH}, {"output", P_OUTPUT}, {"start", P_START}, {"fade_in", P_FADE_IN}, {"fade_out", P_FADE_OUT},
-  {"stretch", P_STRETCH}, {"reverse", P_REVERSE}, {"feedback", P_FEEDBACK}, {"decay", P_DECAY}};
+  {"stretch", P_STRETCH}, {"reverse", P_REVERSE}, {"feedback", P_FEEDBACK}, {"decay", P_DECAY}, {"duck", P_DUCK},
+  {"predelay_sync", P_PREDELAY_SYNC}};
+
+// SYNC: the Pre-delay knob's steps, in beats (quarter notes); T triplet, D dotted
+static const struct { const char* name; double beats; } kNotes[] = {
+  {"0", 0}, {"1/128", 1 / 32.0}, {"1/64", 1 / 16.0}, {"1/32", 1 / 8.0}, {"1/16 T", 1 / 6.0}, {"1/16", 1 / 4.0},
+  {"1/16 D", 3 / 8.0}, {"1/8 T", 1 / 3.0}, {"1/8", 1 / 2.0}, {"1/8 D", 3 / 4.0}, {"1/4", 1.0}};
+static const int kNoteCount = (int)(sizeof kNotes / sizeof kNotes[0]);
 
 struct Inst {
   AEffect fx;
@@ -170,6 +183,8 @@ struct Inst {
   int playhead_sent = 0, playhead_age = 0;     // the playhead as last reported (audio thread)
   std::chrono::steady_clock::time_point long_armed_until;   // LONG IR: the first tap warned; a second before this turns it on
   bool long_armed = false;                     // (under mu)
+  std::atomic<double> bpm{120.0};              // SYNC: the host's tempo (audio thread writes; 120 until it gives one)
+  std::atomic<bool> tempo_ok{false};           // the host gave a tempo
 };
 
 static float clamp01(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
@@ -228,17 +243,25 @@ static bool is_long(int i) { return i >= P_LONG_IR && i <= P_LONG_IR_INFO; }   /
 static bool long_ir_on(const Inst* w) { return platform::kGen2 || w->norm[P_LONG_IR] > 0.5f; }
 static Quality quality_of(const Inst* w) { return platform::quality(long_ir_on(w)); }
 
+static bool sync_on(const Inst* w) { return w->norm[P_PREDELAY_SYNC] > 0.5f; }
+static int sync_note(const Inst* w) { return (int)lroundf(clamp01(w->norm[P_PREDELAY]) * (kNoteCount - 1)); }
+static void sync_predelay(Inst* w) {           // SYNC: the note at the tempo, as ms (any thread; the engine glides to it)
+  const double ms = kNotes[sync_note(w)].beats * 60000.0 / std::max(20.0, w->bpm.load());
+  w->eng->params.predelay_ms = (float)std::min(ms, (double)ReverbEngine::kMaxPredelay);
+}
 static void apply_param(Inst* w, int i) {      // plain parameter -> engine (atomics)
   ReverbParams& e = w->eng->params;
   const float v = real_of(i, w->norm[i]);
   switch (i) {
     case P_MIX: e.mix = v / 100.0f; break;
-    case P_PREDELAY: e.predelay_ms = v; break;
+    case P_PREDELAY: if (!sync_on(w)) e.predelay_ms = v; else sync_predelay(w); break;
     case P_LOWCUT: e.lowcut_hz = v; break;
     case P_HIGHCUT: e.highcut_hz = v; break;
     case P_WIDTH: e.width = v / 100.0f; break;
     case P_OUTPUT: e.output_db = v; break;
     case P_FEEDBACK: e.feedback = v / 100.0f; break;
+    case P_DUCK: e.duck = v / 100.0f; break;
+    case P_PREDELAY_SYNC: apply_param(w, P_PREDELAY); break;   // (synced, process() sets the time from the tempo)
     default: break;
   }
 }
@@ -619,7 +642,8 @@ static void apply_preset(Inst* w, int k) {
   const int vals[][2] = {{P_MIX, p.mix}, {P_PREDELAY, p.predelay}, {P_LOWCUT, p.lowcut}, {P_HIGHCUT, p.highcut},
                          {P_WIDTH, p.width}, {P_LENGTH, p.length}, {P_OUTPUT, p.output}, {P_START, p.start},
                          {P_FADE_IN, p.fade_in}, {P_FADE_OUT, p.fade_out}, {P_STRETCH, p.stretch},
-                         {P_REVERSE, p.reverse}, {P_FEEDBACK, p.feedback}, {P_DECAY, 100}};
+                         {P_REVERSE, p.reverse}, {P_FEEDBACK, p.feedback}, {P_DECAY, 100}, {P_DUCK, 0},
+                         {P_PREDELAY_SYNC, 0}};
   for (const auto& kv : vals) set_real(w, kv[0], (float)kv[1]);
   set_real(w, P_SOURCE, 0);                    // the factory list
   std::lock_guard<std::mutex> lk(w->mu);
@@ -657,6 +681,8 @@ static PresetData mp_snapshot(Inst* w) {
 // a preset's settings, then its IR (found in its list, or the other; waits for the first scan if need be)
 static void mp_apply(Inst* w, const PresetData& p) {
   set_real(w, P_DECAY, 100);                   // (presets saved before Decay: as recorded)
+  set_real(w, P_DUCK, 0);                      // (and before Duck and SYNC: off)
+  set_real(w, P_PREDELAY_SYNC, 0);
   for (const auto& kv : p.values)
     for (const auto& kp : kPresetParams)
       if (kv.first == kp.key) set_real(w, kp.p, kv.second);
@@ -1071,6 +1097,14 @@ static void notify(Inst* w) {                  // audio thread: report values th
 
 static void process_replacing(AEffect* e, float** in, float** out, int32_t n) {
   Inst* w = (Inst*)e->object;
+  if (w->master && sync_on(w)) {               // SYNC: the tempo, every block (MPC answers at once; a tempo change glides)
+    const VstTimeInfo* ti = (const VstTimeInfo*)w->master(&w->fx, audioMasterGetTime, 0, kVstTempoValid, nullptr, 0);
+    if (ti && (ti->flags & kVstTempoValid) && ti->tempo > 0) {
+      w->bpm = ti->tempo;
+      if (!w->tempo_ok.exchange(true)) { w->changed[P_PREDELAY] = 1; w->update_display = 1; }   // (the "@120" goes)
+    }
+    sync_predelay(w);
+  }
   if (w->master) notify(w);
   if (n <= 0) return;
   w->eng->process(in[0], in[1], out[0], out[1], n);
@@ -1233,6 +1267,10 @@ static std::string display_of(Inst* w, int i) {
     return w->sonics.empty() ? (w->ir.loading ? "listening..." : "") : w->sonics;
   }
   if (is_display(i)) return p.opts[w->wave[i - P_WAVE0].load()];
+  if (i == P_PREDELAY && sync_on(w)) {         // SYNC: the note value ("1/8 D"); without a tempo from the host, at 120
+    const int k = sync_note(w);
+    return k == 0 || w->tempo_ok ? std::string(kNotes[k].name) : std::string(kNotes[k].name) + " @120";
+  }
   if (p.nopts > 1) return p.opts[(int)real_of(i, w->norm[i])];
   if (p.momentary) return "";
   const float v = real_of(i, w->norm[i]);

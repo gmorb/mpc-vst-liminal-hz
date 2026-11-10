@@ -83,7 +83,8 @@ int main(int argc, char** argv) {
                       {"highcut", "High Cut", 1000, 20000, 1}, {"width", "Width", 0, 200, 0}, {"length", "Length", 5, 100, 0},
                       {"output", "Output", -24, 12, 0}, {"start", "Start", 0, 90, 0}, {"fade_in", "Fade In", 0, 50, 0},
                       {"fade_out", "Fade Out", 0, 50, 0}, {"stretch", "Stretch", 50, 200, 0}, {"feedback", "Feedback", 0, 100, 0},
-                      {"decay", "Decay", 50, 300, 0}, {"reverse", "Reverse", 0, 1, 0}, {"long_ir", "Long IR", 0, 1, 0}};
+                      {"decay", "Decay", 50, 300, 0}, {"reverse", "Reverse", 0, 1, 0}, {"long_ir", "Long IR", 0, 1, 0},
+                      {"duck", "Duck", 0, 100, 0}, {"predelay_sync", "Pre-delay Sync", 0, 1, 0}};
   for (int k = 6; k < argc; k++) {
     std::string kv = argv[k]; size_t eq = kv.find('='); if (eq == std::string::npos) continue;
     std::string key = kv.substr(0, eq); double v = atof(kv.c_str() + eq + 1);

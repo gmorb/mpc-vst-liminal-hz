@@ -449,6 +449,34 @@ int main(int argc, char** argv) {
     auto sw = ir_shaped({L, R}, rv);
     CHECK(st && st->swell == 0.0f && sw && sw->swell > 2.5f, "a reversed room swells (to %.2f s); the room itself doesn't", sw ? sw->swell : 0.f);
   }
+  { // Duck: the wet signal turned down while the input plays, back in the gaps; the feedback loop untouched
+    const size_t N = (size_t)(4.0 * RATE), on = (size_t)(1.5 * RATE);   // 1.5 s of noise at -12 dBFS, then silence
+    std::mt19937 rn(5); std::normal_distribution<float> gn(0, 1);
+    std::vector<float> xl(N, 0.0f), xr(N, 0.0f);
+    for (size_t i = 0; i < on; i++) { xl[i] = 0.25f * 0.5f * gn(rn); xr[i] = 0.25f * 0.5f * gn(rn); }
+    auto room = [&] { return ir_of({decay((size_t)(1.5 * RATE), 31, 0.3f), decay((size_t)(1.5 * RATE), 32, 0.3f)}); };
+    auto render = [&](float duck, float fb, int mode) {        // mode 0: duck untouched, 1: set
+      ReverbEngine e(RATE); e.params.mix = 1; e.params.feedback = fb;
+      if (mode == 1) e.params.duck = duck;
+      e.set_ir(room());
+      std::vector<float> ol, orr; run(e, xl, xr, ol, orr); return ol;
+    };
+    auto seg = [](const std::vector<float>& v, double a, double b) {
+      return std::vector<float>(v.begin() + (size_t)(a * RATE), v.begin() + (size_t)(b * RATE)); };
+    const auto base = render(0, 0, 0), zero = render(0, 0, 1), full = render(1, 0, 1), half = render(0.5f, 0, 1);
+    CHECK(base == zero, "Duck 0: the output bit for bit as without Duck");
+    const double during = 20 * std::log10(rms(seg(full, 0.8, 1.4)) / rms(seg(base, 0.8, 1.4))),
+                 during_half = 20 * std::log10(rms(seg(half, 0.8, 1.4)) / rms(seg(base, 0.8, 1.4)));
+    CHECK(during < -21 && during > -25 && during_half < -10 && during_half > -14,
+          "a steady loud input: the reverb %.1f dB at Duck 100%%, %.1f dB at 50%%", during, during_half);
+    const double gap = 20 * std::log10(rms(seg(full, 1.9, 2.3)) / rms(seg(base, 1.9, 2.3)));
+    CHECK(gap > -1.0, "0.4 s after the input stops the tail is back (%.2f dB)", gap);
+    const auto fb0 = render(0, 0.6f, 1), fb1 = render(1, 0.6f, 1);
+    double late = 0, late_ref = 0;
+    for (size_t i = (size_t)(3.0 * RATE); i < N; i++) { late += std::fabs(fb1[i] - fb0[i]); late_ref += std::fabs(fb0[i]); }
+    CHECK(late_ref > 0 && late / late_ref < 1e-3, "with Feedback 60%%, the tail after the input (3-4 s) is as without Duck (diff %.1e)",
+          late_ref > 0 ? late / late_ref : -1.0);
+  }
   printf("%s (%d failure%s)\n", fails ? "FAILED" : "PASSED", fails, fails == 1 ? "" : "s");
   return fails ? 1 : 0;
 }
