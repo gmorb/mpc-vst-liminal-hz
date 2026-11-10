@@ -5,6 +5,7 @@
 // level normalisation, IR crossfade, odd host block sizes, loading WAVs. IRs built with LongConvolver::Inline (the
 // same arithmetic as Threaded, deterministic without real-time pacing).
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <random>
@@ -331,6 +332,19 @@ int main(int argc, char** argv) {
       if (same) { auto y1 = impulse_response(*x1, x1->frames), y3 = impulse_response(*x3, x3->frames); same = y1 == y3; }
       CHECK(same && x2 && x2->frames == x1->frames / 2, "a kept resampling gives the same IR (%zu, %zu frames; End 50%%: %zu)",
             x1 ? x1->frames : 0, x3 ? x3->frames : 0, x2 ? x2->frames : 0);
+      // several are kept: back to the first IR after three others is still quick, and still the same IR
+      using C = std::chrono::steady_clock;
+      auto ms = [](C::time_point a) { return std::chrono::duration<double, std::milli>(C::now() - a).count(); };
+      std::vector<std::vector<float>> others(3, c);
+      for (int k = 0; k < 3; k++) for (float& v : others[k]) v *= 0.5f + 0.1f * k;   // three different IRs
+      std::vector<float> c8((size_t)(8 * r48)); for (size_t i = 0; i < c8.size(); i++) c8[i] = c[i % n];
+      auto t0 = C::now(); auto f1 = ReverbIR::make({c8}, r48, RATE, a1, &err, LongConvolver::Inline, HQ); const double cold = ms(t0);
+      for (auto& o : others) ReverbIR::make({o}, r48, RATE, a1, &err, LongConvolver::Inline, HQ);
+      t0 = C::now(); auto f2 = ReverbIR::make({c8}, r48, RATE, a1, &err, LongConvolver::Inline, HQ); const double warm = ms(t0);
+      bool same2 = f1 && f2 && f1->frames == f2->frames;
+      if (same2) { auto y1 = impulse_response(*f1, f1->frames), y2 = impulse_response(*f2, f2->frames); same2 = y1 == y2; }
+      CHECK(same2 && warm < 0.7 * cold, "4 resamplings kept: an 8 s 48 kHz IR again after 3 others, %.0f ms (first time %.0f ms), the same IR",
+            warm, cold);
     }
     {   // the standard quality (Gen 1 with LONG IR off) keeps 5 s, and a 5 s IR also uses the far stage (both builds)
       IRShape s0;

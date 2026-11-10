@@ -255,11 +255,21 @@ static void resample_sinc(const std::vector<float>& in, double rate, double targ
 // of a preparation (a 20 s 48 kHz stereo IR: about 1 s on a PC, several on a Force). One entry, shared by every
 // instance (preparations run on each instance's worker thread, so it is locked); the key is the content itself.
 namespace {
-struct ResampleCache {
-  std::mutex mu;
-  uint64_t key = 0;
-  bool valid = false;
-  std::vector<std::vector<float>> out;
+struct ResampleCache {                                      // the last few IRs resampled (shared by every instance):
+  static const int kEntries = 4;                            // stepping back and forth through 48 kHz IRs, or between
+  struct Entry { uint64_t key = 0; bool valid = false; uint64_t used = 0; std::vector<std::vector<float>> out; };
+  std::mutex mu;                                            // presets, resamples each once (capped: <= 7 MB an entry)
+  Entry e[kEntries];
+  uint64_t tick = 0;
+  Entry* find(uint64_t key, size_t nch) {
+    for (Entry& x : e) if (x.valid && x.key == key && x.out.size() == nch) { x.used = ++tick; return &x; }
+    return nullptr;
+  }
+  void put(uint64_t key, const std::vector<std::vector<float>>& out) {
+    Entry* v = &e[0];                                       // the least recently used goes
+    for (Entry& x : e) { if (!x.valid) { v = &x; break; } if (x.used < v->used) v = &x; }
+    v->out = out; v->key = key; v->valid = true; v->used = ++tick;
+  }
 };
 ResampleCache& resample_cache() { static ResampleCache c; return c; }
 uint64_t resample_key(const std::vector<std::vector<float>>& ch, size_t nch, double rate, double target, const Quality& q) {
@@ -285,7 +295,7 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
   if (resample) {
     ResampleCache& rc = resample_cache();
     std::lock_guard<std::mutex> lk(rc.mu);
-    if (rc.valid && rc.key == rkey && rc.out.size() == nch) { h = rc.out; cached = true; }
+    if (const ResampleCache::Entry* x = rc.find(rkey, nch)) { h = x->out; cached = true; }
   }
   for (size_t c = 0; c < nch && !cached; c++) {           // to the host rate: cubic, zero-padded (as NAM's cab IRs)
     if (rate == target) { h[c] = channels[c]; continue; }
@@ -301,9 +311,11 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
     dsp::ResampleCubic<float>(padded, rate, target, 0.0, h[c]);
   }
   if (resample && !cached) {
+    const size_t keep = (size_t)(q.max_seconds * host_rate);   // (nothing past the cap is ever used, below)
+    for (auto& v : h) if (v.size() > keep) { v.resize(keep); v.shrink_to_fit(); }
     ResampleCache& rc = resample_cache();
     std::lock_guard<std::mutex> lk(rc.mu);
-    rc.out = h; rc.key = rkey; rc.valid = true;
+    rc.put(rkey, h);
   }
   size_t n = h[0].size();
   for (auto& v : h) n = std::min(n, v.size());

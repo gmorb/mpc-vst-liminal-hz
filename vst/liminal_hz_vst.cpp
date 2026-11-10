@@ -113,6 +113,7 @@ struct Browser {
   std::string notice;
 };
 static const int kArmSeconds = 4;
+static const double kDispGapMs = 100, kDispHoldMs = 300;   // UpdateDisplay pacing (notify())
 
 // My Presets (engine/presets.h): the saved presets, the one selected, and what the worker is asked to do
 struct MyPresets {
@@ -152,6 +153,9 @@ struct Inst {
   std::thread worker;
   std::atomic<int> changed[P_COUNT];
   std::atomic<int> update_display{0};
+  std::atomic<float> host_view[P_COUNT];       // each value as the host last had it (it wrote it, or was told): -1 unknown
+  std::chrono::steady_clock::time_point disp_last, disp_since;   // UpdateDisplay: last sent, first unsent request (audio thread)
+  bool disp_wait = false;                      // an UpdateDisplay is due (audio thread)
   std::string chunk;
   std::vector<LibEntry> libs[2];               // 0: the factory IRs, 1: My IRs (reverbs/ folders)
   long late_seen = 0;                          // late tail blocks already noticed (host thread, under mu)
@@ -530,13 +534,27 @@ static void worker_main(Inst* w) {
         std::string err;
         const bool ok = Library::remove(victim, &err);     // permanent
         std::lock_guard<std::mutex> lk(w->mu);
-        if (ok) {
-          w->ir.notice = "Deleted";
-          w->ir.notice_until = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-          w->ir.error.clear();
-          w->ir.loaded = LibEntry();
-          w->scan_req = w->work_req = true;
-          w->scanning = true;
+        if (ok) {                              // taken out of the lists here: no walk of the cards ("Searching...")
+          Browser& b = w->ir;
+          b.notice = "Deleted";
+          b.notice_until = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+          b.error.clear();
+          b.loaded = LibEntry();
+          auto drop = [&](std::vector<LibEntry>& l) {
+            l.erase(std::remove_if(l.begin(), l.end(), [&](const LibEntry& x) { return x.path == victim.path; }), l.end());
+          };
+          drop(w->libs[1]);
+          b.lib = w->libs[source_of(w)];
+          if (b.want >= (int)b.lib.size()) b.want = b.lib.empty() ? -1 : 0;   // the next IR, as a rescan picked
+          if (b.want < 0) {                    // the last one: nothing plays
+            b.shape_valid = false;
+            if (w->eng) w->eng->set_ir(nullptr);
+            for (int c = 0; c < ReverbIR::kCols; c++) { w->wave[c] = 0; w->changed[P_WAVE0 + c] = 1; }
+            w->sonics.clear();
+          }
+          requested(b);
+          menu_clamp(w);
+          browser_changed(w);
         } else {
           w->ir.error = err;
         }
@@ -854,6 +872,7 @@ static void set_parameter(AEffect* e, int32_t i, float v) {
   Inst* w = (Inst*)e->object;
   if (i < 0 || i >= P_COUNT) return;
   v = clamp01(v);
+  w->host_view[i] = v;                         // what the host now shows (notify() tells it when that changes)
   if (i == P_RESCAN || i == P_T3K_INFO) {
     if (i == P_RESCAN && v >= 0.5f) {
       std::lock_guard<std::mutex> lk(w->mu);
@@ -1012,13 +1031,28 @@ static void notify(Inst* w) {                  // audio thread: report values th
       w->master(&w->fx, audioMasterAutomate, P_PLAYHEAD, 0, nullptr, col / (float)ReverbEngine::kPlay);
     }
   }
-  const bool disp = w->update_display.exchange(0);
+  // UpdateDisplay: MPC answers each one by reading every parameter again and rebuilding its screen (mpc-vst-plugins
+  // wrapper/vst2_wrap.c), the slow part of a preset pick on the device. So they're paced: at most one per kDispGapMs,
+  // and while an IR is being prepared one waits (up to kDispHoldMs), so a pick redraws once, with the new IR's name.
+  const auto now = std::chrono::steady_clock::now();
+  if (w->update_display.exchange(0) && !w->disp_wait) { w->disp_wait = true; w->disp_since = now; }
+  bool disp = false;
+  if (w->disp_wait) {
+    auto ms = [&](std::chrono::steady_clock::time_point t) { return std::chrono::duration<double, std::milli>(now - t).count(); };
+    bool loading = true;                       // (unknown while the lock is busy: treated as loading)
+    {
+      std::unique_lock<std::mutex> lk(w->mu, std::try_to_lock);   // never wait on the audio thread
+      if (lk.owns_lock()) loading = w->ir.loading;
+    }
+    disp = ms(w->disp_last) >= kDispGapMs && (!loading || ms(w->disp_since) >= kDispHoldMs);
+  }
+  if (disp) { w->disp_wait = false; w->disp_last = now; }
   if (disp && w->menu.load()) {                // a list is open: its title and rows are read again
     w->changed[P_MENU_TITLE] = 1;
     for (int r = P_ROW1; r <= P_ROW_LAST; r++) w->changed[r] = 1;
   }
   for (int i = 0; i < P_COUNT; i++) {
-    if (!w->changed[i].exchange(0)) continue;
+    if (!w->changed[i].exchange(0)) continue;  // (values go at once: knobs move and the popup closes without waiting)
     float v = 0;
     if (is_display(i) && i != P_PLAYHEAD && i != P_SONICS) v = w->wave[i - P_WAVE0] / (float)(8 * ReverbIR::kTones - 1);
     if (i == P_IR || i == P_IR_SRC || is_row(i)) {
@@ -1028,6 +1062,8 @@ static void notify(Inst* w) {                  // audio thread: report values th
     }
     if (i == P_MENU) v = w->menu / 2.0f;
     if (i == P_LONG_IR) v = long_ir_on(w) ? 1.0f : 0.0f;
+    if ((disp || w->disp_wait) && v == w->host_view[i].load()) continue;   // the host has it; an UpdateDisplay redraws its text
+    w->host_view[i] = v;
     w->master(&w->fx, audioMasterAutomate, i, 0, nullptr, v);
   }
   if (disp) w->master(&w->fx, audioMasterUpdateDisplay, 0, 0, nullptr, 0);
@@ -1270,7 +1306,7 @@ static bool set_chunk(Inst* w, const char* data, size_t len) {
   if (w->scanned) resolve(w->ir);
   requested(w->ir);
   kick(w, !w->scanned);
-  for (int i = 0; i < P_COUNT; i++) w->changed[i] = 1;
+  for (int i = 0; i < P_COUNT; i++) { w->changed[i] = 1; w->host_view[i] = -1.0f; }   // (all reported again)
   w->update_display = 1;
   return true;
 }
@@ -1350,7 +1386,7 @@ extern "C" __attribute__((visibility("default"))) AEffect* VSTPluginMain(audioMa
   Inst* w = new (std::nothrow) Inst();
   if (!w) return nullptr;
   w->master = master;
-  for (int i = 0; i < P_COUNT; i++) { w->changed[i] = 0; w->norm[i] = def_norm(i); }
+  for (int i = 0; i < P_COUNT; i++) { w->changed[i] = 0; w->norm[i] = def_norm(i); w->host_view[i] = -1.0f; }
   for (auto& c : w->wave) c = 0;
   AEffect* e = &w->fx;
   memset(e, 0, sizeof *e);

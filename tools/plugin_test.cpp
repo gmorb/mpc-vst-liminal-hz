@@ -40,7 +40,21 @@ static const int kPresets = 14;                 // factory presets after Init (P
 static int fails = 0;
 #define CHECK(c, ...) do { printf("%s ", (c) ? "ok  " : "FAIL"); printf(__VA_ARGS__); printf("\n"); if (!(c)) fails++; } while (0)
 static AEffect* (*entry)(hostcb);
-static intptr_t host(AEffect*, int32_t op, int32_t, intptr_t, void*, float) { return op == 1 ? 2400 : 0; }
+static std::atomic<int> n_update{0}, n_automate{0};   // the host calls a plugin makes (UpdateDisplay, Automate)
+static intptr_t host(AEffect*, int32_t op, int32_t, intptr_t, void*, float) {
+  if (op == 42) n_update++;
+  if (op == 0) n_automate++;
+  return op == 1 ? 2400 : 0;
+}
+static void play_paced(AEffect* a, double secs) {   // audio at MPC's pace (the plugin reports to the host from process)
+  std::vector<float> l(128, 0.f), r(128, 0.f), ol(128), orr(128);
+  const auto t0 = std::chrono::steady_clock::now();
+  for (long b = 0; b < (long)(secs * 44100 / 128); b++) {
+    std::this_thread::sleep_until(t0 + std::chrono::microseconds((long long)(b * 128 * 1e6 / 44100)));
+    float* in[2] = {l.data(), r.data()}; float* out[2] = {ol.data(), orr.data()};
+    a->pr(a, in, out, 128);
+  }
+}
 static std::string disp(AEffect* a, int i) { char b[256] = {0}; a->d(a, 7, i, 0, b, 0); return b; }
 static bool wait_for(std::function<bool()> ok, double secs = 30) {
   for (int i = 0; i < secs * 50; i++) { if (ok()) return true; std::this_thread::sleep_for(std::chrono::milliseconds(20)); }
@@ -224,6 +238,23 @@ int main(int argc, char** argv) {
     CHECK(disp(pr, P_IR) == "Fluorescent Hall" && disp(pr, P_SOURCE) == "Factory" && pr->getP(pr, P_PRESET_OPEN) == 0,
           "a project on a factory IR reopens with it: [%s] (%s)", disp(pr, P_IR).c_str(), disp(pr, P_SOURCE).c_str());
     pr->d(pr, 1, 0, 0, nullptr, 0);
+    { // a pick costs the host little: setParameter returns at once (never waits on the worker), and MPC is asked to
+      // redraw its screen once (an UpdateDisplay rebuilds the whole page), not once for the pick and again for the IR
+      play_paced(pz, 0.5);
+      n_update = 0; n_automate = 0;
+      const auto t0 = std::chrono::steady_clock::now();
+      pz->setP(pz, P_PRESET, 6.0f / kPresets);                 // "Tape Corridor"
+      const double set_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+      play_paced(pz, 1.0);
+      CHECK(set_ms < 5 && n_update == 1 && n_automate <= 32 && disp(pz, P_IR) == "Tape Corridor",
+            "a preset pick: setParameter %.2f ms, %d UpdateDisplay, %d Automate, [%s]", set_ms, n_update.load(), n_automate.load(),
+            disp(pz, P_IR).c_str());
+      n_update = 0;
+      for (int k = 0; k < 20; k++) { pz->setP(pz, P_MIX, 0.3f + 0.01f * k); play_paced(pz, 0.02); }   // a knob turned for 0.4 s
+      play_paced(pz, 0.3);
+      CHECK(n_update >= 2 && n_update <= 6 && disp(pz, P_MIX) == "49%", "a knob turned for 0.4 s: %d UpdateDisplays (paced, at most one per 100 ms), mix %s",
+            n_update.load(), disp(pz, P_MIX).c_str());
+    }
     pz->setP(pz, P_PRESET, 0.0f);                              // Init
     wait_for([&] { return idle(pz); });
     bool zf = false; double zt = tail_rms(pz, &zf);
@@ -490,7 +521,9 @@ int main(int argc, char** argv) {
     press(x, P_IR_DELETE);
     CHECK(disp(x, P_IR) == "Small Hall" && disp(x, P_IR_INFO) == "Tap DELETE again to delete it permanently", "one tap asks: [%s]", disp(x, P_IR_INFO).c_str());
     press(x, P_IR_DELETE);
-    wait_for([&] { return disp(x, P_IR_INFO) == "Deleted"; }, 5);
+    bool searched = false;
+    wait_for([&] { searched = searched || disp(x, P_IR_INFO) == "Searching..."; return disp(x, P_IR_INFO) == "Deleted"; }, 5);
+    CHECK(!searched, "DELETE takes the IR out of the list without searching the cards again");
     CHECK(!fs::exists(m1 / "662522/reverbs/Halls/Small Hall.wav") && !fs::exists(m1 / "662522/Deleted"),
           "two taps: the IR is deleted permanently (info [%s])", disp(x, P_IR_INFO).c_str());
     wait_for([&] { return idle(x) && disp(x, P_IR) != "Small Hall"; }, 10);
