@@ -235,7 +235,7 @@ int main(int argc, char** argv) {
     wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Fluorescent Hall"; }, 60);
     bool pf = false; double pt = tail_rms(pz, &pf);
     CHECK(pz->getP(pz, P_PRESET_OPEN) == 0 && disp(pz, P_PRESET) == "Fluorescent Hall" && disp(pz, P_SOURCE) == "Factory" &&
-          disp(pz, P_IR) == "Fluorescent Hall" && disp(pz, P_IR_PACK) == "Spaces" && disp(pz, P_MIX) == "40%" &&
+          disp(pz, P_IR) == "Fluorescent Hall" && disp(pz, P_IR_PACK) == "Spaces \xC2\xB7 best on keys, pads" && disp(pz, P_MIX) == "40%" &&
           disp(pz, P_PREDELAY) == "30 ms" && pf && pt > 1e-4,
           "a preset: the list closes, [%s] in [%s] [%s], mix %s, pre-delay %s, it reverberates (%.4f)", disp(pz, P_IR).c_str(),
           disp(pz, P_IR_PACK).c_str(), disp(pz, P_IR_INFO).c_str(), disp(pz, P_MIX).c_str(), disp(pz, P_PREDELAY).c_str(), pt);
@@ -278,10 +278,28 @@ int main(int argc, char** argv) {
       int found = 0;
       for (int k = 0; k < 5; k++) {
         pz->setP(pz, P_PRESET, (15.0f + k) / kPresets);
-        if (wait_for([&] { return idle(pz) && disp(pz, P_IR) == tex[k]; }, 20) && disp(pz, P_PRESET) == tex[k] && disp(pz, P_IR_PACK) == "Textures") found++;
+        if (wait_for([&] { return idle(pz) && disp(pz, P_IR) == tex[k]; }, 20) && disp(pz, P_PRESET) == tex[k] && disp(pz, P_IR_PACK).rfind("Textures \xC2\xB7 best on ", 0) == 0) found++;
       }
       bool tf = false; const double tt = tail_rms(pz, &tf);
       CHECK(found == 5 && tf && tt > 1e-5, "the Textures presets: %d of 5 load their IR, [%s] sounds (%.4f)", found, disp(pz, P_IR).c_str(), tt);
+    }
+    {   // MPC's own PRESET menu: VST programs (Init + the factory presets, "Category: Name"), loading as our list does
+      auto pname = [&](int k) { char b[64] = {0}; pz->d(pz, 29, k, 0, b, 0); return std::string(b); };
+      bool short_ok = true;
+      for (int k = 0; k < pz->numPrograms; k++) short_ok = short_ok && !pname(k).empty() && pname(k).size() <= 23;
+      CHECK(pz->numPrograms == kPresets + 1 && short_ok && pname(0) == "Init" && pname(3) == "Space: Fluorescent Hall" &&
+            pname(7) == "Echo: Dream Ping-Pong" && pname(14) == "Strange: Liminal Hz" && pname(19) == "Texture: Bouncing Ball",
+            "%d programs, all <= 23 characters: [%s] [%s] [%s] [%s]", pz->numPrograms, pname(0).c_str(), pname(3).c_str(),
+            pname(14).c_str(), pname(19).c_str());
+      pz->d(pz, 2, 0, 14, nullptr, 0);                         // effSetProgram: Liminal Hz
+      wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Liminal Hz"; }, 20);
+      char cur[64] = {0}; pz->d(pz, 5, 0, 0, cur, 0);
+      const bool picked = disp(pz, P_PRESET) == "Liminal Hz" && pz->d(pz, 3, 0, 0, nullptr, 0) == 14 && std::string(cur) == "Strange: Liminal Hz" &&
+                          disp(pz, P_IR_PACK) == "Strange \xC2\xB7 best on chords, pads";
+      pz->setP(pz, P_MIX, 0.77f);                              // an edit, then the host re-selects the same program
+      pz->d(pz, 2, 0, 14, nullptr, 0);
+      CHECK(picked && disp(pz, P_MIX) == "77%", "effSetProgram 14 loads [%s] ([%s], pack [%s]); re-selecting it keeps edits (mix %s)",
+            disp(pz, P_PRESET).c_str(), cur, disp(pz, P_IR_PACK).c_str(), disp(pz, P_MIX).c_str());
     }
     pz->setP(pz, P_PRESET, 0.0f);                              // Init
     wait_for([&] { return idle(pz); });

@@ -54,7 +54,8 @@ struct AEffect {
   char future[56];
 };
 enum {
-  effOpen = 0, effClose = 1, effGetParamLabel = 6, effGetParamDisplay = 7, effGetParamName = 8,
+  effOpen = 0, effClose = 1, effSetProgram = 2, effGetProgram = 3, effGetProgramName = 5, effGetProgramNameIndexed = 29,
+  effGetParamLabel = 6, effGetParamDisplay = 7, effGetParamName = 8,
   effSetSampleRate = 10, effSetBlockSize = 11, effMainsChanged = 12, effGetChunk = 23, effSetChunk = 24, effProcessEvents = 25,
   effCanBeAutomated = 26, effGetPlugCategory = 35, effGetEffectName = 45, effGetVendorString = 47,
   effGetProductString = 48, effGetVendorVersion = 49, effCanDo = 51, effGetVstVersion = 58,
@@ -239,6 +240,30 @@ static const Preset kPresets[] = {
   {"Bouncing Ball", "Textures", 35, 0, 120, 12000, 150, 100, 0, 0, 0, 10, 100, 0, 0}
 };
 static const int kPresetCount = (int)(sizeof kPresets / sizeof kPresets[0]);
+
+// What each factory IR suits best: shown after its category on the page's pack line ("Strange · best on pads, vocals").
+static const struct { const char *ir, *best; } kBestOn[] = {
+  {"Empty Mall", "drums, vocals"}, {"Pool Rooms", "snares, vocals"}, {"Fluorescent Hall", "keys, pads"},
+  {"Backrooms", "pads, drones"}, {"Stairwell Flutter", "snares, claps"}, {"Tape Corridor", "vocals, keys"},
+  {"Dream Ping-Pong", "keys, plucks"}, {"Parking Slap", "drums, rap vocals"}, {"Intercom Echo", "vocals, FX"},
+  {"Glass Void", "pads, vocals"}, {"Reverse Bloom", "drums, vocals"}, {"Sub Tunnel", "drums, drones"},
+  {"Shimmer Fog", "pads, guitars"}, {"Liminal Hz", "chords, pads"}, {"Struck Pipe", "drums, percussion"},
+  {"Grain Cloud", "vocals, pads"}, {"Tuned Chord", "drums, vocals"}, {"Breath", "vocals, hi-hats"},
+  {"Bouncing Ball", "snares, one-shots"}};
+static const char* best_on(const std::string& ir) {
+  for (const auto& b : kBestOn) if (ir == b.ir) return b.best;
+  return nullptr;
+}
+
+// VST programs: MPC's own PRESET menu (top of the screen) lists them and loads one with effSetProgram
+// (mpc-vst-plugins docs/NOTES.md, 2026-10-07): Init and the factory presets, named "Category: Name" (<= 23 characters).
+static const int kProgramCount = 1 + kPresetCount;
+static std::string program_name(int k) {
+  if (k <= 0 || k > kPresetCount) return k == 0 ? "Init" : "";
+  const std::string c = kPresets[k - 1].category;
+  const std::string tag = c == "Spaces" ? "Space" : c == "Echoes" ? "Echo" : c == "Textures" ? "Texture" : c;
+  return tag + ": " + kPresets[k - 1].name;
+}
 
 static bool is_display(int i) { return (i >= P_WAVE0 && i <= P_PLAYHEAD) || i == P_SONICS; }   // read-only, not automatable
 static bool is_browser(int i) { return (i >= P_IR && i <= P_IR_BROWSE) || i == P_IR_DELETE; }
@@ -1233,7 +1258,9 @@ static std::string display_of(Inst* w, int i) {
       if (cur->t3k && !cur->t3k_title.empty()) return cur->t3k_title;
       if (cur->pack.empty()) return "Loose files";
       size_t s = cur->pack.find_last_of('/');
-      return s == std::string::npos ? cur->pack : cur->pack.substr(s + 1);
+      const std::string pack = s == std::string::npos ? cur->pack : cur->pack.substr(s + 1);
+      const char* best = source_of(w) == 0 ? best_on(factory_name(stem_of(cur->file))) : nullptr;
+      return best ? pack + " · best on " + best : pack;   // a factory IR: what it suits
     }
     if (i == P_IR_SRC) return cur && cur->t3k ? "TONE3000" : "Local";
     if (i == P_IR_INFO) {
@@ -1420,6 +1447,21 @@ static intptr_t dispatcher(AEffect* e, int32_t op, int32_t idx, intptr_t v, void
       }
       return 1;
     }
+    case effSetProgram: {                      // MPC's PRESET menu: as a pick in our own PRESET list
+      const int cur = (int)lroundf(w->norm[P_PRESET] * kPresetCount);
+      if (v < 0 || v >= kProgramCount || (int)v == cur) return 1;   // (the current one, as hosts re-select at load: kept)
+      set_parameter(e, P_PRESET, (float)v / kPresetCount);
+      w->host_view[P_PRESET] = -1.0f; w->changed[P_PRESET] = 1;      // (the host didn't write it: told)
+      return 1;
+    }
+    case effGetProgram: return (int)lroundf(w->norm[P_PRESET] * kPresetCount);
+    case effGetProgramName:
+      if (p) copy_text(p, program_name((int)lroundf(w->norm[P_PRESET] * kPresetCount)), 24);
+      return 1;
+    case effGetProgramNameIndexed:
+      if (!p || idx < 0 || idx >= kProgramCount) return 0;
+      copy_text(p, program_name(idx), 24);
+      return 1;
     case effGetChunk: { int len = get_chunk(w); *(void**)p = (void*)w->chunk.c_str(); return len; }
     case effSetChunk: return (v > 0 && p) ? (set_chunk(w, (const char*)p, (size_t)v) ? 1 : 0) : 0;
     default: return 0;
@@ -1441,6 +1483,7 @@ extern "C" __attribute__((visibility("default"))) AEffect* VSTPluginMain(audioMa
   e->getParameter = get_parameter;
   e->processReplacing = process_replacing;
   e->numParams = P_COUNT;
+  e->numPrograms = kProgramCount;           // (MPC's PRESET menu: Init and the factory presets)
   e->numInputs = 2;
   e->numOutputs = 2;
   e->flags = effFlagsCanReplacing | effFlagsProgramChunks;
