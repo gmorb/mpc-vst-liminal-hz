@@ -7,6 +7,10 @@
   hits.wav    two bars of sparse kick and snare at 80 bpm, for the reverse-swell demo
   keys.wav    a two-bar electric-piano arpeggio at 100 bpm, for the Dream Ping-Pong demo
   stabs.wav   three short synth chord stabs, for the Liminal Hz preset demo
+  perc.wav    two bars of a busier kit at 100 bpm (Struck Pipe, Tuned Chord, SYNC)
+  vox.wav     a sung "aah" line (a saw through vowel formants), for Grain Cloud
+  hats.wav    two bars of 16th hi-hats at 110 bpm, for Breath
+  snaps.wav   one snare three times, for Bouncing Ball
 Each file is the phrase followed by silence, so the reverb's tail has room to play out."""
 import os, sys, wave
 import numpy as np
@@ -117,6 +121,55 @@ def stabs(total_s):                           # three short chord stabs (Am9, Fm
                 i0 = int(t0 * SR); out[i0:i0 + n, side] += v
     return out
 
+def rim(n=int(0.12 * SR)):                    # a rimshot: a high knock and a click
+    t = np.arange(n) / SR
+    return (np.sin(2 * np.pi * 1700 * t) * 0.5 + np.sin(2 * np.pi * 820 * t) * 0.4) * np.exp(-t * 45) + \
+        0.4 * hp(rng.standard_normal(n), 2000) * np.exp(-t * 120)
+
+def perc(total_s, bpm=100):                   # two bars of a busier kit (kick, snare, rim, 16th hats) at 100 BPM
+    out = np.zeros((int(total_s * SR), 2)); beat = 60 / bpm
+    for bar in range(2):
+        b0 = 0.15 + bar * 4 * beat
+        for k in (0, 1.75, 2.5): place(out, kick(), b0 + k * beat)
+        for k in (1, 3): place(out, snare(), b0 + k * beat)
+        for k in (0.75, 3.5): place(out, rim() * 0.5, b0 + k * beat, pan=-0.3)
+        for k in range(16): place(out, hat(level=0.13 if k % 4 == 2 else 0.08), b0 + k * beat / 4, pan=0.3)
+    return out
+
+def formant(x, freqs=((700, 110), (1220, 120), (2600, 180)), gains=(1.0, 0.6, 0.25)):
+    from scipy.signal import lfilter
+    y = np.zeros_like(x)
+    for (fc, bw), g in zip(freqs, gains):     # two-pole resonators (an "aah")
+        r = np.exp(-np.pi * bw / SR); th = 2 * np.pi * fc / SR
+        y += g * lfilter([1 - r], [1, -2 * r * np.cos(th), r * r], x)
+    return y
+
+def vox(total_s):                             # a sung "aah" line (a saw through vowel formants, with vibrato)
+    out = np.zeros((int(total_s * SR), 2))
+    for m, t0, dur in ((64, 0.2, 0.9), (67, 1.15, 0.6), (69, 1.8, 0.6), (67, 2.45, 0.5), (64, 3.0, 1.6)):
+        n = int((dur + 0.3) * SR); t = np.arange(n) / SR
+        f = note_hz(m) * (1 + 0.006 * np.sin(2 * np.pi * 5.2 * t) * np.minimum(1, t / 0.4))
+        ph = np.cumsum(f) / SR
+        src = (2 * (ph % 1.0) - 1) + 0.15 * rng.standard_normal(n)
+        v = formant(src) * env_adsr(n, 0.06, 0.2, 0.8, dur, 0.15) * 0.25
+        place(out, v, t0)
+    return out
+
+def hats(total_s, bpm=110):                   # two bars of 16th hi-hats with an open hat and a shaker feel
+    out = np.zeros((int(total_s * SR), 2)); beat = 60 / bpm
+    for bar in range(2):
+        b0 = 0.15 + bar * 4 * beat
+        for k in range(16):
+            lv = (0.16, 0.07, 0.11, 0.06)[k % 4]
+            place(out, hat(level=lv), b0 + k * beat / 4, pan=0.2 if k % 2 else -0.1)
+        for k in (1.5, 3.5): place(out, hat(n=int(0.35 * SR), level=0.14), b0 + k * beat, pan=0.1)
+    return out
+
+def snaps(total_s):                           # one snare, three times, with room around it
+    out = np.zeros((int(total_s * SR), 2))
+    for t0 in (0.2, 1.4, 2.6): place(out, snare() * 1.1, t0)
+    return out
+
 def norm(x, peak=0.7):
     m = np.max(np.abs(x)); return x * (peak / m) if m > 0 else x
 
@@ -127,4 +180,8 @@ if __name__ == "__main__":
     write(os.path.join(d, "hits.wav"), norm(hits(9.5)))       # 2 bars (6.0 s), then the tail
     write(os.path.join(d, "keys.wav"), norm(keys(10.0)))      # 2 bars (4.8 s), then the echoes
     write(os.path.join(d, "stabs.wav"), norm(stabs(11.0)))    # 3 stabs (3.2 s), then the long tail
+    write(os.path.join(d, "perc.wav"), norm(perc(9.0)))       # 2 bars at 100 BPM (4.8 s), then the tail
+    write(os.path.join(d, "vox.wav"), norm(vox(9.0)))         # a 4.6 s line, then the tail
+    write(os.path.join(d, "hats.wav"), norm(hats(8.0)))       # 2 bars at 110 BPM (4.4 s), then the tail
+    write(os.path.join(d, "snaps.wav"), norm(snaps(7.0)))     # 3 snares (2.6 s), then the tail
     print("wrote", d)

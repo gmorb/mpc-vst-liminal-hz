@@ -4,6 +4,7 @@
 // records what its page would show, for the demo videos.
 //   demo_host <plugin.so> <in.wav> <out.wav> <state.json> <preset 0..19> [key=value ...] [long_ir=1]
 // key=value: a parameter by its params.json key, as a real value (mix=55, decay=300); applied after the preset.
+// bpm=100: the host gives that tempo (SYNC); predelay=<ms> picks the note at that point of the knob (225: 1/8 D).
 // state.json: every parameter's normalised value and display text after loading, and the playhead (0..24) and the
 // 12 wave columns at 30 frames a second while the audio plays.
 #include <dlfcn.h>
@@ -24,7 +25,18 @@ struct AEffect {
   int32_t numPrograms, numParams, numInputs, numOutputs, flags; intptr_t r1, r2; int32_t a, b, c; float io;
   void *obj, *user; int32_t uid, ver; void (*pr)(AEffect*, float**, float**, int32_t); void* pdr; char f[56];
 };
-static intptr_t host(AEffect*, int32_t op, int32_t, intptr_t, void*, float) { return op == 1 ? 2400 : 0; }
+struct VstTimeInfo {
+  double samplePos, sampleRate, nanoSeconds, ppqPos, tempo, barStartPos, cycleStartPos, cycleEndPos;
+  int32_t timeSigNumerator, timeSigDenominator, smpteOffset, smpteFrameRate, samplesToNextClock, flags;
+};
+static double g_bpm = 0;                       // bpm=<tempo>: the project tempo the host gives (SYNC), as MPC does
+static intptr_t host(AEffect*, int32_t op, int32_t, intptr_t, void*, float) {
+  if (op == 7 && g_bpm > 0) {
+    static thread_local VstTimeInfo ti; ti = VstTimeInfo(); ti.sampleRate = 44100; ti.tempo = g_bpm; ti.flags = 1 << 10;
+    return (intptr_t)&ti;
+  }
+  return op == 1 ? 2400 : 0;
+}
 static std::string disp(AEffect* a, int i) { char b[256] = {0}; a->d(a, 7, i, 0, b, 0); return b; }
 static std::string pname(AEffect* a, int i) { char b[64] = {0}; a->d(a, 8, i, 0, b, 0); return b; }
 static std::string esc(const std::string& s) {
@@ -61,6 +73,7 @@ static void write_wav(const char* p, const std::vector<float>& l, const std::vec
 }
 
 int main(int argc, char** argv) {
+  for (int k = 6; k < argc; k++) if (!strncmp(argv[k], "bpm=", 4)) g_bpm = atof(argv[k] + 4);
   if (argc < 6) { fprintf(stderr, "usage: demo_host plugin.so in.wav out.wav state.json preset [key=value...]\n"); return 2; }
   void* so = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
   if (!so) { fprintf(stderr, "%s\n", dlerror()); return 1; }
