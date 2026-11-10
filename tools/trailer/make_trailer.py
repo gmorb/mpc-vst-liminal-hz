@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 the mpc-vst-liminal-hz contributors
-"""make_trailer.py wide|tall <out.mp4> [--style dark|bright] [--frames t1,t2,...] -- the Liminal Hz trailer.
+"""make_trailer.py wide|tall <out.mp4> [--style dark|cyber] [--frames t1,t2,...] -- the Liminal Hz trailer.
 
 wide: 1920x1080, the whole score (~63 s). tall: 1080x1920, a ~31 s cut of the same score at bar boundaries (Reels,
-TikTok, Shorts). --style picks the score (score.py: dark, 80s synth horror; bright, clean and modern) and the
-picture's grade to match (dark: red titles, a cold-red grade; bright: lifted, cooler). The music is <style>/mix.wav (render.sh, mix.py: synthesized, every part played through Liminal
+TikTok, Shorts). --style picks the score (score.py: dark, 80s synth horror; cyber, cyberpunk) and the
+picture's look to match (dark: red titles, a cold-red grade; cyber: neon cyan titles, a teal-magenta grade, scanlines,
+a colour split, and glitched slices on the hits). The music is <style>/mix.wav (render.sh, mix.py: synthesized, every part played through Liminal
 Hz). The pages are the plugin's real page (tools/demos/render_page.py) in the states the demos recorded
 (tools/demos/render_audio.sh), the paintings are the plugin's own IR art (vst/art/bg_*.png).
 --frames: those moments (seconds of the video) as PNGs instead of a video."""
@@ -29,9 +30,13 @@ STYLE = _style()
 MIX = os.path.join(ROOT, "vst", "build", "trailer", STYLE, "mix.wav")
 IV, GR, AMB, DIM = (236, 230, 218), (160, 154, 144), (222, 186, 120), (96, 92, 86)
 if STYLE == "dark": AMB = (214, 52, 44)                         # (the accent: Carpenter red)
-GRADE = {"dark": (np.array([1.06, 0.84, 0.80], np.float32), 0.0), "bright": (np.array([1.0, 1.04, 1.1], np.float32), 10.0)}[STYLE]
+if STYLE == "cyber": AMB = (40, 232, 255)                        # (neon cyan; MAG for the second accent)
+MAG = (255, 54, 186)
+GRADE = {"dark": (np.array([1.06, 0.84, 0.80], np.float32), 0.0), "cyber": (np.array([0.95, 0.9, 1.22], np.float32), 4.0)}[STYLE]
 IMPACTS = [score.t_of(6), score.t_of(18), score.t_of(23)]
-DROP_KICKS = [score.t_of(b, k) for b in range(18, 23) for k in (0, 0.75, 1.5, 2.5, 3.25)]
+DROP_KICKS = [score.t_of(b, k) for b in range(18, 23) for k in (0, 1, 2, 3)]   # (the drop's four-on-the-floor)
+GLITCHES = IMPACTS + DROP_KICKS + [score.t_of(5, 2 + k * 0.125) for k in range(12)] + \
+    [score.t_of(b, 3 + k * 0.125) for b in (9, 21) for k in range(8)] + [score.t_of(b, 3.5) for b in list(range(6, 14)) + list(range(18, 23))]
 
 def F(style, size): return ImageFont.truetype(FONTS + {"r": "TitilliumWeb-Regular.ttf", "s": "TitilliumWeb-SemiBold.ttf",
                                                          "b": "TitilliumWeb-Bold.ttf"}[style], max(8, int(size)))
@@ -85,6 +90,8 @@ class Canvas:
         y, x = np.mgrid[0:H, 0:W]
         r = np.sqrt(((x - W / 2) / (W / 2)) ** 2 + ((y - H / 2) / (H / 2)) ** 2)
         self.vignette = np.clip(1.15 - 0.55 * r ** 1.6, 0.25, 1.0)[:, :, None].astype(np.float32)
+        yy = (y / H)[:, :, None].astype(np.float32)                    # cyber: neon light, cyan from above, magenta below
+        self.neon = (np.array([0, 40, 52], np.float32) * (1 - yy) ** 2.5 + np.array([62, 6, 44], np.float32) * yy ** 2.2)
         g = np.random.default_rng(3)
         self.grain = [g.normal(0, 3, (H // 2, W // 2, 1)).astype(np.float32) for _ in range(4)]   # (light: it costs bits)
 
@@ -169,14 +176,23 @@ class Canvas:
         if by: d.text((self.W / 2, y + size * 0.62), "by Gm0rb", font=F("r", size * 0.3), fill=GR + (a,), anchor="ms")
         frame.paste(Image.alpha_composite(frame.convert("RGBA"), layer).convert("RGB"))
 
-    def finish(self, frame, t, flash=0.0, shake=0.0, letterbox=True, fade=1.0):
+    def finish(self, frame, t, flash=0.0, shake=0.0, letterbox=True, fade=1.0, glitch=0.0):
         a = np.asarray(frame, dtype=np.float32)
+        if STYLE == "cyber":                                            # neon: a colour split, glitched slices
+            split = int(3 + 14 * glitch)
+            a = a.copy(); a[:, :, 0] = np.roll(a[:, :, 0], split, 1); a[:, :, 2] = np.roll(a[:, :, 2], -split, 1)
+            if glitch > 0.15:
+                r = np.random.default_rng(int(t * 997))
+                for _ in range(int(3 + 6 * glitch)):
+                    y0 = int(r.uniform(0, self.H - 20)); h = int(r.uniform(8, 60 + 120 * glitch))
+                    a[y0:y0 + h] = np.roll(a[y0:y0 + h], int(r.uniform(-1, 1) * 90 * glitch), 1)
         if shake > 0.5:
             r = np.random.default_rng(int(t * 1000))
             dx, dy = (r.uniform(-1, 1, 2) * shake).astype(int)
             a = np.roll(np.roll(a, dy, 0), dx, 1)
         a = a * self.vignette
         a = a * GRADE[0] + GRADE[1]                                     # the style's grade
+        if STYLE == "cyber": a = a + self.neon; a[1::3] *= 0.78        # neon light, scanlines
         g = self.grain[int(t * FPS / 6) % len(self.grain)]          # (a new grain every 0.2 s)
         a = a + np.repeat(np.repeat(g, 2, 0), 2, 1)[: self.H, : self.W]
         if flash > 0: a = a + (255 - a) * flash
@@ -213,7 +229,7 @@ class Trailer:
 
     def bg(self, name, t, t0, dur, zoom=(1.0, 1.12), dim=1.0):
         im = self.C.cover(PAINT[name], zoom[0] + (zoom[1] - zoom[0]) * min(1, (t - t0) / dur), 0.5, 0.55)
-        dim *= 1.6 if STYLE == "bright" else 1.0                        # (bright: the rooms lit)
+        dim *= 1.25 if STYLE == "cyber" else 1.0                        # (cyber: a little more light for the neon)
         return ImageEnhance.Brightness(im).enhance(dim) if dim != 1.0 else im
 
     def page_img(self, name, t, open_list=False):
@@ -309,7 +325,7 @@ class Trailer:
             else:
                 r = crops[k % len(crops)]
                 C.page(fr, self.page_img(st, t), region=REGIONS.get(r), zoom_to=1.0 if r else 0, y_frac=0.56 if not tall else 0.55)
-                self.big(fr, name, H * (0.14 if not tall else 0.22), 80, track=0.06, color=IV if k % 2 else AMB)
+                self.big(fr, name, H * (0.14 if not tall else 0.22), 80, track=0.06, color=(MAG if STYLE == "cyber" else IV) if k % 2 else AMB)
         else:                                                         # the end card
             t0 = score.t_of(23)
             fr = self.bg("threshold_deep", t, t0, 8, (1.15, 1.0), dim=0.4)
@@ -321,7 +337,8 @@ class Trailer:
             self.big(fr, "github.com/gmorb/mpc-vst-liminal-hz", H * (0.63 if tall else 0.7), 46, style="s", color=AMB,
                      alpha=ease((t - t0 - 1.6) / 0.5))
             fade = 1 - ease((t - (END - 1.6)) / 1.6)
-        return C.finish(fr, t, min(1.0, flash), shake, fade=fade)
+        glitch = max([np.exp(-(t - g) / 0.07) for g in GLITCHES if 0 <= t - g < 0.3] + [0.0])
+        return C.finish(fr, t, min(1.0, flash), shake, fade=fade, glitch=min(1.0, glitch + flash))
 
 # ---- the cuts --------------------------------------------------------------------------------------------------------
 def segments(mode):
