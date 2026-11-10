@@ -97,7 +97,7 @@ class Canvas:
             rx, ry, rw, rh = region
             pad = 0.35
             aspect = 1280 / 628
-            cw = max(rw * (1 + 2 * pad), rh * (1 + 2 * pad) * aspect); ch = cw / aspect
+            cw = min(1280, max(rw * (1 + 2 * pad), rh * (1 + 2 * pad) * aspect)); ch = cw / aspect   # (never past the page)
             cx, cy = rx + rw / 2, ry + rh / 2
             tgt = (max(0, min(1280 - cw, cx - cw / 2)), max(0, min(628 - ch, cy - ch / 2)), cw, ch)
             z = ease(zoom_to)

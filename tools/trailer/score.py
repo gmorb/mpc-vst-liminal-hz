@@ -82,10 +82,10 @@ def braam(root=38, dur=2.2, level=1.0):
     """a low brass-like blast: detuned saw stacks, the filter opening and closing, driven"""
     n = int((dur + 0.5) * SR); t = np.arange(n) / SR
     out = np.zeros((n, 2))
-    for m in (root - 12, root, root + 7, root + 12, root + 15):
+    for m in (root - 12, root, root + 7, root + 12):           # octaves and a fifth: one solid chord, not a cluster
         for ch in range(2):
-            for det in (-0.12, 0.0, 0.12):
-                out[:, ch] += saw(hz(m) * 2 ** ((det + rng.uniform(-0.03, 0.03)) / 12), n) * (1.4 if m < root else 1.0)
+            for det in ((-0.035, 0.035) if ch == 0 else (-0.025, 0.045)):   # a slight, fixed spread (stereo width)
+                out[:, ch] += saw(hz(m) * 2 ** (det / 12), n, phase=0.0) * (1.4 if m < root else 1.0)
     cut = 180 + 2600 * np.exp(-t * 2.2) * (1 - np.exp(-t * 40))
     y = np.zeros_like(out)
     blocks = 256                                                 # a swept low-pass: filtered in blocks, overlapped
@@ -122,7 +122,7 @@ def reverse_swell(dur, level=0.8):
 def riser(dur, level=0.6):
     n = int(dur * SR); t = np.arange(n) / SR
     f0 = hz(50) * 2 ** (3 * (t / dur) ** 2)                      # three octaves up, faster at the end
-    s = saw(f0, n) * 0.4 + saw(f0 * 1.005, n) * 0.4
+    s = saw(f0, n) * 0.8                                        # (one voice: a clean rise)
     noise = rng.standard_normal(n)
     y = np.zeros(n)
     for i in range(0, n, 2048):                                  # the noise band follows the pitch
@@ -137,7 +137,7 @@ def pad_chord(notes, dur, level=0.12):
     out = np.zeros((n, 2))
     for m in notes:
         for ch in range(2):
-            out[:, ch] += saw(hz(m) * 2 ** (rng.uniform(-0.1, 0.1) / 12), n)
+            out[:, ch] += saw(hz(m) * 2 ** ((0.03 if ch else -0.03) / 12), n)
     e = env(n, 0.8, 0.5, 0.85, dur, 0.6)
     return np.stack([lp(out[:, 0], 700), lp(out[:, 1], 700)], 1) * e[:, None] * level
 
@@ -146,7 +146,7 @@ def stab(notes, level=0.18):
     out = np.zeros((n, 2))
     for m in notes:
         for ch in range(2):
-            out[:, ch] += saw(hz(m) * 2 ** (rng.uniform(-0.08, 0.08) / 12), n)
+            out[:, ch] += saw(hz(m) * 2 ** ((0.02 if ch else -0.02) / 12), n)
     e = env(n, 0.003, 0.09, 0.4, 0.18, 0.05)
     return np.stack([lp(out[:, 0], 3200), lp(out[:, 1], 3200)], 1) * e[:, None] * level
 
