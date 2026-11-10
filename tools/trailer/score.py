@@ -4,16 +4,17 @@
 """score.py dark|cyber <out dir> -- the trailer's music, synthesized (no samples), as dry stems for the plugin to play.
 
 Two different songs (the style comes from argv, or TRAILER_STYLE when imported; it sets the tempo and the meter):
-  dark    120 BPM in 5/4 (3+2), D minor, 26 bars (65 s): an 80s synth-horror score. A dry octave ostinato creeping in
-          through a closed filter, a heartbeat, a string machine, a slow descending lead, toms and a heavy snare;
-          tight impacts, and nothing left ringing over the drop.
+  dark    120 BPM in 5/4 (3+2), D minor, 26 bars (65 s): an 80s synth-horror score. A round sub ostinato (sine and
+          triangle, never brighter than ~700 Hz) creeping in under Sub Tunnel, a heartbeat, a soft glass pad, a slow
+          falling theremin-like lead through the Liminal Hz preset, toms and a heavy snare; tight impacts, and
+          nothing left ringing over the drop.
           bars 0-3 intro, 4-5 swell, 6 IMPACT (title), 6-13 groove, 14-17 breakdown, 18 IMPACT (drop), 18-22, 23 end
-  cyber   128 BPM in 4/4, D minor, 32 bars (60 s): cyberpunk club. Four on the floor, a rolling 16th bass off the
-          kick, rhythmically gated chords, a square-wave hook, glitches.
+  cyber   100 BPM in 4/4, D minor, 32 bars (77 s): slow, heavy cyberpunk. A broken kick (1, the and of 3), a
+          backbeat snare, a pulsing 8th bass, warm 8th-gated chords, a soft square hook, glitches.
           bars 0-3 boot, 4 IMPACT (title), 4-11 groove, 12-15 features, 16-19 breakdown and build, 20 IMPACT (drop),
           20-27 drop with the hook, 28 IMPACT (end)
-Every note is on the grid, with fixed (not random) tuning. Each stem is a 44.1 kHz stereo float WAV; STEMS[style]
-says which factory preset and settings Liminal Hz plays it through (tools/trailer/render.sh), LEVEL[style] how loud
+Every note is on the grid, with fixed (not random) tuning. Each stem is a 44.1 kHz stereo float WAV, and every
+stem is played through Liminal Hz (none is left dry); STEMS[style] says which factory preset and settings (tools/trailer/render.sh), LEVEL[style] how loud
 it sits against the drums and GATES[style] where a stem's reverb is cut so it can't ring over a hit (mix.py)."""
 import os, sys
 import numpy as np
@@ -21,7 +22,7 @@ from scipy.signal import butter, sosfilt
 
 STYLE = os.environ.get("TRAILER_STYLE") or (sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in ("dark", "cyber") else "dark")
 SR = 44100
-BPM, BPB, BARS = {"dark": (120, 5, 26), "cyber": (128, 4, 32)}[STYLE]
+BPM, BPB, BARS = {"dark": (120, 5, 26), "cyber": (100, 4, 32)}[STYLE]
 BEAT = 60 / BPM; BAR = BPB * BEAT
 TOTAL = BARS * BAR + 5.0
 N = int(TOTAL * SR)
@@ -81,7 +82,7 @@ def tick(level=0.3):                          # a clock's tick: a short knock of
     n = int(0.05 * SR); t = np.arange(n) / SR
     return bp(rng.standard_normal(n), 1500, 7000) * np.exp(-t * 180) * level * 1.6
 
-def braam(root=38, dur=2.2, level=1.0):
+def braam(root=38, dur=2.2, level=1.0, bright=2600):
     """a low brass-like blast: detuned saw stacks, the filter opening and closing, driven"""
     n = int((dur + 0.5) * SR); t = np.arange(n) / SR
     out = np.zeros((n, 2))
@@ -89,7 +90,7 @@ def braam(root=38, dur=2.2, level=1.0):
         for ch in range(2):
             for det in ((-0.035, 0.035) if ch == 0 else (-0.025, 0.045)):   # a slight, fixed spread (stereo width)
                 out[:, ch] += saw(hz(m) * 2 ** (det / 12), n, phase=0.0) * (1.4 if m < root else 1.0)
-    cut = 180 + 2600 * np.exp(-t * 2.2) * (1 - np.exp(-t * 40))
+    cut = 180 + bright * np.exp(-t * 2.2) * (1 - np.exp(-t * 40))
     y = np.zeros_like(out)
     blocks = 256                                                 # a swept low-pass: filtered in blocks, overlapped
     for ch in range(2):
@@ -141,23 +142,35 @@ def sub_note(m, dur, level=0.5):
     return np.tanh(x * 1.3) * env(n, 0.01, 0.1, 0.9, dur, 0.06) * level
 
 # ---- more sounds for the two scores -------------------------------------------------------------------------------
-def pulse(m, dur, cutoff=900, level=0.4):
-    """one note of a sequenced synth bass: a saw and a square an octave down, through a low-pass that snaps shut"""
-    n = int((dur + 0.05) * SR); t = np.arange(n) / SR
-    f = hz(m)
-    x = saw(f, n, 0.0) * 0.7 + np.sign(np.sin(2 * np.pi * f / 2 * t)) * 0.35
-    y = np.zeros(n); seg = 512
-    for i in range(0, n, seg):                                   # the filter: cutoff x (1 + 3 e^-t/40ms)
-        fc = min(SR / 2.5, cutoff * (1 + 3 * np.exp(-t[i] / 0.04)))
+def tri(f, n, phase=0.0):
+    """a triangle wave: soft (odd harmonics falling as 1/n^2)"""
+    return 2 * np.abs(saw(f, n, phase)) - 1
+
+def soft_pulse(m, dur, cutoff=900, level=0.4):
+    """one note of the dark ostinato: a sine with a triangle for its edge, a quiet octave above; a low-pass that
+    opens a little on each note but never past ~700 Hz (round and sub-heavy, nothing harsh)"""
+    n = int((dur + 0.08) * SR); t = np.arange(n) / SR; f = hz(m)
+    x = np.sin(2 * np.pi * f * t) + 0.45 * tri(f, n) + 0.12 * np.sin(2 * np.pi * 2 * f * t + 0.6)
+    y = np.zeros(n); seg = 512; top = min(cutoff, 700)
+    for i in range(0, n, seg):
+        fc = top * (1 + 0.8 * np.exp(-t[i] / 0.06))
         y[i:i + seg] = lp(x[i:i + seg], fc)
-    return np.tanh(y * 1.5) * env(n, 0.002, 0.05, 0.75, dur, 0.02) * level
+    return np.tanh(y * 1.1) * env(n, 0.008, 0.08, 0.8, dur, 0.06) * level
+
+def ghost_lead(m, dur, level=0.2, cutoff=1800):
+    """the dark lead: a sine and a little triangle with a slow vibrato that fades in (theremin-like), a slow swell"""
+    n = int((dur + 0.4) * SR); t = np.arange(n) / SR; f = hz(m)
+    vib = 1 + 0.009 * np.sin(2 * np.pi * 5.0 * t) * np.clip((t - 0.25) / 0.5, 0, 1)
+    ph = np.cumsum(f * vib) / SR
+    x = np.sin(2 * np.pi * ph) + 0.3 * (2 * np.abs(2 * (ph % 1.0) - 1) - 1)
+    return lp(x, cutoff) * env(n, 0.25, 0.3, 0.9, dur, 0.35) * level
 
 def strings(notes, dur, level=0.1, cutoff=1600):
-    """a string machine: saws with a small fixed spread, slow in and out"""
+    """a glass pad: triangles with a small fixed spread, slow in and out"""
     n = int((dur + 1.2) * SR); out = np.zeros((n, 2))
     for m in notes:
         for ch, det in ((0, -0.02), (1, 0.02)):
-            out[:, ch] += saw(hz(m) * 2 ** (det / 12), n, 0.25 * ch)
+            out[:, ch] += tri(hz(m) * 2 ** (det / 12), n, 0.25 * ch) * 1.3
     e = env(n, 1.0, 0.5, 0.9, dur, 0.9)
     return np.stack([lp(out[:, 0], cutoff), lp(out[:, 1], cutoff)], 1) * e[:, None] * level
 
@@ -202,11 +215,6 @@ def arp(m, dur, level=0.16, cutoff=3200):
     x = np.where(ph < 0.3, 1.0, -1.0)
     return lp(x, cutoff) * np.exp(-t * 14) * (1 - np.exp(-t * 600)) * level
 
-def metal_snare(level=1.0):
-    """a hard electronic snare with a ring-modulated metallic edge, clipped"""
-    x = snare(1.2); t = np.arange(len(x)) / SR
-    return np.clip((x + 0.5 * x * np.sin(2 * np.pi * 1730 * t)) * 1.8, -0.95, 0.95) * level
-
 def blip(m, level=0.2):
     n = int(0.035 * SR); t = np.arange(n) / SR
     return np.sign(np.sin(2 * np.pi * hz(m) * t)) * np.exp(-t * 90) * level
@@ -231,23 +239,17 @@ def silence_before(S, bars, keys, beats=0.5):
         a, b = int((t_of(bar) - BEAT * beats) * SR), int(t_of(bar) * SR)
         for k in keys: S[k][a:b] = 0
 
-def lead_note(m, dur, level=0.2, cutoff=2400):
-    """a plain synth lead: one saw and a square an octave down, low-passed, a slow swell in"""
-    n = int((dur + 0.3) * SR); t = np.arange(n) / SR; f = hz(m)
-    x = saw(f, n, 0.0) * 0.6 + np.sign(np.sin(2 * np.pi * f / 2 * t)) * 0.25
-    return lp(x, cutoff) * env(n, 0.12, 0.3, 0.85, dur, 0.25) * level
-
 def square_hook(m, dur, level=0.16):
     """the cyber hook: a square, short and exact"""
     n = int((dur + 0.08) * SR); t = np.arange(n) / SR
     x = np.sign(np.sin(2 * np.pi * hz(m) * t)) + 0.4 * np.sign(np.sin(2 * np.pi * hz(m) * 2 * t))
-    return lp(x, 4000) * env(n, 0.004, 0.08, 0.7, dur, 0.04) * level
+    return lp(x, 2200) * env(n, 0.01, 0.1, 0.7, dur, 0.06) * level
 
-def gate_chord(notes, dur, level=0.06):
-    """one step of a gated chord: plain saws (no detune), bright, cut off sharp"""
+def gate_chord(notes, dur, level=0.06, cutoff=5000):
+    """one step of a gated chord: plain saws (no detune), cut off sharp"""
     n = int((dur + 0.01) * SR); out = np.zeros(n)
     for m in notes: out += saw(hz(m), n, 0.0)
-    return lp(hp(out, 150), 5000) * env(n, 0.002, 0.04, 0.8, dur, 0.008) * level
+    return lp(hp(out, 150), cutoff) * env(n, 0.004, 0.06, 0.8, dur, 0.012) * level
 
 def roll_bass(m, dur, level=0.42, cutoff=1100):
     """a rolling bass step: a saw and a sub, driven, short"""
@@ -284,7 +286,7 @@ def build_dark():
         lvl = (0.12 + 0.03 * bar) if bar < 6 else 0.34
         for k, o in enumerate(OST):
             if bar in (5, 17) and k >= 9: continue
-            place(S["pulse"], pulse(root - 12 + o, 0.5 * BEAT * 0.8, cutoff, lvl), t_of(bar, k * 0.5))
+            place(S["pulse"], soft_pulse(root - 12 + o, 0.5 * BEAT * 0.8, cutoff, lvl), t_of(bar, k * 0.5))
     for bar in (0, 2, 4, 14, 16):
         place(S["strings"], strings([50, 53, 57] if bar % 4 == 0 else [46, 50, 53], 2 * BAR - 0.3, 0.08, 800), t_of(bar))
     place(S["swell"], reverse_swell(2 * BAR - 0.4, 0.9), t_of(4))
@@ -301,14 +303,14 @@ def build_dark():
             for k, m in enumerate((52, 48, 45, 41)): place(S["drums"], syn_tom(m), t_of(bar, 3 + k * 0.5), pan=0.5 - 0.33 * k)
         place(S["sub"], sub_note(root - 12 + 12, 3 * BEAT - 0.05, 0.5 if heavy else 0.4), t_of(bar))
         place(S["sub"], sub_note(root - 12 + 12, 2 * BEAT - 0.05, 0.45 if heavy else 0.36), t_of(bar, 3))
-        if heavy: place(S["hits"], braam(root, 1.4, 0.7), t_of(bar))
+        if heavy: place(S["hits"], braam(root, 1.4, 0.6, 1100), t_of(bar))
     LINE = [(69, 0, 3), (67, 3, 2), (65, 0, 3), (64, 3, 2), (62, 0, 5), (61, 0, 5)]   # the lead: falling, slow
     for k, (m, b, d) in enumerate(LINE):
         bar = [8, 8, 9, 9, 10, 11][k]
-        place(S["lead"], lead_note(m, d * BEAT - 0.1, 0.18), t_of(bar, b))
+        place(S["lead"], ghost_lead(m, d * BEAT - 0.1, 0.2), t_of(bar, b))
     for k, (m, b, d) in enumerate(LINE):
-        place(S["lead"], lead_note(m + 12, d * BEAT - 0.1, 0.16, 3200), t_of([19, 19, 20, 20, 21, 22][k], b))
-    place(S["hits"], braam(38, 3.5, 1.0), t_of(23))
+        place(S["lead"], ghost_lead(m + 12, d * BEAT - 0.1, 0.17, 2200), t_of([19, 19, 20, 20, 21, 22][k], b))
+    place(S["hits"], braam(38, 3.5, 0.9, 1300), t_of(23))
     silence_before(S, (6, 18), ("drums", "texperc", "pulse", "sub", "lead", "strings", "beat"))
     for bar in range(14, 18):                                     # breakdown: drums through Tuned Chord
         for b in (0, 3): place(S["texperc"], kick(0.4) * 0.8, t_of(bar, b))
@@ -323,7 +325,7 @@ def build_dark():
 def build_cyber():
     S = {k: stem() for k in ("drone", "hits", "swell", "drums", "bass", "chords", "hook", "fx", "texperc", "sub")}
     CH = [(38, [62, 65, 69]), (41, [65, 69, 72]), (36, [60, 64, 67]), (34, [58, 62, 65])]   # Dm F C Bb
-    GATE = [1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0]       # the chord gate, 16ths
+    GATE = [1, 0, 1, 1, 0, 1, 1, 0]                               # the chord gate, 8ths
     HOOK = [(74, 0, 0.5), (72, 0.75, 0.25), (69, 1, 0.5), (72, 1.5, 0.5), (74, 2.5, 0.5), (77, 3, 0.75)]
     t_end = t_of(28) + 4.0
     tt = np.arange(int(t_end * SR)) / SR
@@ -345,26 +347,25 @@ def build_cyber():
     for bar in list(range(4, 16)) + list(range(20, 28)):
         drop = bar >= 20
         root, chord = CH[(bar - 4) % 4]
-        for b in range(4): place(S["drums"], dist_kick(1.0 if drop else 0.9), t_of(bar, b))
-        for b in (1, 3): place(S["drums"], metal_snare(0.9 if drop else 0.75), t_of(bar, b))
-        for k in range(8): place(S["drums"], hat(True, 0.08) if k % 2 else hat(level=0.06), t_of(bar, k * 0.5 + (0.5 if k % 2 == 0 else 0) * 0), pan=0.3)
-        for b in range(4):                                         # the rolling bass: the three 16ths after each kick
-            for s16 in (1, 2, 3):
-                m = root - 12 + (12 if drop and s16 == 2 else 0)
-                place(S["bass"], roll_bass(m, 0.25 * BEAT * 0.8, 0.4 if drop else 0.34, 1300 if drop else 950), t_of(bar, b + s16 * 0.25))
+        for b in ((0, 2.5) if not drop else (0, 1.75, 2.5)): place(S["drums"], dist_kick(1.0 if drop else 0.9), t_of(bar, b))
+        for b in (1, 3): place(S["drums"], big_snare(0.9 if drop else 0.8), t_of(bar, b))
+        for k in range(8): place(S["drums"], hat(level=0.07 if k % 2 else 0.04), t_of(bar, k * 0.5), pan=0.3)
+        for k in range(8):                                         # the bass: a slow 8th pulse, an octave up on the and of 4
+            m = root - 12 + (12 if drop and k == 7 else 0)
+            place(S["bass"], roll_bass(m, 0.5 * BEAT * 0.7, 0.4 if drop else 0.34, 800 if drop else 650), t_of(bar, k * 0.5))
         place(S["sub"], sub_note(root - 12, 4 * BEAT - 0.05, 0.4), t_of(bar))
         if bar >= 8 or drop:
             for k, g in enumerate(GATE):
-                if g: place(S["chords"], gate_chord(chord + [chord[0] + 12], 0.25 * BEAT * 0.75, 0.06 if not drop else 0.07), t_of(bar, k * 0.25))
+                if g: place(S["chords"], gate_chord(chord + [chord[0] + 12], 0.5 * BEAT * 0.7, 0.06 if not drop else 0.07, 2600), t_of(bar, k * 0.5))
         if drop or 12 <= bar < 16:
             for m, b, d in HOOK: place(S["hook"], square_hook(m + (12 if bar >= 24 else 0), d * BEAT - 0.03), t_of(bar, b))
-        if bar % 4 == 3: place(S["fx"], zap(0.2), t_of(bar, 3.5), pan=0.3)
-        if bar in (11, 23): stutter(S, "drums", metal_snare(0.8), t_of(bar, 3), 1.0, 0.125)
+        if bar % 4 == 3: place(S["fx"], zap(0.16), t_of(bar, 3.5), pan=0.3)
+        if bar in (11, 23): stutter(S, "drums", snare(0.8), t_of(bar, 3), 1.0, 0.125)
     # breakdown (16-19): no kick, the chords filtered down, drums through Tuned Chord, a build
     for bar in range(16, 20):
         root, chord = CH[(bar - 4) % 4]
         for k, g in enumerate(GATE):
-            if g and not (bar == 19 and k >= 14): place(S["chords"], lp(gate_chord(chord, 0.25 * BEAT * 0.75, 0.07), 500 + 300 * (bar - 16)), t_of(bar, k * 0.25))
+            if g and not (bar == 19 and k >= 7): place(S["chords"], lp(gate_chord(chord, 0.5 * BEAT * 0.7, 0.07), 500 + 300 * (bar - 16)), t_of(bar, k * 0.5))
         if bar < 18:
             for b in (0, 2.5): place(S["texperc"], kick(0.4) * 0.8, t_of(bar, b))
             for b in (1, 3): place(S["texperc"], snare(0.8), t_of(bar, b))
@@ -373,9 +374,9 @@ def build_cyber():
         for k in range(int(4 / step)):
             b = k * step
             if bar == 19 and b >= 3.5: continue
-            place(S["drums"], metal_snare(0.4 + 0.5 * ((bar - 18) * 4 + b) / 8), t_of(bar, b))
+            place(S["drums"], snare(0.5) * (0.4 + 0.5 * ((bar - 18) * 4 + b) / 8), t_of(bar, b))
         if bar == 19:
-            for k in range(8): place(S["drums"], metal_snare(0.9), t_of(19, 2.5 + k * 0.125))
+            for k in range(8): place(S["drums"], snare(0.6) * 0.85, t_of(19, 2.5 + k * 0.125))
     place(S["swell"], riser(2 * BAR - 0.3, 0.7), t_of(18))
     place(S["bass"], reese(26, 3.0, 0.45, 600), t_of(28))
     silence_before(S, (4, 20), ("drums", "texperc", "bass", "sub", "chords", "hook", "fx"))
@@ -392,23 +393,23 @@ STEMS = {
         "beat":    "12 mix=10",                                                # Sub Tunnel, barely: a close heartbeat
         "swell":   "11 mix=70",                                                # Reverse Bloom
         "drums":   "1 mix=18 duck=60",                                         # Empty Mall, ducked
-        "pulse":   "12 mix=8",                                                 # Sub Tunnel, barely: dry and close
-        "strings": "14 mix=50",                                                # Liminal Hz
-        "lead":    "4 mix=35 decay=150",                                       # Backrooms
+        "pulse":   "12 mix=22 width=140",                                      # Sub Tunnel: the ostinato underground
+        "strings": "10 mix=55 decay=150",                                      # Glass Void: a far, cold pad
+        "lead":    "14 mix=50 decay=140",                                      # Liminal Hz: the eerie lead
         "texperc": "17 mix=75",                                                # Tuned Chord: drums that play a chord
-        "sub":     None,                                                       # (dry)
+        "sub":     "12 mix=8",                                                 # Sub Tunnel, a touch: it stays tight
     },
     "cyber": {
         "drone":   "12 mix=50",                                                # Sub Tunnel: the hum
         "hits":    "10 mix=30 decay=110",                                      # Glass Void, short
         "swell":   "11 mix=70",                                                # Reverse Bloom
         "drums":   "2 mix=10 duck=30",                                         # Pool Rooms: tight and bright
-        "bass":    None,                                                       # (dry: the bass stays tight)
+        "bass":    "12 mix=14",                                                # Sub Tunnel, a little: still tight
         "chords":  "3 mix=30 duck=70 width=180",                               # Fluorescent Hall, ducked under the kick
         "hook":    "9 mix=30",                                                 # Intercom Echo: a lo-fi edge
         "fx":      "7 mix=45",                                                 # Dream Ping-Pong
         "texperc": "17 mix=75",                                                # Tuned Chord
-        "sub":     None,
+        "sub":     "12 mix=8",                                                 # Sub Tunnel, a touch
     },
 }
 LEVEL = {   # dB against the drums, by loudness while each plays (mix.py)

@@ -306,10 +306,12 @@ display, the controls, factory presets, install; then the CPU design, build and 
   ("Strange · best on chords, pads"); My IRs and TONE3000 packs unchanged. README has the table.
 - **Marketing kit**: tools/demos (12 demos; make_video.py takes several wet parts for before/after, demo_host takes
   bpm=), tools/trailer (score.py: two songs, the style setting the tempo and meter: dark, 120 BPM in
-  5/4, a dry octave ostinato, heartbeat, string machine, a falling lead, toms; cyber, 128 BPM four-on-the-floor, a
-  rolling bass, gated chords, a square hook. render.sh <style> plays each stem through a factory preset, mix.py <style>
+  5/4, a round sub ostinato (sine + triangle, under ~700 Hz), heartbeat, a glass pad, a theremin-like falling lead,
+  toms; cyber, 100 BPM, slow and heavy: a broken kick, a backbeat snare, an 8th bass pulse, 8th-gated chords, a soft
+  square hook. render.sh <style> plays every stem (none dry) through a factory preset, mix.py <style>
   cuts the tails that would ring over a hit (GATES) and masters, make_trailer.py wide|tall --style <style> draws the
-  dark edit (paintings, red titles) or cyber's own edit (a terminal boot, HUD panels, a scope, a countdown, punch-ins),
+  dark edit (paintings, red titles) or cyber's own edit in the plugin's amber and ivory (a terminal boot, HUD
+  panels, a scope, a countdown, punch-ins),
   from the real page states), and tools/make_feature_images.py (docs/images/feature-*.png, plus 1080x1080 posts). The trailer files are not in the repo
   (~40 MB): upload them (YouTube, socials) and link them.
 

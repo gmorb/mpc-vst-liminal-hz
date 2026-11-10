@@ -5,8 +5,8 @@
 
 wide: 1920x1080, the whole score (~63 s). tall: 1080x1920, a ~31 s cut of the same score at bar boundaries (Reels,
 TikTok, Shorts). --style picks the score (score.py: dark, 80s synth horror; cyber, cyberpunk) and the
-picture's look to match (dark: red titles, a cold-red grade; cyber: neon cyan titles, a teal-magenta grade, scanlines,
-a colour split, and glitched slices on the hits). The music is <style>/mix.wav (render.sh, mix.py: synthesized, every part played through Liminal
+picture's look to match (dark: red titles, a cold-red grade; cyber: the plugin's own amber and ivory, a warm grade,
+scanlines, a colour split, and glitched slices on the hits). The music is <style>/mix.wav (render.sh, mix.py: synthesized, every part played through Liminal
 Hz). The pages are the plugin's real page (tools/demos/render_page.py) in the states the demos recorded
 (tools/demos/render_audio.sh), the paintings are the plugin's own IR art (vst/art/bg_*.png).
 --frames: those moments (seconds of the video) as PNGs instead of a video."""
@@ -31,15 +31,14 @@ STYLE = _style()
 MIX = os.path.join(ROOT, "vst", "build", "trailer", STYLE, "mix.wav")
 IV, GR, AMB, DIM = (236, 230, 218), (160, 154, 144), (222, 186, 120), (96, 92, 86)
 if STYLE == "dark": AMB = (214, 52, 44)                         # (the accent: Carpenter red)
-if STYLE == "cyber": AMB = (40, 232, 255)                        # (neon cyan; MAG for the second accent)
-MAG = (255, 54, 186)
-GRADE = {"dark": (np.array([1.06, 0.84, 0.80], np.float32), 0.0), "cyber": (np.array([0.95, 0.9, 1.22], np.float32), 4.0)}[STYLE]
+MAG = (246, 226, 188)                                            # (cyber's second accent: the page's warm ivory)
+GRADE = {"dark": (np.array([1.06, 0.84, 0.80], np.float32), 0.0), "cyber": (np.array([1.05, 0.98, 0.88], np.float32), 3.0)}[STYLE]
 if STYLE == "dark":                                               # 5/4: the drop's kicks on 1, 2.5, 4, 5
     IMPACTS = [score.t_of(6), score.t_of(18), score.t_of(23)]
     DROP_KICKS = [score.t_of(b, k) for b in range(18, 23) for k in (0, 1.5, 3, 4)]
-else:                                                             # cyber: four on the floor
+else:                                                             # cyber: the drop's kicks on 1, the a of 2, the and of 3
     IMPACTS = [score.t_of(4), score.t_of(20), score.t_of(28)]
-    DROP_KICKS = [score.t_of(b, k) for b in range(20, 28) for k in range(4)]
+    DROP_KICKS = [score.t_of(b, k) for b in range(20, 28) for k in (0, 1.75, 2.5)]
 GLITCHES = IMPACTS + DROP_KICKS + [score.t_of(b, 3 + k * 0.125) for b in (11, 23) for k in range(8)] + \
     [score.t_of(19, 2.5 + k * 0.125) for k in range(8)] + [score.t_of(b, 3.5) for b in range(3, 28, 4)]
 MONO = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"     # (the HUD's type; Titillium if it isn't there)
@@ -99,8 +98,8 @@ class Canvas:
         y, x = np.mgrid[0:H, 0:W]
         r = np.sqrt(((x - W / 2) / (W / 2)) ** 2 + ((y - H / 2) / (H / 2)) ** 2)
         self.vignette = np.clip(1.15 - 0.55 * r ** 1.6, 0.25, 1.0)[:, :, None].astype(np.float32)
-        yy = (y / H)[:, :, None].astype(np.float32)                    # cyber: neon light, cyan from above, magenta below
-        self.neon = (np.array([0, 40, 52], np.float32) * (1 - yy) ** 2.5 + np.array([62, 6, 44], np.float32) * yy ** 2.2)
+        yy = (y / H)[:, :, None].astype(np.float32)                    # cyber: a low amber light from above and below
+        self.neon = (np.array([34, 24, 8], np.float32) * (1 - yy) ** 2.5 + np.array([40, 22, 6], np.float32) * yy ** 2.2)
         g = np.random.default_rng(3)
         self.grain = [g.normal(0, 3, (H // 2, W // 2, 1)).astype(np.float32) for _ in range(4)]   # (light: it costs bits)
 
@@ -187,7 +186,7 @@ class Canvas:
 
     def finish(self, frame, t, flash=0.0, shake=0.0, letterbox=True, fade=1.0, glitch=0.0):
         a = np.asarray(frame, dtype=np.float32)
-        if STYLE == "cyber":                                            # neon: a colour split, glitched slices
+        if STYLE == "cyber":                                            # a colour split, glitched slices
             split = int(3 + 14 * glitch)
             a = a.copy(); a[:, :, 0] = np.roll(a[:, :, 0], split, 1); a[:, :, 2] = np.roll(a[:, :, 2], -split, 1)
             if glitch > 0.15:
@@ -201,7 +200,7 @@ class Canvas:
             a = np.roll(np.roll(a, dy, 0), dx, 1)
         a = a * self.vignette
         a = a * GRADE[0] + GRADE[1]                                     # the style's grade
-        if STYLE == "cyber": a = a + self.neon; a[1::3] *= 0.78        # neon light, scanlines
+        if STYLE == "cyber": a = a + self.neon; a[1::3] *= 0.84        # amber light, scanlines
         g = self.grain[int(t * FPS / 6) % len(self.grain)]          # (a new grain every 0.2 s)
         a = a + np.repeat(np.repeat(g, 2, 0), 2, 1)[: self.H, : self.W]
         if flash > 0: a = a + (255 - a) * flash
@@ -238,7 +237,7 @@ class Trailer:
 
     def bg(self, name, t, t0, dur, zoom=(1.0, 1.12), dim=1.0):
         im = self.C.cover(PAINT[name], zoom[0] + (zoom[1] - zoom[0]) * min(1, (t - t0) / dur), 0.5, 0.55)
-        dim *= 1.25 if STYLE == "cyber" else 1.0                        # (cyber: a little more light for the neon)
+        dim *= 1.25 if STYLE == "cyber" else 1.0                        # (cyber: a little more light)
         return ImageEnhance.Brightness(im).enhance(dim) if dim != 1.0 else im
 
     def page_img(self, name, t, open_list=False):
@@ -351,10 +350,10 @@ class Trailer:
 
 # ---- the cuts --------------------------------------------------------------------------------------------------------
 class CyberTrailer(Trailer):
-    """cyber's own edit: a terminal boot, a HUD title over a moving neon grid, spec panels, callouts, oscilloscope
+    """cyber's own edit: a terminal boot, a HUD title over a moving amber grid, spec panels, callouts, oscilloscope
     traces of the Textures, a countdown, beat-synced punch-ins on the drop"""
     BOOT = ["> boot liminal_hz.vst", "> host: akai mpc / force   gen 1 + gen 2", "> factory IRs .......... 19 ok",
-            "> long_ir .............. 20 s ok", "> duck ................. ok", "> sync ................. 128 bpm ok",
+            "> long_ir .............. 20 s ok", "> duck ................. ok", "> sync ................. 100 bpm ok",
             "> textures ............. 5 ok", "> ready_"]
     TEX = [("STRUCK PIPE", "Struck_Pipe"), ("GRAIN CLOUD", "Grain_Cloud"), ("TUNED CHORD", "Tuned_Chord"),
            ("BREATH", "Breath"), ("BOUNCING BALL", "Bouncing_Ball")]
@@ -369,11 +368,11 @@ class CyberTrailer(Trailer):
             self.traces.append(v / max(1e-9, np.abs(v).max()))
 
     def grid(self, fr, t, bright=1.0):
-        """a neon floor grid rushing toward the camera, and a horizon glow"""
+        """an amber floor grid moving toward the camera, and a horizon glow"""
         W, H = self.C.W, self.C.H; d = ImageDraw.Draw(fr)
         hy = int(H * (0.58 if not self.C.tall else 0.62)); cx = W / 2
         for k in range(12):                                       # horizontal lines (perspective, moving)
-            z = ((k + (t * 2.0) % 1.0) / 12.0)
+            z = ((k + (t * 1.2) % 1.0) / 12.0)
             y = hy + (H - hy) * z ** 2.2
             c = tuple(int(v * bright * (0.25 + 0.75 * z)) for v in MAG)
             d.line((0, y, W, y), fill=c, width=1 + int(2 * z))
@@ -478,9 +477,9 @@ class CyberTrailer(Trailer):
             pass
         elif t < T(28):                                           # the drop: a punch-in on every kick
             k = int((t - T(20)) / BEAT); u = (t - T(20) - k * BEAT) / BEAT; bar = int((t - T(20)) / BAR) + 20
-            names = ["SPACE: EMPTY MALL", "ECHO: TAPE CORRIDOR", "STRANGE: GLASS VOID", "TEXTURE: TUNED CHORD",
-                     "STRANGE: LIMINAL HZ", "ECHO: DREAM PING-PONG", "TEXTURE: GRAIN CLOUD", "SPACE: BACKROOMS"]
-            states = ["drums", "keys", "hits", "chord", "stabs", "keys", "grain", "pad"]
+            names = ["SPACE: EMPTY MALL", "ECHO: DREAM PING-PONG", "STRANGE: REVERSE BLOOM", "TEXTURE: TUNED CHORD",
+                     "STRANGE: LIMINAL HZ", "ECHO: PARKING SLAP", "TEXTURE: GRAIN CLOUD", "SPACE: BACKROOMS"]
+            states = ["drums", "keys", "hits", "chord", "stabs", "sync_on", "grain", "pad"]   # (each the page of that preset)
             regs = [None, "shape", "knobs", "list", None, "shape", "knobs", None]
             if bar in (24, 25):
                 self.grid(fr, t, 1.0)
