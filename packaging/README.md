@@ -40,10 +40,11 @@ and the internal drive, up to four folders deep. Subfolders are packs. After add
 
 ## Presets and factory IRs
 - **PRESET** (top of the IR block): tap it and a list opens over the page: **Init** (no IR, every setting at its
-  default: the plugin passes your sound through) and 14 factory presets in three columns: **Spaces** (Empty Mall,
+  default: the plugin passes your sound through) and 19 factory presets in four columns: **Spaces** (Empty Mall,
   Pool Rooms, Fluorescent Hall, Backrooms), **Echoes** (Stairwell Flutter, Tape Corridor, Dream Ping-Pong, Parking
-  Slap, Intercom Echo) and **Strange** (Glass Void, Reverse Bloom, Sub Tunnel, Shimmer Fog, Liminal Hz). A preset
-  loads its factory IR with settings to match; change anything afterwards.
+  Slap, Intercom Echo), **Strange** (Glass Void, Reverse Bloom, Sub Tunnel, Shimmer Fog, Liminal Hz) and **Textures**,
+  which aren't rooms: your sound played through something (Struck Pipe, Grain Cloud, Tuned Chord, Breath, Bouncing
+  Ball). A preset loads its factory IR with settings to match; change anything afterwards.
 - **MY PRESETS** (beside PRESET): your own presets (see My Presets below).
 - **FACTORY / MY IRS** chooses what ◀ ▶, PREV/NEXT PACK and **IR LIST** step through: the factory IRs, or your own (`reverbs`
   folders and TONE3000 downloads). Switching never changes what's playing.
@@ -72,11 +73,15 @@ what they do. In the background, a doorway at the far end of an empty room.
     and higher), **Decay** (50-300%: how long the room rings, band by band, without changing its pitch or colour;
     100% = as recorded; within 5 s, or 20 s with LONG IR) and Reverse (below Decay: the IR backwards, it swells into the sound).
     Prepared in the background, crossfaded in.
-- **space**: **Mix** (the big one), Pre-delay (0-250 ms), Feedback (0-100%: the reverb fed back into itself for
-  longer, building tails; from about 70% a long ring held at about the level you play, fading out over 30-40 s once
-  you stop; it never runs away, and each repeat is a little darker, like a tape echo). **tone**: Low cut, High cut
-  (on the reverb only; each octave gets the same turn of the knob), Width (0-200%). **out**: Output. Mix, Width,
-  Output and Pre-delay glide to new values (no clicks).
+- **space**: **Mix** (the big one), Pre-delay (0-250 ms), **SYNC** beside it (Pre-delay as a note value at the project
+  tempo: 0, 1/128, 1/64, 1/32, 1/16 T, 1/16, 1/16 D, 1/8 T, 1/8, 1/8 D, 1/4), Feedback (0-100%: the reverb fed back
+  into itself for longer, building tails; from about 70% a long ring held at about the level you play, fading out over
+  30-40 s once you stop; it never runs away, and each repeat is a little darker, like a tape echo). **tone**: Low cut,
+  High cut (on the reverb only; each octave gets the same turn of the knob), Width (0-200%). **out**: **Duck** (the
+  reverb turned down while you play, up to 24 dB at 100%, blooming back in the gaps; 0% = off) and Output. Mix, Width,
+  Output, Duck and Pre-delay glide to new values (no clicks).
+- **Q-Links**: Mix, Decay, Feedback, Pre-delay, Duck, Low Cut, High Cut, Width, IR, Stretch, Start, End, Fade In,
+  Fade Out, Reverse, Output.
 - **LONG IR** (lower right, under Reverse): IRs up to 20 s instead of 5, with higher-quality IR preparation (band-limited
   resampling for other sample rates and Stretch, finer Decay analysis). It is CPU heavy, so it takes two taps: the first
   only warns ("CPU heavy · tap again"), a second within 4 seconds turns it on; one tap turns it off. A project remembers

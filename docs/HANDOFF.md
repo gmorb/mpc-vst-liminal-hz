@@ -210,8 +210,7 @@ The bars worked because their playhead was a separate strip below them. v5: colu
 just touch), the glow as its own strip under the painting (glow5_*, 668x30). Mockups are now composed from the kit's
 own state images at the kit's own bounds (TUI.json: Image components with IndexedEnabling/<state>/<n>/Parameter <i>),
 not from the raw art: the raw-art overlays had hidden this.
-Open: the user saw a pause when picking a preset (and after DELETE); not yet investigated.
-Open: the "Tail late N×" count never resets (after one busy moment it stays on the detail line); should decay or reset per IR/preset.
+(Was open: the pause on a preset pick / after DELETE -- see 1.4.0 below. The "Tail late N×" count: fixed, shown 5 s after the last late block.)
 
 ## 2026-10-02: device confirmed the painting + glow strip work; text enlarged
 User photo: the shape painting and the glow strip show and move. Text too small on the device: roles raised (name 48,
@@ -265,3 +264,36 @@ display, the controls, factory presets, install; then the CPU design, build and 
   rate, target rate and quality; a shape change re-prepares from it. PC: 20 s 48 kHz stereo at high quality, first
   load ~1.05 s, End/fade/Reverse ~0.12 s, Decay 150% ~0.57 s, Stretch (resamples) ~1.0 s. PC bench (worker, % of a core,
   stereo): 5 s 1.9 -> 0.7, 10 s 3.3 -> 0.8, 20 s 7.0 -> 1.3 (2048-only vs with the far stage).
+
+## 1.4.0: the preset pause, Duck, SYNC, Q-Links, Textures (2026-11-08; offline only so far)
+- **The pause** (open since 2026-10-02). Measured offline (PC, a paced host with a UI thread that re-reads every
+  parameter on each UpdateDisplay, as MPC rebuilds its screen): the plugin itself was cheap (setParameter on a pick
+  20-50 µs, a factory IR prepared in 7-25 ms, no audio blocks late), but a pick sent 2 UpdateDisplays (the pick, then
+  the IR ready) + 31 Automates, and every knob step sent an UpdateDisplay. MPC answers each UpdateDisplay by reading
+  every parameter and rebuilding the screen (mpc-vst-plugins wrapper/vst2_wrap.c), so the screen work was the likely
+  pause. notify() now paces them: at most one per kDispGapMs (100 ms), held up to kDispHoldMs (600 ms: a factory IR is ready in ~30 ms on a PC, ~400 ms under qemu-arm) while
+  Browser::loading (read with try_lock), and an Automate is skipped when an UpdateDisplay is due and the host already
+  has the value (host_view[], from setParameter and Automate; reset to -1 on open and setChunk). A pick: 1 + 18.
+  DELETE used to rescan the cards (walk -> "Searching..."); now the worker drops the entry from libs[1] and selects
+  the same index (the next IR), as the rescan did. ResampleCache: 4 entries, LRU, each capped at the quality's
+  max_seconds (<= 7 MB). **Device check:** a preset pick and a DELETE on the Force should no longer hitch; if they
+  still do, time the screen redraw (the pick's single UpdateDisplay) and the Automates.
+- **Duck** (`duck`, 0-100%, appended): ReverbEngine, in the output loop after the feedback tap (fbl_/fbr_ are taken
+  before it): a peak follower on the input (kDuckFollow 20 ms), reduction target kDuckDb (24) x clamp((dB - kDuckLoDb
+  -50) / 30), smoothed (kDuckAttack 5 ms, kDuckRelease 80 ms), gain exp(-ln10/20 x red x knob), the knob glides per
+  block. Duck 0: the follower is skipped and reset, so the output is bit-identical.
+- **SYNC** (`predelay_sync`, Off/On, appended): the wrapper's kNotes (11 steps, beats); process_replacing() asks
+  audioMasterGetTime(kVstTempoValid) every block while SYNC is on (kit NOTES.md: MPC answers flags 0x7fc4 with a valid
+  tempo, verified on Gen 1 2026-09-23; Gen 2 assumed the same host code), sets predelay_ms = beats x 60000 / bpm. No
+  tempo: 120 BPM, and the value reads "1/8 @120". kMaxPredelay 250 -> 2000 ms (2 x 88 k floats).
+- Both appended before P_PRESET_OPEN; kPresetParams has them; mp_apply sets both off before applying (older .lhzp);
+  apply_preset sets both 0; Init resets them (defaults).
+- Page: bottom row respaced (MIX 84, PRE-DELAY 214, SYNC toggle 300 bw=60, FEEDBACK 386, LOW CUT 512, HIGH CUT 628,
+  WIDTH 744, DUCK 860, OUTPUT 976; captions tone x=480, out x=826). New skin_check notes: knob boxes overlap 14 px
+  (as the trim row always did), SYNC 9 px each side.
+- Q-Links (both banks): mix, decay, feedback, predelay, duck, lowcut, highcut, width, ir, stretch, start, length,
+  fade_in, fade_out, reverse, output.
+- Textures: tools/make_factory_irs.py appends 5 builders (seeds continue: the 14 earlier files are byte-identical);
+  packaging/factory/Textures (3.2 MB); 5 presets appended (PRESET: Init + 19; norm = k / 19); the popup is cols=4
+  cw=300 (it was 3 x 340, which a fourth column pushed off the page). tools/demos/demo_host divides by 19.
+

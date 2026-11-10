@@ -8,7 +8,9 @@ A convolution reverb for **Akai MPC and Force, Gen 1 and Gen 2**: play through i
 strange spaces and echoes, mono or stereo: up to 5 seconds on Gen 1 (Force, MPC Live/One/X/Key), or **20 seconds**
 with its **LONG IR** button, and always 20 seconds on Gen 2 (MPC Live III and other RK3588 units, 64-bit) (see
 [Gen 2 and LONG IR](#gen-2-rk3588-64-bit)). Make a room bigger or smaller with **Decay**, stretch its tail
-with **Feedback**, and keep your sounds as **My Presets**. It comes with 14 factory spaces, browses your own IRs, and
+with **Feedback**, let it bloom between your hits with **Duck**, lock the pre-delay to your tempo with **SYNC**, and keep
+your sounds as **My Presets**. It comes with 19 factory IRs (spaces, echoes, strange rooms, and Textures that aren't
+rooms at all), browses your own IRs, and
 downloads more from TONE3000 from your phone. A companion to [Liminal Amp](https://github.com/gmorb/mpc-vst-liminal-amp).
 Not affiliated with or endorsed by TONE3000 or Akai.
 
@@ -43,8 +45,8 @@ One page, made for the MPC's touchscreen, with nothing hidden on other tabs:
   beside it; the IR in use with **◀ ▶** to step through the list, its pack and details; **PREV PACK / NEXT PACK** and
   **DELETE** (for your own IRs: it asks twice); and the TONE3000 strip with **BROWSE** and its status line.
 - **Right, the shape** of the sound, and the shaping knobs: **trim**, **fade** and **time** (Stretch, Decay, Reverse).
-- **Below**, the mix controls: **space**, **tone** and **out**; in the corner, **LONG IR** and its status line (20 s IRs
-  on Gen 1: it asks twice, as it is CPU heavy).
+- **Below**, the mix controls: **space** (with **SYNC** beside Pre-delay), **tone** and **out** (Duck and Output); in
+  the corner, **LONG IR** and its status line (20 s IRs on Gen 1: it asks twice, as it is CPU heavy).
 
 Behind it all, a doorway at the far end of an empty room.
 
@@ -74,12 +76,20 @@ The shape display shows what the IR sounds like, after your shaping:
 
 ![The controls](docs/images/controls.png)
 
-- **space**: **Mix** (the big one), **Pre-delay** (0-250 ms) and **Feedback** (0-100%). Feedback feeds the reverb back
+- **space**: **Mix** (the big one), **Pre-delay** (0-250 ms, or a note value with **SYNC**) and **Feedback** (0-100%).
+  Feedback feeds the reverb back
   into itself for longer, building tails: gentle at first, about 2-4x longer around 50%, and from about 70% a long ring
   that holds at roughly the level you play at, then fades away over 30-40 s once you stop. It can't run away or jump
   in level, and each repeat comes back a little darker, like a tape echo.
 - **tone**: **Low cut** and **High cut** (on the reverb only; each octave gets the same turn of the knob) and
-  **Width** (0-200%). **out**: **Output**.
+  **Width** (0-200%). **out**: **Duck** and **Output**.
+- **Duck** (0-100%) turns the reverb down while you play and lets it bloom in the gaps: big rooms on snares and vocals
+  without muddying the groove. At 100% the reverb drops by up to 24 dB under a loud input and comes back within about a
+  quarter of a second after it stops. It only turns down what you hear: Feedback's tails carry on underneath. At 0% (the
+  default) the sound is exactly as without it.
+- **SYNC** (beside Pre-delay) puts Pre-delay in time with your project: the knob steps through 0, 1/128, 1/64, 1/32,
+  1/16 T, 1/16, 1/16 D, 1/8 T, 1/8, 1/8 D and 1/4 at the project tempo, and follows tempo changes. (T is a triplet, D
+  dotted; up to 2 s, so a 1/4 at 30 BPM fits.)
 - **trim**: **Start** and **End**. **fade**: **Fade in** and **Fade out**.
 - **time**: **Stretch** (50-200%: longer and lower, or shorter and higher), **Decay** (50-300%) and **Reverse** (the IR
   backwards: it swells into the sound).
@@ -92,15 +102,20 @@ The shape display shows what the IR sounds like, after your shaping:
   two taps: the first warns ("CPU heavy · tap again"), the second (within 4 s) turns it on; one tap turns it off. A
   project remembers it; presets and Init leave it alone. On Gen 2 it reads "Gen 2 · always on".
 
-Shaping happens in the background and crossfades in. Mix, Width, Output and Pre-delay glide to a new value, so moving
-them never clicks.
+Shaping happens in the background and crossfades in. Mix, Width, Output, Duck and Pre-delay glide to a new value, so
+moving them never clicks.
+
+**Q-Links** (16), in this order: Mix, Decay, Feedback, Pre-delay, Duck, Low Cut, High Cut, Width, IR, Stretch, Start,
+End, Fade In, Fade Out, Reverse, Output. What you turn while playing comes first.
 
 ## Factory presets
 
-Tap **PRESET** for a menu of 14 presets in three columns, plus **Init** (no IR: your sound passes through):
+Tap **PRESET** for a menu of 19 presets in four columns, plus **Init** (no IR: your sound passes through):
 - **Spaces**: Empty Mall, Pool Rooms, Fluorescent Hall, Backrooms
 - **Echoes**: Stairwell Flutter, Tape Corridor, Dream Ping-Pong, Parking Slap, Intercom Echo
 - **Strange**: Glass Void, Reverse Bloom, Sub Tunnel, Shimmer Fog, Liminal Hz
+- **Textures** (not rooms: your sound played through something): Struck Pipe, Grain Cloud, Tuned Chord, Breath,
+  Bouncing Ball
 
 The factory IRs are synthetic (generated by `tools/make_factory_irs.py`, not recorded), so they're free to use like
 the rest of the plugin.
@@ -140,6 +155,9 @@ No app to install, and no password (each closes by itself after 15 idle minutes)
 Put `.wav` IRs (mono or stereo, any sample rate) in any folder named `reverbs` on the MPC's drives and cards, in
 packs (subfolders) if you like; switch to **MY IRS**. The plugin remembers where it found them, so starting up and
 **RESCAN** are quick even on a full card.
+
+Any `.wav` works, not just rooms: a drum hit, a vocal phrase, a chord, a sample from your MPC. Your sound is played
+through it, and Stretch, Decay and Reverse turn it into something new. The Textures presets are a start.
 
 ## Gen 2 (RK3588, 64-bit)
 

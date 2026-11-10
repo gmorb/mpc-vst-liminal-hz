@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.4.0
+
+### New
+- **Duck** (the out group, beside Output; 0-100%, default 0): the reverb is turned down while you play and blooms back
+  in the gaps, so big rooms on snares and vocals don't muddy the groove. At 100% it drops by up to 24 dB under a loud
+  input and is back within about a quarter of a second after it stops (one knob: the attack and release are fixed).
+  It turns down only what you hear, after the feedback loop, so Feedback's tails are unchanged. At 0% the output is
+  bit for bit as before. Kept by My Presets; Init and the factory presets set it to 0.
+- **SYNC** (beside Pre-delay): Pre-delay in note values at the project tempo: 0, 1/128, 1/64, 1/32, 1/16 T, 1/16,
+  1/16 D, 1/8 T, 1/8, 1/8 D, 1/4. The tempo is read from MPC every block, so it follows tempo changes (gliding, like a
+  knob move). The pre-delay can now reach 2 s (a 1/4 at 30 BPM). Kept by My Presets; Init and the factory presets turn it
+  off.
+- **Textures**: a fourth factory category of IRs that aren't rooms: Struck Pipe, Grain Cloud, Tuned Chord, Breath,
+  Bouncing Ball, each with a preset. The PRESET list now opens in four columns. Like the other factory IRs they are
+  synthetic and free to use. (Any .wav can be an IR: README, Your own IRs.)
+
+### Changed
+- **The pause when picking a preset or after DELETE.** MPC answers each "update the display" call from a plugin by
+  reading every parameter again and redrawing its screen. A preset pick asked for that twice (once for the pick, again
+  when the IR was ready a moment later) and reported 31 values; turning a knob asked for it on every step. Now these
+  calls are paced (at most one per 0.1 s, and one waits up to 0.6 s for the IR to be ready), and values MPC already has
+  aren't reported again: a pick is one redraw and 18 values. DELETE took the IR out by searching the cards again
+  ("Searching..."); it now drops it from the list at once and moves to the next IR. Needs confirming on the device.
+- The resampling cache keeps the last 4 IRs (it kept 1), so stepping back and forth through 48 kHz IRs resamples each
+  once.
+- **Q-Links** reordered, what's turned while playing first: Mix, Decay, Feedback, Pre-delay, Duck, Low Cut, High Cut,
+  Width, IR, Stretch, Start, End, Fade In, Fade Out, Reverse, Output (was: IR, Mix, Pre-delay, Feedback, Low Cut, High
+  Cut, Width, Output, Start, End, Fade In, Fade Out, Stretch, Reverse, Next Pack, Decay). Next Pack is gone from the
+  Q-Links (PREV/NEXT PACK are on the page).
+- The bottom row is respaced to fit DUCK and SYNC.
+- Tests: plugin_test times a preset pick's setParameter and counts its host calls, checks DELETE never searches, SYNC
+  at two tempos and without one, Duck and SYNC in projects, presets and Init, and the Textures presets; engine_test
+  checks Duck (bit-identical at 0, -24/-12 dB, the release, Feedback tails untouched) and the 4-entry resample cache.
+
 ## 1.3.0
 
 ### New

@@ -110,7 +110,7 @@ class Frames:
         wordmark(d, 90, 860, 92)
         d.text((92, 980), "Free convolution reverb", font=F("TitilliumWeb-SemiBold.ttf", 54), fill=IV, anchor="ls")
         d.text((92, 1048), "for Akai MPC & Force", font=F("TitilliumWeb-SemiBold.ttf", 54), fill=IV, anchor="ls")
-        d.text((92, 1140), "14 factory spaces · your own IRs · TONE3000", font=F("TitilliumWeb-Regular.ttf", 38), fill=GR, anchor="ls")
+        d.text((92, 1140), "19 factory IRs · your own IRs · TONE3000", font=F("TitilliumWeb-Regular.ttf", 38), fill=GR, anchor="ls")
         d.text((92, 1260), "github.com/gmorb/mpc-vst-liminal-hz", font=F("TitilliumWeb-SemiBold.ttf", 40), fill=AMB, anchor="ls")
         return im
 
