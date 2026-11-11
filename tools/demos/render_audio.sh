@@ -26,9 +26,9 @@ go hits hits 11 mix=55 output=5                                                 
 go keys keys 7                                                                    # Dream Ping-Pong (preset 7)
 go stabs stabs 14 mix=60 output=-6                                                # Liminal Hz (preset 14)
 # 1.4: the Textures presets (15-19), Duck and SYNC
-go pipe perc 15 output=-0.5                                                          # Struck Pipe
-go grain vox 16 output=-5                                                           # Grain Cloud
-go chord perc 17 output=-1                                                        # Tuned Chord
+go pipe perc 15 output=0.5                                                           # Struck Pipe
+go grain vox 16 output=-3.5                                                         # Grain Cloud
+go chord perc 17 output=0.5                                                       # Tuned Chord
 go breath hats 18 output=3.5                                                      # Breath
 go ball snaps 19 output=1.5                                                         # Bouncing Ball
 go duck0 drums 4 mix=45 decay=200 duck=0 output=-4                               # Backrooms, Duck off ...

@@ -15,8 +15,13 @@
 - **Textures**: a fourth factory category of IRs that aren't rooms: Struck Pipe, Grain Cloud, Tuned Chord, Breath,
   Bouncing Ball, each with a preset. The PRESET list now opens in four columns. Like the other factory IRs they are
   synthetic and free to use. (Any .wav can be an IR: README, Your own IRs.) Grain Cloud's grains are short bursts
-  of band-passed noise, not sine tones, so it doesn't whistle on steady synth partials, and the Textures presets'
-  Output is trimmed (resonant IRs put more gain on their peaks) so none peaks hotter than Backrooms.
+  of band-passed noise, not sine tones, so it doesn't whistle on steady synth partials.
+- **Preset levels**: every factory preset was measured over drums, a vocal, a synth chord, pink noise and a sine
+  sweep. Each now peaks within ~3 dB of its input (none over 0 dBFS from a -12 dBFS sweep) and keeps its level within
+  about +-3 dB of the dry. Resonant ones were tamed: Sub Tunnel (Mix 22%, Output -3 dB), Liminal Hz (Mix 30%,
+  Feedback 45%, Output -2 dB), Struck Pipe (Mix 20%, Output -2 dB), Grain Cloud (Output -4 dB, Width 120%), Tuned
+  Chord (Mix 12%, Output -2 dB, Width 100%), Breath (Output -5 dB, Width 110%); Glass Void's Width is 115% so it holds
+  up in mono. Projects keep their own settings; only the presets changed.
 - **MPC's own preset menu** (at the top of the screen) now lists Init and the 19 factory presets, named by category
   ("Space: Empty Mall", "Echo: Tape Corridor", "Strange: Glass Void", "Texture: Breath"); picking one there is the
   same as picking it in the plugin's PRESET list. Re-selecting the current one changes nothing, so a project's edits

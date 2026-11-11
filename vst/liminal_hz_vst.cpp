@@ -217,6 +217,10 @@ struct Preset {
 // Feedback (0-100%, eased, damped and guarded in the engine): these keep the tails the presets had before the runaway
 // fix (Tape Corridor 20 -> 34, Dream Ping-Pong 15 -> 39, Intercom Echo 25 -> 43, Shimmer Fog 10 -> 12: its repeats are
 // now damped, 4.1 s for 4.4 s). Liminal Hz's 12 ran away (an endless drone 9 dB over the rest): 50 is a long tail that ends.
+// Levels (an audit of every preset, 1.4.0): over drums, a vocal, a synth chord and pink noise each preset's peak stays
+// within ~3 dB of the input's and its level within about +-3 dB of the dry; a -12 dBFS sine sweep stays under 0 dBFS;
+// summed to mono a vocal loses at most ~4 dB. Resonant IRs (Sub Tunnel, Liminal Hz's feedback on held notes, the
+// Textures; unit-energy IRs put much more gain on their peaks than a room) get less Mix, a trimmed Output, or less Width.
 static const Preset kPresets[] = {
   {"Empty Mall", "Spaces", 35, 20, 90, 9000, 120, 100, 0, 0, 0, 10, 100, 0, 0},
   {"Pool Rooms", "Spaces", 30, 8, 120, 14000, 110, 100, 0, 0, 0, 10, 100, 0, 0},
@@ -227,18 +231,16 @@ static const Preset kPresets[] = {
   {"Dream Ping-Pong", "Echoes", 35, 0, 140, 12000, 160, 100, 0, 0, 0, 8, 100, 0, 39},
   {"Parking Slap", "Echoes", 30, 0, 100, 8000, 120, 100, 0, 0, 0, 10, 100, 0, 0},
   {"Intercom Echo", "Echoes", 30, 0, 300, 4000, 100, 100, 0, 0, 0, 10, 100, 0, 43},
-  {"Glass Void", "Strange", 30, 40, 200, 14000, 140, 100, 0, 0, 5, 15, 100, 0, 0},
+  {"Glass Void", "Strange", 30, 40, 200, 14000, 115, 100, 0, 0, 5, 15, 100, 0, 0},
   {"Reverse Bloom", "Strange", 40, 0, 120, 10000, 140, 100, 0, 0, 0, 4, 100, 0, 0},
-  {"Sub Tunnel", "Strange", 30, 20, 30, 5000, 120, 100, 0, 0, 0, 12, 100, 0, 0},
+  {"Sub Tunnel", "Strange", 22, 20, 30, 5000, 120, 100, -3, 0, 0, 12, 100, 0, 0},
   {"Shimmer Fog", "Strange", 38, 50, 250, 16000, 170, 100, 0, 0, 10, 15, 100, 0, 12},
-  {"Liminal Hz", "Strange", 40, 35, 80, 11000, 150, 100, 0, 0, 5, 15, 100, 0, 50},
+  {"Liminal Hz", "Strange", 30, 35, 80, 11000, 150, 100, -2, 0, 5, 15, 100, 0, 45},
   // Textures: not rooms. The input played through an object, a cloud of grains, a chord, a breath, a bounce
-  // (resonant IRs: unit energy puts much more gain on their peaks than a room's, so their Output is trimmed until a
-  // -12 dBFS sine sweep peaks no higher than Backrooms does, about -2 dBFS)
-  {"Struck Pipe", "Textures", 30, 0, 120, 12000, 130, 100, -2, 0, 0, 10, 100, 0, 0},
-  {"Grain Cloud", "Textures", 40, 10, 150, 14000, 160, 100, -4, 0, 0, 15, 100, 0, 0},
-  {"Tuned Chord", "Textures", 30, 0, 100, 10000, 130, 100, -3, 0, 0, 10, 100, 0, 0},
-  {"Breath", "Textures", 35, 0, 200, 12000, 140, 100, -5, 0, 0, 15, 100, 0, 0},
+  {"Struck Pipe", "Textures", 20, 0, 120, 12000, 130, 100, -2, 0, 0, 10, 100, 0, 0},
+  {"Grain Cloud", "Textures", 40, 10, 150, 14000, 120, 100, -4, 0, 0, 15, 100, 0, 0},
+  {"Tuned Chord", "Textures", 12, 0, 100, 10000, 100, 100, -2, 0, 0, 10, 100, 0, 0},
+  {"Breath", "Textures", 35, 0, 200, 12000, 110, 100, -5, 0, 0, 15, 100, 0, 0},
   {"Bouncing Ball", "Textures", 35, 0, 120, 12000, 150, 100, 0, 0, 0, 10, 100, 0, 0}
 };
 static const int kPresetCount = (int)(sizeof kPresets / sizeof kPresets[0]);
