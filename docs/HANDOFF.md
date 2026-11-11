@@ -288,9 +288,10 @@ display, the controls, factory presets, install; then the CPU design, build and 
   tempo: 120 BPM, and the value reads "1/8 @120". kMaxPredelay 250 -> 2000 ms (2 x 88 k floats).
 - Both appended before P_PRESET_OPEN; kPresetParams has them; mp_apply sets both off before applying (older .lhzp);
   apply_preset sets both 0; Init resets them (defaults).
-- Page: bottom row respaced (MIX 84, PRE-DELAY 214, SYNC toggle 300 bw=60, FEEDBACK 386, LOW CUT 512, HIGH CUT 628,
+- Page: bottom row respaced (MIX 84, PRE-DELAY 208, SYNC toggle 300 bw=72, FEEDBACK 392, LOW CUT 512, HIGH CUT 628,
   WIDTH 744, DUCK 860, OUTPUT 976; captions tone x=480, out x=826). New skin_check notes: knob boxes overlap 14 px
-  (as the trim row always did), SYNC 9 px each side.
+  (as the trim row always did), FEEDBACK/LOW CUT 10 px, SYNC 9 px each side. SYNC was bw=60 at first, and MPC cut
+  the word on the device: its label font is 25 px ("SYNC" ~58 px wide), and a box wants ~20% more than the text.
 - Q-Links (both banks): mix, decay, feedback, predelay, duck, lowcut, highcut, width, ir, stretch, start, length,
   fade_in, fade_out, reverse, output.
 - Textures: tools/make_factory_irs.py appends 5 builders (seeds continue: the 14 earlier files are byte-identical);
