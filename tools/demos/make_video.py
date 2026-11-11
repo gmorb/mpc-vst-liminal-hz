@@ -46,6 +46,19 @@ DEMOS = {
     "sync": dict(src="perc", title=["Pre-delay,", "locked to the beat"], dry_end=5.0, parts=[
         ("sync_off", 6.2, "SYNC OFF", "Parking Slap · Pre-delay 70 ms"),
         ("sync_on", None, "SYNC ON", "Parking Slap · Pre-delay 1/8 D at 100 BPM")]),
+    # 1.4 sound design: ambience, FX and ear candy (synthesized sources, pushed somewhere strange)
+    "ghost": dict(src="whisper", wet="ghost", title=["Whispers,", "turned to ghosts"],
+                  settings="Reverse Bloom · Stretch 150% · Feedback 35% · Mix 70%", dry_end=3.3),
+    "drips": dict(src="drips", wet="drips", title=["Water drops", "in a metal cave"],
+                  settings="Struck Pipe · Stretch 200% · Decay 200% · Feedback 35%", dry_end=3.4),
+    "wind": dict(src="wind", wet="wind", title=["Wind that", "sings a chord"],
+                 settings="Tuned Chord · Mix 85% · Decay 300% · Feedback 40%", dry_end=4.2),
+    "ticks": dict(src="ticks", wet="ticks", title=["Five clicks,", "a glitch cascade"],
+                  settings="Bouncing Ball · SYNC 1/8 D at 90 BPM · Feedback 45%", dry_end=2.4),
+    "grains": dict(src="riser", wet="grains", title=["A riser,", "torn into grains"],
+                   settings="Grain Cloud · Stretch 200% · Decay 250% · Feedback 45%", dry_end=3.4),
+    "hum": dict(src="hum", wet="hum", title=["The building", "breathes"],
+                settings="Breath · Mix 70% · Feedback 55% · Decay 200%", dry_end=4.0),
 }
 
 def F(name, size): return ImageFont.truetype(FONTS + name, size)

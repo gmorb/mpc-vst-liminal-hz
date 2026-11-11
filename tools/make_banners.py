@@ -60,6 +60,13 @@ wordmark(d, 84, 300, 96, by=False)
 d.text((88,350),'by Gm0rb',font=fR(30),fill=GR,anchor='ls')
 d.text((88,440),'Real rooms, halls and echoes from impulse responses.',font=fR(30),fill=(196,190,178),anchor='ls')
 d.text((88,482),'The space for your NAM amp  \u00b7  Akai Force & MPC  \u00b7  TONE3000 IRs',font=fR(22),fill=DIM,anchor='ls')
+# what's new: an amber "NEW IN 1.4" pill and the four features (this is also the repo's social preview: keep it current)
+x=88; y=548; pill='NEW IN 1.4'; fp=fS(19); tw=d.textlength(pill,font=fp)
+d.rounded_rectangle([x,y-24,x+tw+28,y+8],radius=16,outline=AMB,width=2); d.text((x+14,y),pill,font=fp,fill=AMB,anchor='ls')
+x+=tw+48
+for k,word in enumerate(['Duck','Tempo SYNC','Textures',"MPC's preset menu"]):
+    if k: d.text((x,y),'\u00b7',font=fR(22),fill=DIM,anchor='ls'); x+=d.textlength('\u00b7',font=fR(22))+14
+    d.text((x,y),word,font=fS(22),fill=(222,214,198),anchor='ls'); x+=d.textlength(word,font=fS(22))+14
 im.save(os.path.join(OUTD,'banner.png'))
 
 # 3. Impulse: the IR painting, large, with the glow

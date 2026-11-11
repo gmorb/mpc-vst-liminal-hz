@@ -30,6 +30,10 @@
   on chords, pads"); the README has the table.
 - Seven more demos (the five Textures, Duck, SYNC), a trailer kit (`tools/trailer/`: three synthesized scores,
   dark, cyberpunk and trap, played through the plugin, and the videos), and images explaining the new features (`tools/make_feature_images.py`).
+- **Sound-design demos**: six more in the README, for ambience, FX and ear candy (a whisper, water drops, wind, clicks, a
+  riser and a fluorescent hum through Reverse Bloom, Struck Pipe, Tuned Chord, Bouncing Ball, Grain Cloud and Breath,
+  pushed with Stretch, Decay, Feedback and SYNC). The banner (also the repo's social preview) says what's new, and a
+  "New in 1.4" card sums it up.
 
 ### Changed
 - **The pause when picking a preset or after DELETE.** MPC answers each "update the display" call from a plugin by
@@ -48,6 +52,13 @@
 - Tests: plugin_test times a preset pick's setParameter and counts its host calls, checks DELETE never searches, SYNC
   at two tempos and without one, Duck and SYNC in projects, presets and Init, and the Textures presets; engine_test
   checks Duck (bit-identical at 0, -24/-12 dB, the release, Feedback tails untouched) and the 4-entry resample cache.
+
+### Fixed
+- **Stretch 200% with Decay** (Gen 1, LONG IR off) made Grain Cloud, Tuned Chord and Shimmer Fog a "Silent IR" at any
+  Decay over 100%: stretching leaves a band-limited IR's top octaves all but empty, an empty band's measured decay time
+  is noise, and lengthening it overflowed a float. Such a band is now left as it is. Every setting that worked before
+  prepares bit for bit as before (all 19 IRs at Stretch 50/100/200%, Decay 50/300%, LONG IR off and on); engine_test
+  prepares the factory Textures at every Stretch x Decay.
 
 ## 1.3.0
 

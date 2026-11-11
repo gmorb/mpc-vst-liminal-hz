@@ -47,7 +47,28 @@ The Duck and SYNC demos play the same phrase twice through Liminal Hz, before an
 level). The sounds in the demos are synthesized (no samples), and the videos are made by `tools/demos/` from the plugin
 itself.
 
+### Sound design
+
+Six more, for ambience, FX and ear candy: small, plain sources (a whisper, water drops, wind, a few clicks, a riser, a
+fluorescent hum) pushed somewhere strange with the presets and Stretch, Decay, Feedback and SYNC. Same format: the
+dry sound, then Liminal Hz.
+
+<table>
+  <tr>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-ghost.mp4"><img src="docs/demos/liminal-hz-demo-ghost.jpg" width="250" alt="Demo: whispers through Reverse Bloom, stretched, with feedback"></a><br><b>Whispers, turned to ghosts</b><br><sub>Reverse Bloom · Stretch 150% · Feedback 35%</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-drips.mp4"><img src="docs/demos/liminal-hz-demo-drips.jpg" width="250" alt="Demo: water drops through Struck Pipe at Stretch 200%"></a><br><b>Water drops in a metal cave</b><br><sub>Struck Pipe · Stretch 200% · Decay 200%</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-wind.mp4"><img src="docs/demos/liminal-hz-demo-wind.jpg" width="250" alt="Demo: wind noise through Tuned Chord at Decay 300%"></a><br><b>Wind that sings a chord</b><br><sub>Tuned Chord · Decay 300% · Feedback 40%</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-ticks.mp4"><img src="docs/demos/liminal-hz-demo-ticks.jpg" width="250" alt="Demo: five clicks through Bouncing Ball, synced to the tempo"></a><br><b>Five clicks, a glitch cascade</b><br><sub>Bouncing Ball · SYNC 1/8 D · Feedback 45%</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-grains.mp4"><img src="docs/demos/liminal-hz-demo-grains.jpg" width="250" alt="Demo: a noise riser through Grain Cloud, stretched, with feedback"></a><br><b>A riser, torn into grains</b><br><sub>Grain Cloud · Stretch 200% · Decay 250%</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-hum.mp4"><img src="docs/demos/liminal-hz-demo-hum.jpg" width="250" alt="Demo: a flickering fluorescent hum through Breath, with feedback"></a><br><b>The building breathes</b><br><sub>Breath · Feedback 55% · Decay 200%</sub></td>
+  </tr>
+</table>
+
 ## New in 1.4
+
+![Liminal Hz 1.4: Duck, Tempo SYNC, Textures and MPC's preset menu](docs/images/whats-new.png)
 
 ![Duck: the reverb turned down while you play](docs/images/feature-duck.png)
 ![Tempo SYNC: pre-delay in note values](docs/images/feature-sync.png)

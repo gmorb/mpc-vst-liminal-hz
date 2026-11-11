@@ -35,3 +35,10 @@ go duck0 drums 4 mix=45 decay=200 duck=0 output=-4                              
 go duck80 drums 4 mix=45 decay=200 duck=80 output=4                              # ... and at 80% (each matched to the dry)
 go sync_off perc 8 predelay=70 output=2                                           # Parking Slap, 70 ms ...
 go sync_on perc 8 predelay_sync=1 predelay=225 bpm=100 output=2                   # ... and 1/8 D at 100 BPM
+# 1.4 sound design: experimental sources pushed somewhere strange (levels matched to the dry, peaks under -1.5 dBFS)
+go ghost whisper 11 stretch=150 mix=70 feedback=35 width=160 output=1             # Reverse Bloom: whispers to ghosts
+go drips drips 15 stretch=200 mix=70 feedback=35 decay=200 output=6.5             # Struck Pipe: a metal cave
+go wind wind 17 mix=85 decay=300 feedback=40 output=-2                            # Tuned Chord: wind that sings
+go ticks ticks 19 mix=75 feedback=45 predelay_sync=1 predelay=225 bpm=90 output=5.5   # Bouncing Ball: a glitch cascade
+go grains riser 16 stretch=200 mix=85 feedback=45 decay=250 output=-6             # Grain Cloud: a riser torn apart
+go hum hum 18 mix=70 feedback=55 decay=200 output=1.5                             # Breath: the building breathes

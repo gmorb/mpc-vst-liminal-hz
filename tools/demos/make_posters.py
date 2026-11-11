@@ -8,7 +8,8 @@ from PIL import Image, ImageDraw
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 D = os.path.join(ROOT, "docs", "demos")
 for name, t in (("pad", 8.0), ("drums", 8.5), ("hits", 9.2), ("keys", 8.6), ("stabs", 6.2), ("pipe", 8.0), ("grain", 8.0),
-                ("chord", 8.0), ("breath", 7.5), ("ball", 6.5), ("duck", 16.0), ("sync", 15.0)):
+                ("chord", 8.0), ("breath", 7.5), ("ball", 6.5), ("duck", 16.0), ("sync", 15.0),
+                ("ghost", 7.0), ("drips", 6.5), ("wind", 7.5), ("ticks", 5.8), ("grains", 7.0), ("hum", 7.0)):
     with tempfile.TemporaryDirectory() as tmp:
         png = os.path.join(tmp, "f.png")
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(t), "-i", os.path.join(D, "liminal-hz-demo-%s.mp4" % name),

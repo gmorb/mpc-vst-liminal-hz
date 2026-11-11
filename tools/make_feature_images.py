@@ -248,6 +248,38 @@ def make_presets(W, H, social=False):
         wordmark(d, 640, 1010, 34)
     return im
 
+# ---- the overview: 1.4 on one card (the README's "New in 1.4", a release or a post) --------------------------------------
+FEATS = [("duck", "Duck", "The reverb ducks while you play and blooms in the gaps."),
+         ("sync", "Tempo SYNC", "Pre-delay in note values, locked to your MPC's tempo."),
+         ("textures", "Textures", "Five IRs that aren't rooms: a pipe, grains, a chord, a breath, a bounce."),
+         ("presets", "MPC's preset menu", "All 19 presets in MPC's own menu, each with what it suits.")]
+
+def make_overview(W, H, social=False):
+    im = canvas(W, H); d = ImageDraw.Draw(im)
+    wordmark(d, 60, 92 if not social else 110, 40 if not social else 46)
+    k = "1.4"; d.text((W - 60, 92 if not social else 110), k, font=F("s", 44 if not social else 52), fill=AMB, anchor="rs")
+    d.text((62, 132 if not social else 160), "What's new: one knob, one toggle, five new spaces, and your MPC's own preset menu.",
+           font=F("r", 23 if not social else 26), fill=GR, anchor="ls") if not social else None
+    if social:
+        for i, ln in enumerate(wrap(d, "What's new: one knob, one toggle, five new spaces, and your MPC's own preset menu.", F("r", 26), W - 120)):
+            d.text((62, 160 + i * 36), ln, font=F("r", 26), fill=GR, anchor="ls")
+    cols, gap = (4, 24) if not social else (2, 40)
+    tw = (W - 120 - (cols - 1) * gap) // cols if not social else 330
+    th = int(tw * 560 / 720)
+    gx = 60 if not social else (W - 2 * tw - gap) // 2
+    gy = 186 if not social else 232
+    for i, (name, title, line) in enumerate(FEATS):
+        c, r = i % cols, i // cols
+        x = gx + c * (tw + gap); y = gy + r * (th + (150 if not social else 140))
+        thumb = Image.open(os.path.join(OUT, "feature-%s.png" % name)).convert("RGB").crop((560, 40, 1280, 600)).resize((tw, th), Image.LANCZOS)
+        framed(im, thumb, (x, y))
+        d.text((x, y + th + 46), title, font=F("s", 30 if not social else 32), fill=IV, anchor="ls")
+        for j, ln in enumerate(wrap(d, line, F("r", 20 if not social else 22), tw)):
+            d.text((x, y + th + 80 + j * (28 if not social else 29)), ln, font=F("r", 20 if not social else 22), fill=GR, anchor="ls")
+    foot = "Free  \u00b7  Akai MPC and Force, Gen 1 and Gen 2  \u00b7  github.com/gmorb/mpc-vst-liminal-hz"
+    d.text((W // 2, H - 30), foot, font=F("r", 19 if not social else 22), fill=DIM, anchor="ms")
+    return im
+
 def main():
     social = sys.argv[1] if len(sys.argv) > 1 else None
     for name, fn in (("duck", make_duck), ("sync", make_sync), ("textures", make_textures), ("presets", make_presets)):
@@ -256,6 +288,9 @@ def main():
             os.makedirs(social, exist_ok=True)
             fn(1080, 1080, True).save(os.path.join(social, "liminal-hz-%s-1080.png" % name), optimize=True)
         print("feature", name)
+    make_overview(1280, 640).save(os.path.join(OUT, "whats-new.png"), optimize=True)   # (after the four: it shows them)
+    if social: make_overview(1080, 1080, True).save(os.path.join(social, "liminal-hz-1.4-whats-new-1080.png"), optimize=True)
+    print("overview")
 
 if __name__ == "__main__":
     main()
