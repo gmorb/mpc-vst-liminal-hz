@@ -701,6 +701,7 @@ int main(int argc, char** argv) {
         std::fill(l.begin(), l.end(), 0.0f); if (b == 0) l[0] = 1.0f;
         float* in[2] = {l.data(), l.data()}; float* out[2] = {ol.data(), orr.data()};
         q->pr(q, in, out, 128);
+        std::this_thread::sleep_for(std::chrono::microseconds(2900));   // (real time: the tail's worker keeps up, as on MPC)
         for (int i = 0; i < 128; i++) if (std::fabs(ol[i]) > 1e-4f || std::fabs(orr[i]) > 1e-4f) return b * 128 + i;
       }
       return -1L;
