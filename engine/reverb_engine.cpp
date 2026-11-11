@@ -175,6 +175,10 @@ static size_t decay_reshape(std::vector<std::vector<float>>& h, double rate, dou
       ref[c][k] = (float)(a / c3);
     }
     const double tend = (double)fend * H / rate;
+    // a band lifted past what a float holds is left as it is: an all but empty band (a band-limited IR, Grain Cloud or
+    // Tuned Chord at Stretch 200%) measures a "decay time" that is noise, and its end late: exp(kdec * tend) overflowed
+    // (inf, then NaN, then "Silent IR"). Every band that prepared before is reshaped exactly as before.
+    if (m > 1 && !(kdec * tend < 80.0)) continue;
     for (int f = 0; f < F; f++) {
       const double t = (double)f * H / rate;
       const float g = (float)std::exp(kdec * std::min(t, tend + (m > 1 ? 0.0 : 1e9)));
@@ -354,6 +358,7 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
   double e = 0;                                            // unit energy: IRs come out at similar levels
   for (auto& v : h) for (float x : v) e += (double)x * x;
   e /= (double)nch;
+  if (!std::isfinite(e)) { if (err) *err = "Bad IR"; return nullptr; }   // (never expected: see decay_reshape)
   if (!(e > 1e-20)) { if (err) *err = "Silent IR"; return nullptr; }
   const float g = (float)(decay_level / std::sqrt(e));
   for (auto& v : h) for (float& x : v) x *= g;

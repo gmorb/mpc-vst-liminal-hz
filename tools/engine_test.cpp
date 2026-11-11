@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 #include "reverb_engine.h"
+#include "wav_reader.h"
 using namespace irrev;
 static int fails = 0;
 #define CHECK(c, ...) do { printf("%s ", (c) ? "ok  " : "FAIL"); printf(__VA_ARGS__); printf("\n"); if (!(c)) fails++; } while (0)
@@ -279,6 +280,24 @@ int main(int argc, char** argv) {
     }
     IRShape a1; auto i1 = ir_shaped({L, Rr}, a1), i2 = ir_shaped({L, Rr}, a1);
     CHECK(i1 && i2 && i1->sonics == i2->sonics && i1->t60 == i2->t60, "Decay 100%%: the IR as prepared before (the reshaping is skipped)");
+    {   // band-limited IRs at Stretch x Decay: Grain Cloud and Tuned Chord (nothing much above ~5 kHz; Stretch 200% on
+        // Gen 1 halves that again) were "Silent IR" at Stretch 200% with any Decay but 100%: an all but empty band's
+        // "decay time" is noise, and lifting it overflowed a float (inf, then NaN). The factory files themselves.
+      bool all = true; int tried = 0; std::string what;
+      for (const char* f : {"packaging/factory/Textures/Grain_Cloud.wav", "packaging/factory/Textures/Tuned_Chord.wav",
+                            "packaging/factory/Textures/Struck_Pipe.wav", "packaging/factory/Spaces/Backrooms.wav"}) {
+        WavData w; std::string err;
+        if (!read_wav(f, &w, &err)) continue;
+        for (double st : {0.5, 1.0, 1.5, 2.0})
+          for (double d : {0.5, 1.5, 2.5, 3.0})
+            for (int hq = 0; hq < 2; hq++) {
+              IRShape s; s.stretch = st; s.decay = d; tried++;
+              auto ir = ReverbIR::make(w.channels, w.rate, RATE, s, &err, LongConvolver::Inline, hq ? Quality::high() : platform::default_quality());
+              if (!ir || !std::isfinite(ir->t60)) { all = false; char b[160]; snprintf(b, sizeof b, " [%s stretch %.1f decay %.1f hq %d: %s]", f + 18, st, d, hq, err.c_str()); what += b; }
+            }
+      }
+      CHECK(all && tried == 128, "the factory Textures prepare at every Stretch x Decay, standard and high quality (%d tried)%s", tried, what.c_str());
+    }
   }
   { // high quality (LONG IR on Gen 1, always on Gen 2; platform.h): long IRs, Decay past 5 s, band-limited resampling
     const Quality HQ = Quality::high();
