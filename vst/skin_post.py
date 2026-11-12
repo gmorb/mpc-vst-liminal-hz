@@ -44,5 +44,28 @@ for d in t["pageData"]["componentDefinitions"]["localComponentDefinitions"]:
 missing = {(p_, n) for p_, n, _, _ in ROLES} - done
 if missing:
     sys.exit("skin_post: no component for %s (layout changed?)" % sorted(missing))
+
+# One tap, one press (issue #5). The kit's buttons (shTrig_*) switch their value twice per tap: a "Toggle Switch"
+# action on Mouse Down, and the Button component inside, which switches it again. The plugin reads them back as 0, so
+# both writes were presses: NEXT PACK, PREV/NEXT in the lists, DELETE... each took two steps. REVERSE and LONG IR
+# (shToggle) have the same Button and send Mouse Down to "Q-Link" instead: one tap, one switch. The buttons get the
+# same. (Enter on the encoder keeps "Toggle Switch".)
+# NOT the list rows (shRow_*): with Mouse Down on "Q-Link" a tap on a row did nothing on the device (an IR or a My
+# Preset couldn't be picked). They keep the kit's action; a row picked twice is the same pick (the same IR: no
+# change; the same My Preset: loaded again as saved).
+fixed = 0
+for d in t["pageData"]["componentDefinitions"]["localComponentDefinitions"]:
+    v = d["value"]
+    has_button = any(c["componentData"].get("type") == "Button" for c in v.get("componentsData", []))
+    for a in v.get("actions", []):
+        if has_button and a["onAction"] == "Mouse Down" and a["handler"] == "Toggle Switch":
+            if d["key"].startswith("shRow_"):
+                continue
+            if not d["key"].startswith("shTrig_"):
+                sys.exit("skin_post: %s switches twice per tap, and isn't a button or a row" % d["key"])
+            a["handler"] = "Q-Link"
+            fixed += 1
+if fixed == 0:
+    sys.exit("skin_post: no button switched on Mouse Down (the kit changed? check issue #5's fix)")
 json.dump(t, open(p, "w"), indent=1)
-print("skin_post: %d type roles set" % len(done))
+print("skin_post: %d type roles set; %d buttons switch once per tap (rows as the kit makes them)" % (len(done), fixed))
