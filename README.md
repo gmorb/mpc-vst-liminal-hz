@@ -251,6 +251,20 @@ every Gen 2 plugin today, installing on Gen 2 needs root access on the unit (mpc
 
 ## Install
 
+### MPC OS 3.10.1 and later (the easy way, Gen 1 and Gen 2)
+MPC OS 3.10.1 loads third-party plugins by itself: no install script, no root, one download for every unit.
+1. On the MPC: **Preferences → Enhancements (Beta)**: turn on **Enable Enhancements** and **External Plugin Support**.
+2. Download `Liminal-Hz-<version>-MPC-OS-3.10.1.zip` from the [releases](https://github.com/gmorb/mpc-vst-liminal-hz/releases/latest)
+   and unzip it.
+3. Copy the `Gm0rb - VST - Liminal Hz` folder into a folder named exactly `VST2 Plugins` at the root of a USB drive,
+   SD card or the MPC's internal drive (make it if it isn't there).
+4. Liminal Hz is under **External Plugins**. This one folder holds the Gen 1 and Gen 2 builds.
+
+Coming from an older install? Copy your `presets` folder from the old plugin folder into the new one, then remove the
+old install, so Liminal Hz isn't listed twice. Your `reverbs` folders anywhere on your drives are found as before.
+Akai doesn't test or support third-party plugins; save your work often.
+
+### Earlier MPC OS (3.x)
 **Gen 2**: install `Liminal-Hz-<version>-mpc-aarch64.zip` from the MPC OS Plugin Catalog, or unzip it on the unit and
 run its `install.sh` as root (see its INSTALL.md). **Gen 1**: download `Liminal-Hz-for-MPC-OS-<version>.zip` from the releases and follow its README: copy the
 `Gm0rb - VST - Liminal Hz` folder into your `Synths` folder and run `vstscanner`; Liminal Hz then appears under

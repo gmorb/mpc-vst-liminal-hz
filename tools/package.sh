@@ -94,6 +94,13 @@ else
   echo "no REPO / GITHUB_REPOSITORY: catalog zip skipped (set REPO=owner/name)"
 fi
 rm -rf dist/work
+# 3. MPC OS 3.10.1 and later: Akai's official "VST2 Plugins" folder, both builds in one (tools/package_official.py)
+if [ -f "dist/Liminal-Hz-$VERSION-mpc-armv7.zip" ] && [ -f "dist/Liminal-Hz-$VERSION-mpc-aarch64.zip" ]; then
+  python3 tools/package_official.py "$VERSION" "dist/Liminal-Hz-$VERSION-mpc-armv7.zip" \
+    "dist/Liminal-Hz-$VERSION-mpc-aarch64.zip" "dist/Liminal-Hz-$VERSION-MPC-OS-3.10.1.zip"
+else
+  echo "no armv7 + aarch64 zips: official (MPC OS 3.10.1) zip skipped"
+fi
 (cd dist && sha256sum *.zip > SHA256SUMS)
 awk -v v="$VERSION" '/^## /{on = ($2 == v)} on && !/^## /' CHANGELOG.md > dist/RELEASE_NOTES.md
 ls -la dist

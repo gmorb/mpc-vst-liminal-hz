@@ -1514,6 +1514,7 @@ static bool set_chunk(Inst* w, const char* data, size_t len) {
   if (w->scanned) resolve(w->ir);
   requested(w->ir);
   kick(w, !w->scanned);
+  w->menu = 0; w->mp.armed_name.clear(); w->ir.armed_path.clear();   // (a project opens on the page: no list, nothing armed)
   for (int i = 0; i < P_COUNT; i++) { w->changed[i] = 1; w->host_view[i] = -1.0f; }   // (all reported again)
   w->update_display = 1;
   return true;

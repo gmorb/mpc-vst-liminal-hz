@@ -366,3 +366,19 @@ display, the controls, factory presets, install; then the CPU design, build and 
 - Also: the Breath sound-design demo is an old music box (liminal-hz-demo-musicbox.*), replacing the hum.
 - Released as 1.4.0 (the user's call): the first v1.4.0 tag (6e1342a) was never published, so it was deleted and
   v1.4.0 re-tagged on the merge of this fix.
+
+## 1.4.1: MPC OS 3.10.1's official plugin folder (2026-11-12; the user confirmed the converted build on the device)
+- MPC OS 3.10.1 (Akai's MPC Plugin SDK, inmusic-software/mpc-plugin-builder-sdk) loads plugins from
+  `<drive>/VST2 Plugins/<Manufacturer> - VST - <Name>/` once Preferences → Enhancements (Beta) → Enable Enhancements +
+  External Plugin Support are on. The folder needs `plugin.json` (name, manufacturer, uid, file32/file64) and
+  `version.xml` with `<uiversion>0.1.0.0</uiversion>` (without it the MPC may ignore the Plugin Skins).
+- `tools/package_official.py` (called by package.sh when both device zips exist) builds
+  `Liminal-Hz-<version>-MPC-OS-3.10.1.zip` from the two community zips' portable folders: the same binaries, renamed
+  `liminal-hz-arm32.so` / `liminal-hz-arm64.so`, at the folder root beside factory/, presets/, art/ (the plugin finds
+  its data next to its own .so: Library::plugin_dir). The reverbs/README's IR-length line is merged for both
+  generations; the old installer's plugin-meta.xml and mpc-plugin.json are left out. CI uploads it with the other zips
+  (dist/*.zip).
+- The SDK's `tools/validate.py` on the folder: 0 errors, 0 warnings. Its `host_sim test` on the host build: 20 passed
+  (it plays the MPC's quirks, including the parameter-0 toggle on every prepare: Mix, harmless). It first failed one
+  check: a project's state left an open list open; set_chunk now closes it (menu = 0, nothing armed).
+- Not verified: whether projects saved with the old (Synths / install.sh) install find the new one.

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.1
+
+### New
+- **A download for MPC OS 3.10.1 and later**: `Liminal-Hz-1.4.1-MPC-OS-3.10.1.zip`. MPC OS 3.10.1 loads third-party
+  plugins from a `VST2 Plugins` folder on any drive (Preferences → Enhancements (Beta) → External Plugin Support), with
+  no install script and no root. One folder holds the Gen 1 and Gen 2 builds; copy it into `VST2 Plugins` and Liminal
+  Hz is under External Plugins. Made in the format of Akai's MPC Plugin SDK and checked with its validator and host
+  simulator. The other downloads stay for earlier MPC OS.
+
+### Fixed
+- Opening a project closes the IR List or My Presets list if one was open (and disarms DELETE).
+
 ## 1.4.0
 
 Tested on an MPC Live III (Gen 2) and an Akai Force (Gen 1), both on MPC OS 3.10.
