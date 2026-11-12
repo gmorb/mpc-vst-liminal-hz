@@ -2,8 +2,9 @@
 // Copyright (c) 2026 the mpc-vst-liminal-hz contributors
 // demo_host.cpp -- runs the Liminal Hz plugin (.so) over a stereo float WAV the way MPC does (128-frame blocks) and
 // records what its page would show, for the demo videos.
-//   demo_host <plugin.so> <in.wav> <out.wav> <state.json> <preset 0..14> [key=value ...] [long_ir=1]
+//   demo_host <plugin.so> <in.wav> <out.wav> <state.json> <preset 0..19> [key=value ...] [long_ir=1]
 // key=value: a parameter by its params.json key, as a real value (mix=55, decay=300); applied after the preset.
+// bpm=100: the host gives that tempo (SYNC); predelay=<ms> picks the note at that point of the knob (225: 1/8 D).
 // state.json: every parameter's normalised value and display text after loading, and the playhead (0..24) and the
 // 12 wave columns at 30 frames a second while the audio plays.
 #include <dlfcn.h>
@@ -24,7 +25,18 @@ struct AEffect {
   int32_t numPrograms, numParams, numInputs, numOutputs, flags; intptr_t r1, r2; int32_t a, b, c; float io;
   void *obj, *user; int32_t uid, ver; void (*pr)(AEffect*, float**, float**, int32_t); void* pdr; char f[56];
 };
-static intptr_t host(AEffect*, int32_t op, int32_t, intptr_t, void*, float) { return op == 1 ? 2400 : 0; }
+struct VstTimeInfo {
+  double samplePos, sampleRate, nanoSeconds, ppqPos, tempo, barStartPos, cycleStartPos, cycleEndPos;
+  int32_t timeSigNumerator, timeSigDenominator, smpteOffset, smpteFrameRate, samplesToNextClock, flags;
+};
+static double g_bpm = 0;                       // bpm=<tempo>: the project tempo the host gives (SYNC), as MPC does
+static intptr_t host(AEffect*, int32_t op, int32_t, intptr_t, void*, float) {
+  if (op == 7 && g_bpm > 0) {
+    static thread_local VstTimeInfo ti; ti = VstTimeInfo(); ti.sampleRate = 44100; ti.tempo = g_bpm; ti.flags = 1 << 10;
+    return (intptr_t)&ti;
+  }
+  return op == 1 ? 2400 : 0;
+}
 static std::string disp(AEffect* a, int i) { char b[256] = {0}; a->d(a, 7, i, 0, b, 0); return b; }
 static std::string pname(AEffect* a, int i) { char b[64] = {0}; a->d(a, 8, i, 0, b, 0); return b; }
 static std::string esc(const std::string& s) {
@@ -61,6 +73,7 @@ static void write_wav(const char* p, const std::vector<float>& l, const std::vec
 }
 
 int main(int argc, char** argv) {
+  for (int k = 6; k < argc; k++) if (!strncmp(argv[k], "bpm=", 4)) g_bpm = atof(argv[k] + 4);
   if (argc < 6) { fprintf(stderr, "usage: demo_host plugin.so in.wav out.wav state.json preset [key=value...]\n"); return 2; }
   void* so = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
   if (!so) { fprintf(stderr, "%s\n", dlerror()); return 1; }
@@ -74,7 +87,7 @@ int main(int argc, char** argv) {
   auto wait = [&] { for (int k = 0; k < 3000 && !idle(); k++) std::this_thread::sleep_for(std::chrono::milliseconds(10)); };
   wait();
   const int preset = atoi(argv[5]);
-  a->setP(a, idx("Preset"), preset / 14.0f);
+  a->setP(a, idx("Preset"), preset / 19.0f);   // (PRESET: Init + 19 factory presets, vst/params.json)
   wait();
   // overrides: params.json key=real value; the plugin's own normalisation is found by bisection on its display text
   // being reached is overkill: each key's range is given here (the page shows real values, the plugin takes 0..1)
@@ -83,7 +96,8 @@ int main(int argc, char** argv) {
                       {"highcut", "High Cut", 1000, 20000, 1}, {"width", "Width", 0, 200, 0}, {"length", "Length", 5, 100, 0},
                       {"output", "Output", -24, 12, 0}, {"start", "Start", 0, 90, 0}, {"fade_in", "Fade In", 0, 50, 0},
                       {"fade_out", "Fade Out", 0, 50, 0}, {"stretch", "Stretch", 50, 200, 0}, {"feedback", "Feedback", 0, 100, 0},
-                      {"decay", "Decay", 50, 300, 0}, {"reverse", "Reverse", 0, 1, 0}, {"long_ir", "Long IR", 0, 1, 0}};
+                      {"decay", "Decay", 50, 300, 0}, {"reverse", "Reverse", 0, 1, 0}, {"long_ir", "Long IR", 0, 1, 0},
+                      {"duck", "Duck", 0, 100, 0}, {"predelay_sync", "Pre-delay Sync", 0, 1, 0}};
   for (int k = 6; k < argc; k++) {
     std::string kv = argv[k]; size_t eq = kv.find('='); if (eq == std::string::npos) continue;
     std::string key = kv.substr(0, eq); double v = atof(kv.c_str() + eq + 1);

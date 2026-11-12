@@ -1,5 +1,81 @@
 # Changelog
 
+## 1.4.0
+
+Tested on an MPC Live III (Gen 2) and an Akai Force (Gen 1), both on MPC OS 3.10.
+
+### New
+- **Duck** (the out group, beside Output; 0-100%, default 0): the reverb is turned down while you play and blooms back
+  in the gaps, so big rooms on snares and vocals don't muddy the groove. At 100% it drops by up to 24 dB under a loud
+  input and is back within about a quarter of a second after it stops (one knob: the attack and release are fixed).
+  It turns down only what you hear, after the feedback loop, so Feedback's tails are unchanged. At 0% the output is
+  bit for bit as before. Kept by My Presets; Init and the factory presets set it to 0.
+- **SYNC** (beside Pre-delay): Pre-delay in note values at the project tempo: 0, 1/128, 1/64, 1/32, 1/16 T, 1/16,
+  1/16 D, 1/8 T, 1/8, 1/8 D, 1/4. The tempo is read from MPC every block, so it follows tempo changes (gliding, like a
+  knob move). The pre-delay can now reach 2 s (a 1/4 at 30 BPM). Kept by My Presets; Init and the factory presets turn it
+  off.
+- **Textures**: a fourth factory category of IRs that aren't rooms: Struck Pipe, Grain Cloud, Tuned Chord, Breath,
+  Bouncing Ball, each with a preset. The PRESET list now opens in four columns. Like the other factory IRs they are
+  synthetic and free to use. (Any .wav can be an IR: README, Your own IRs.) Grain Cloud's grains are short bursts
+  of band-passed noise, not sine tones, so it doesn't whistle on steady synth partials.
+- **Preset levels**: every factory preset was measured over drums, a vocal, a synth chord, pink noise and a sine
+  sweep. Each now peaks within ~3 dB of its input (none over 0 dBFS from a -12 dBFS sweep) and keeps its level within
+  about +-3 dB of the dry. Resonant ones were tamed: Sub Tunnel (Mix 22%, Output -3 dB), Liminal Hz (Mix 30%,
+  Feedback 45%, Output -2 dB), Struck Pipe (Mix 20%, Output -2 dB), Grain Cloud (Output -4 dB, Width 120%), Tuned
+  Chord (Mix 12%, Output -2 dB, Width 100%), Breath (Output -5 dB, Width 110%); Glass Void's Width is 115% so it holds
+  up in mono. Projects keep their own settings; only the presets changed.
+- **MPC's own preset menu** (at the top of the screen) now lists Init, the 19 factory presets grouped by what they're
+  for (Drum, Vocal, Keys, Pad, FX: "Drum: Empty Mall", "Keys: Liminal Hz"), then **your own IRs** ("My IR: Big Hall",
+  each with Init's settings), read when the plugin loads, so IRs added or deleted show up on the next load. Picking a
+  factory preset there is the same as picking it in the plugin's PRESET list. Re-selecting the current one changes
+  nothing, and a pick in the first 2 s after a project's state arrives is ignored (a host re-selecting what it saved,
+  whose place may have moved): a project always reopens with its own sound.
+- **Picking one of your own IRs goes back to Init**: on the page (arrows, packs, IR List, a TONE3000 download) or
+  from MPC's menu, after a factory preset or after another of your IRs, the knobs return to Init's: a sound's settings
+  belong to its IR. Picking the same IR again keeps your edits, a project reopens as saved, and My Presets load as
+  saved (their own IR and settings).
+- **What each IR suits**: under the IR's name, a factory IR's category now says what it's best on ("Strange · best
+  on chords, pads"); the README has the table.
+- Seven more demos (the five Textures, Duck, SYNC), a trailer kit (`tools/trailer/`: three synthesized scores,
+  dark, cyberpunk and trap, played through the plugin, and the videos), and images explaining the new features (`tools/make_feature_images.py`).
+- **Sound-design demos**: six more in the README, for ambience, FX and ear candy (a whisper, water drops, wind, clicks, a
+  riser and a fluorescent hum through Reverse Bloom, Struck Pipe, Tuned Chord, Bouncing Ball, Grain Cloud and Breath,
+  pushed with Stretch, Decay, Feedback and SYNC). The banner (also the repo's social preview) says what's new, and a
+  "New in 1.4" card sums it up.
+
+### Changed
+- **The pause when picking a preset or after DELETE.** MPC answers each "update the display" call from a plugin by
+  reading every parameter again and redrawing its screen. A preset pick asked for that twice (once for the pick, again
+  when the IR was ready a moment later) and reported 31 values; turning a knob asked for it on every step. Now these
+  calls are paced (at most one per 0.1 s, and one waits up to 0.6 s for the IR to be ready), and values MPC already has
+  aren't reported again: a pick is one redraw and 18 values. DELETE took the IR out by searching the cards again
+  ("Searching..."); it now drops it from the list at once and moves to the next IR. Needs confirming on the device.
+- The resampling cache keeps the last 4 IRs (it kept 1), so stepping back and forth through 48 kHz IRs resamples each
+  once.
+- **Q-Links** reordered, what's turned while playing first: Mix, Decay, Feedback, Pre-delay, Duck, Low Cut, High Cut,
+  Width, IR, Stretch, Start, End, Fade In, Fade Out, Reverse, Output (was: IR, Mix, Pre-delay, Feedback, Low Cut, High
+  Cut, Width, Output, Start, End, Fade In, Fade Out, Stretch, Reverse, Next Pack, Decay). Next Pack is gone from the
+  Q-Links (PREV/NEXT PACK are on the page).
+- The bottom row is respaced to fit DUCK and SYNC.
+- **LONG IR is an on/off switch like REVERSE** (it was two taps, the first a warning): on the device each tap reached
+  the plugin twice, so it came on at the first tap and warned again on the way off. It is now the same switch as
+  REVERSE, with "Long IR" written under it, and the line below reads "On · CPU heavy · 20 s" while it's on. (A first
+  fix used a plain button, which MPC treats as a momentary trigger: it flipped the setting twice per tap and never
+  showed it on.)
+- **DELETE** (an IR, a My Preset) still takes two taps, and now the second must come at least 0.3 s after the first,
+  so one touch delivered twice only asks.
+- SYNC's label is the parameter's name, which MPC writes under the switch: "Pre-delay Sync" didn't fit, it's "Sync".
+- Tests: plugin_test times a preset pick's setParameter and counts its host calls, checks DELETE never searches, SYNC
+  at two tempos and without one, Duck and SYNC in projects, presets and Init, and the Textures presets; engine_test
+  checks Duck (bit-identical at 0, -24/-12 dB, the release, Feedback tails untouched) and the 4-entry resample cache.
+
+### Fixed
+- **Stretch 200% with Decay** (Gen 1, LONG IR off) made Grain Cloud, Tuned Chord and Shimmer Fog a "Silent IR" at any
+  Decay over 100%: stretching leaves a band-limited IR's top octaves all but empty, an empty band's measured decay time
+  is noise, and lengthening it overflowed a float. Such a band is now left as it is. Every setting that worked before
+  prepares bit for bit as before (all 19 IRs at Stretch 50/100/200%, Decay 50/300%, LONG IR off and on); engine_test
+  prepares the factory Textures at every Stretch x Decay.
+
 ## 1.3.0
 
 ### New

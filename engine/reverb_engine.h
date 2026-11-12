@@ -26,12 +26,13 @@ namespace irrev {
 
 struct ReverbParams {
   std::atomic<float> mix{0.3f};           // 0..1, wet share
-  std::atomic<float> predelay_ms{0.0f};   // 0..250
+  std::atomic<float> predelay_ms{0.0f};   // 0..kMaxPredelay (the knob: 0..250; synced: a note at the tempo)
   std::atomic<float> lowcut_hz{80.0f};    // high-pass on the wet signal, 20..1000
   std::atomic<float> highcut_hz{12000.0f};// low-pass on the wet signal, 1000..20000
   std::atomic<float> width{1.0f};         // 0..2 (1 = as recorded)
   std::atomic<float> output_db{0.0f};     // -24..12
   std::atomic<float> feedback{0.0f};      // 0..1: the wet output fed back into the convolution (eased, guarded)
+  std::atomic<float> duck{0.0f};          // 0..1: the reverb turned down while the input plays (up to kDuckDb at 1)
 };
 
 // how the IR is shaped before use (all off the audio thread; Kilohearts-Convolver-style controls)
@@ -81,10 +82,16 @@ class ReverbIR {
 class ReverbEngine {
  public:
   static constexpr int kFade = 4096;      // samples: a new IR crossfades in (~93 ms at 44.1 kHz)
-  static constexpr int kMaxPredelay = 250;
+  static constexpr int kMaxPredelay = 2000;   // ms: the knob's 250, or a synced note value at a slow tempo (1/4 at 30 BPM)
   // feedback (see block()): the curve's top, how much of the peak-gain scaling applies, the guard's ceiling and release
   static float kFbMax, kFbEase, kFbCeil, kFbRelease;
   static float kDampHz;                   // feedback damping: the loop's high cut (0: none)
+  // Duck: the dry input's level (a peak follower, kDuckFollow s) sets how far the wet signal is turned down: none at
+  // kDuckLoDb, the most (kDuckDb x the knob) from kDuckHiDb up. The turning down comes in over kDuckAttack s and lets go
+  // over kDuckRelease s (a time constant: 95% back in 3x that), so the reverb blooms in the gaps. After the feedback tap:
+  // the loop and the tails are as without it; only what is heard is ducked.
+  static constexpr float kDuckDb = 24.0f, kDuckLoDb = -50.0f, kDuckHiDb = -20.0f;
+  static constexpr float kDuckFollow = 0.02f, kDuckAttack = 0.005f, kDuckRelease = 0.08f;
   explicit ReverbEngine(double host_rate);
   ~ReverbEngine();
   ReverbParams params;
@@ -128,6 +135,7 @@ class ReverbEngine {
   float lc_cache_ = -1, hc_cache_ = -1;
   float mix_prev_ = -1, width_prev_ = -1, gain_prev_ = -1;   // the last block's values (they glide to new ones)
   float fb_env_ = 0.0f, fb_lim_ = 1.0f, fb_lim_prev_ = 1.0f;   // feedback guard: input peak, gain now and last block
+  float duck_env_ = 0.0f, duck_red_ = 0.0f, duck_prev_ = -1;   // Duck: input level, reduction (dB at the knob's top), knob
   size_t delay_prev_ = (size_t)-1;        // the last block's pre-delay, samples (a change crossfades)
   // a host block that isn't a multiple of 128: through a FIFO (one block of latency)
   std::vector<float> fin_[2], fout_[2];

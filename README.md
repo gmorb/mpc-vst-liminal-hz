@@ -8,13 +8,15 @@ A convolution reverb for **Akai MPC and Force, Gen 1 and Gen 2**: play through i
 strange spaces and echoes, mono or stereo: up to 5 seconds on Gen 1 (Force, MPC Live/One/X/Key), or **20 seconds**
 with its **LONG IR** button, and always 20 seconds on Gen 2 (MPC Live III and other RK3588 units, 64-bit) (see
 [Gen 2 and LONG IR](#gen-2-rk3588-64-bit)). Make a room bigger or smaller with **Decay**, stretch its tail
-with **Feedback**, and keep your sounds as **My Presets**. It comes with 14 factory spaces, browses your own IRs, and
+with **Feedback**, let it bloom between your hits with **Duck**, lock the pre-delay to your tempo with **SYNC**, and keep
+your sounds as **My Presets**. It comes with 19 factory IRs (spaces, echoes, strange rooms, and Textures that aren't
+rooms at all), browses your own IRs, and
 downloads more from TONE3000 from your phone. A companion to [Liminal Amp](https://github.com/gmorb/mpc-vst-liminal-amp).
 Not affiliated with or endorsed by TONE3000 or Akai.
 
 ## Hear it
 
-Five short demos (sound on): each plays the dry sound first, then the same phrase through Liminal Hz. The audio is
+Twelve short demos (sound on): each plays the dry sound first, then the same phrase through Liminal Hz. The audio is
 the plugin's real output, and the page shows what the plugin reported while it played. Levels are matched with the
 plugin's Output knob, so the comparison isn't louder-is-better. Tap a picture to play it.
 
@@ -27,12 +29,51 @@ plugin's Output knob, so the comparison isn't louder-is-better. Tap a picture to
   <tr>
     <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-keys.mp4"><img src="docs/demos/liminal-hz-demo-keys.jpg" width="250" alt="Demo: an electric-piano arpeggio through the Dream Ping-Pong preset"></a><br><b>Keys, bouncing down the hallway</b><br><sub>Factory preset: Dream Ping-Pong</sub></td>
     <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-stabs.mp4"><img src="docs/demos/liminal-hz-demo-stabs.jpg" width="250" alt="Demo: synth chord stabs through the Liminal Hz preset"></a><br><b>The signature: Liminal Hz</b><br><sub>Factory preset: Liminal Hz · Mix 60%</sub></td>
-    <td></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-pipe.mp4"><img src="docs/demos/liminal-hz-demo-pipe.jpg" width="250" alt="Demo: drums through the Struck Pipe texture"></a><br><b>Drums, through a struck metal pipe</b><br><sub>Textures preset: Struck Pipe</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-grain.mp4"><img src="docs/demos/liminal-hz-demo-grain.jpg" width="250" alt="Demo: a sung line through the Grain Cloud texture"></a><br><b>A voice, scattered into a grain cloud</b><br><sub>Textures preset: Grain Cloud</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-chord.mp4"><img src="docs/demos/liminal-hz-demo-chord.jpg" width="250" alt="Demo: drums through the Tuned Chord texture"></a><br><b>Drums that play a chord</b><br><sub>Textures preset: Tuned Chord</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-breath.mp4"><img src="docs/demos/liminal-hz-demo-breath.jpg" width="250" alt="Demo: hi-hats through the Breath texture"></a><br><b>Hi-hats that breathe</b><br><sub>Textures preset: Breath</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-ball.mp4"><img src="docs/demos/liminal-hz-demo-ball.jpg" width="250" alt="Demo: one snare through the Bouncing Ball texture"></a><br><b>One snare, a bouncing ball</b><br><sub>Textures preset: Bouncing Ball</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-duck.mp4"><img src="docs/demos/liminal-hz-demo-duck.jpg" width="250" alt="Demo: drums in the Backrooms, Duck off and then Duck 80%"></a><br><b>Big reverb, out of the way</b><br><sub>Duck off, then Duck 80%</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-sync.mp4"><img src="docs/demos/liminal-hz-demo-sync.jpg" width="250" alt="Demo: drums through Parking Slap, pre-delay 70 ms and then synced to 1/8 D"></a><br><b>Pre-delay, locked to the beat</b><br><sub>SYNC off, then 1/8 D at 100 BPM</sub></td>
   </tr>
 </table>
 
-The sounds in the demos are synthesized (no samples), and the videos are made by `tools/demos/` from the plugin
+The Duck and SYNC demos play the same phrase twice through Liminal Hz, before and after (each matched to the dry
+level). The sounds in the demos are synthesized (no samples), and the videos are made by `tools/demos/` from the plugin
 itself.
+
+### Sound design
+
+Six more, for ambience, FX and ear candy: small, plain sources (a whisper, water drops, wind, a few clicks, a riser, a
+fluorescent hum) pushed somewhere strange with the presets and Stretch, Decay, Feedback and SYNC. Same format: the
+dry sound, then Liminal Hz.
+
+<table>
+  <tr>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-ghost.mp4"><img src="docs/demos/liminal-hz-demo-ghost.jpg" width="250" alt="Demo: whispers through Reverse Bloom, stretched, with feedback"></a><br><b>Whispers, turned to ghosts</b><br><sub>Reverse Bloom · Stretch 150% · Feedback 35%</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-drips.mp4"><img src="docs/demos/liminal-hz-demo-drips.jpg" width="250" alt="Demo: water drops through Struck Pipe at Stretch 200%"></a><br><b>Water drops in a metal cave</b><br><sub>Struck Pipe · Stretch 200% · Decay 200%</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-wind.mp4"><img src="docs/demos/liminal-hz-demo-wind.jpg" width="250" alt="Demo: wind noise through Tuned Chord at Decay 300%"></a><br><b>Wind that sings a chord</b><br><sub>Tuned Chord · Decay 300% · Feedback 40%</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-ticks.mp4"><img src="docs/demos/liminal-hz-demo-ticks.jpg" width="250" alt="Demo: five clicks through Bouncing Ball, synced to the tempo"></a><br><b>Five clicks, a glitch cascade</b><br><sub>Bouncing Ball · SYNC 1/8 D · Feedback 45%</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-grains.mp4"><img src="docs/demos/liminal-hz-demo-grains.jpg" width="250" alt="Demo: a noise riser through Grain Cloud, stretched, with feedback"></a><br><b>A riser, torn into grains</b><br><sub>Grain Cloud · Stretch 200% · Decay 250%</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-hum.mp4"><img src="docs/demos/liminal-hz-demo-hum.jpg" width="250" alt="Demo: a flickering fluorescent hum through Breath, with feedback"></a><br><b>The building breathes</b><br><sub>Breath · Feedback 55% · Decay 200%</sub></td>
+  </tr>
+</table>
+
+## New in 1.4
+
+![Liminal Hz 1.4: Duck, Tempo SYNC, Textures and MPC's preset menu](docs/images/whats-new.png)
+
+![Duck: the reverb turned down while you play](docs/images/feature-duck.png)
+![Tempo SYNC: pre-delay in note values](docs/images/feature-sync.png)
+![Textures: five IRs that aren't rooms](docs/images/feature-textures.png)
+![MPC's preset menu, and what each IR suits](docs/images/feature-presets.png)
 
 ## What it looks like
 
@@ -43,8 +84,8 @@ One page, made for the MPC's touchscreen, with nothing hidden on other tabs:
   beside it; the IR in use with **◀ ▶** to step through the list, its pack and details; **PREV PACK / NEXT PACK** and
   **DELETE** (for your own IRs: it asks twice); and the TONE3000 strip with **BROWSE** and its status line.
 - **Right, the shape** of the sound, and the shaping knobs: **trim**, **fade** and **time** (Stretch, Decay, Reverse).
-- **Below**, the mix controls: **space**, **tone** and **out**; in the corner, **LONG IR** and its status line (20 s IRs
-  on Gen 1: it asks twice, as it is CPU heavy).
+- **Below**, the mix controls: **space** (with **SYNC** beside Pre-delay), **tone** and **out** (Duck and Output); in
+  the corner, **LONG IR** and its status line (20 s IRs on Gen 1; it says CPU heavy while it's on).
 
 Behind it all, a doorway at the far end of an empty room.
 
@@ -74,12 +115,20 @@ The shape display shows what the IR sounds like, after your shaping:
 
 ![The controls](docs/images/controls.png)
 
-- **space**: **Mix** (the big one), **Pre-delay** (0-250 ms) and **Feedback** (0-100%). Feedback feeds the reverb back
+- **space**: **Mix** (the big one), **Pre-delay** (0-250 ms, or a note value with **SYNC**) and **Feedback** (0-100%).
+  Feedback feeds the reverb back
   into itself for longer, building tails: gentle at first, about 2-4x longer around 50%, and from about 70% a long ring
   that holds at roughly the level you play at, then fades away over 30-40 s once you stop. It can't run away or jump
   in level, and each repeat comes back a little darker, like a tape echo.
 - **tone**: **Low cut** and **High cut** (on the reverb only; each octave gets the same turn of the knob) and
-  **Width** (0-200%). **out**: **Output**.
+  **Width** (0-200%). **out**: **Duck** and **Output**.
+- **Duck** (0-100%) turns the reverb down while you play and lets it bloom in the gaps: big rooms on snares and vocals
+  without muddying the groove. At 100% the reverb drops by up to 24 dB under a loud input and comes back within about a
+  quarter of a second after it stops. It only turns down what you hear: Feedback's tails carry on underneath. At 0% (the
+  default) the sound is exactly as without it.
+- **SYNC** (beside Pre-delay) puts Pre-delay in time with your project: the knob steps through 0, 1/128, 1/64, 1/32,
+  1/16 T, 1/16, 1/16 D, 1/8 T, 1/8, 1/8 D and 1/4 at the project tempo, and follows tempo changes. (T is a triplet, D
+  dotted; up to 2 s, so a 1/4 at 30 BPM fits.)
 - **trim**: **Start** and **End**. **fade**: **Fade in** and **Fade out**.
 - **time**: **Stretch** (50-200%: longer and lower, or shorter and higher), **Decay** (50-300%) and **Reverse** (the IR
   backwards: it swells into the sound).
@@ -88,19 +137,54 @@ The shape display shows what the IR sounds like, after your shaping:
   dark room stays a dark room, just bigger (Backrooms at 300% rings about 2.5x as long). At 100% the IR plays exactly
   as recorded. IRs are capped at 5 s on Gen 1 (for the RK3288's CPU), so long IRs gain less there; with LONG IR on,
   and always on Gen 2, the cap is 20 s, so a 5 s room at 300% rings its full ~15 s. Feedback can take the tail further.
-- **LONG IR** (lower right, under Reverse; Gen 1): 20 s IRs and the high-quality IR preparation of Gen 2. CPU heavy, so
-  two taps: the first warns ("CPU heavy · tap again"), the second (within 4 s) turns it on; one tap turns it off. A
-  project remembers it; presets and Init leave it alone. On Gen 2 it reads "Gen 2 · always on".
+- **LONG IR** (lower right, under Reverse; Gen 1): 20 s IRs and the high-quality IR preparation of Gen 2. An on/off
+  switch like Reverse; while it's on the line under it reads "On · CPU heavy · 20 s" (it uses more of the CPU). A project remembers
+  it; presets and Init leave it alone. On Gen 2 it reads "Gen 2 · always on".
 
-Shaping happens in the background and crossfades in. Mix, Width, Output and Pre-delay glide to a new value, so moving
-them never clicks.
+Shaping happens in the background and crossfades in. Mix, Width, Output, Duck and Pre-delay glide to a new value, so
+moving them never clicks.
+
+**Q-Links** (16), in this order: Mix, Decay, Feedback, Pre-delay, Duck, Low Cut, High Cut, Width, IR, Stretch, Start,
+End, Fade In, Fade Out, Reverse, Output. What you turn while playing comes first.
 
 ## Factory presets
 
-Tap **PRESET** for a menu of 14 presets in three columns, plus **Init** (no IR: your sound passes through):
-- **Spaces**: Empty Mall, Pool Rooms, Fluorescent Hall, Backrooms
-- **Echoes**: Stairwell Flutter, Tape Corridor, Dream Ping-Pong, Parking Slap, Intercom Echo
-- **Strange**: Glass Void, Reverse Bloom, Sub Tunnel, Shimmer Fog, Liminal Hz
+Tap **PRESET** for a menu of 19 presets in four columns, plus **Init** (no IR: your sound passes through). Under the
+IR's name, each factory IR says what it suits ("Strange · best on chords, pads").
+
+**MPC's own preset menu** (at the top of the screen) has them too, grouped by what they're for: **Init**, then
+**Drum**, **Vocal**, **Keys**, **Pad** and **FX** presets ("Drum: Empty Mall", "Vocal: Tape Corridor", "Keys: Liminal
+Hz", "Pad: Backrooms", "FX: Grain Cloud"), then **your own IRs** ("My IR: Big Hall"), each with Init's settings. That
+list is read when the plugin loads, so IRs you add or delete show up the next time you load it or reopen a project.
+A project always reopens with its own sound, whatever the menu lists then.
+
+| Drum | Vocal | Keys | Pad | FX |
+|---|---|---|---|---|
+| Empty Mall, Pool Rooms, Stairwell Flutter, Parking Slap, Struck Pipe, Bouncing Ball | Tape Corridor, Intercom Echo, Glass Void | Fluorescent Hall, Dream Ping-Pong, Liminal Hz | Backrooms, Shimmer Fog | Reverse Bloom, Sub Tunnel, Grain Cloud, Tuned Chord, Breath |
+
+Picking one of your own IRs (on the page or from the menu) puts the knobs back to Init, whether you came from a
+factory preset or another of your IRs: a sound's settings belong to its IR. Shape it from there; picking the same IR
+again keeps your changes. To keep a sound, save it as a My Preset: those always load exactly as saved.
+
+The plugin's own list, by kind:
+
+| Spaces | Best on | Echoes | Best on |
+|---|---|---|---|
+| Empty Mall | drums, vocals | Stairwell Flutter | snares, claps |
+| Pool Rooms | snares, vocals | Tape Corridor | vocals, keys |
+| Fluorescent Hall | keys, pads | Dream Ping-Pong | keys, plucks |
+| Backrooms | pads, drones | Parking Slap | drums, rap vocals |
+| | | Intercom Echo | vocals, FX |
+
+| Strange | Best on | Textures (not rooms) | Best on |
+|---|---|---|---|
+| Glass Void | pads, vocals | Struck Pipe | drums, percussion |
+| Reverse Bloom | drums, vocals | Grain Cloud | vocals, pads |
+| Sub Tunnel | drums, drones | Tuned Chord | drums, vocals |
+| Shimmer Fog | pads, guitars | Breath | vocals, hi-hats |
+| Liminal Hz | chords, pads | Bouncing Ball | snares, one-shots |
+
+They're starting points: any of them on anything is fair game.
 
 The factory IRs are synthetic (generated by `tools/make_factory_irs.py`, not recorded), so they're free to use like
 the rest of the plugin.
@@ -141,6 +225,9 @@ Put `.wav` IRs (mono or stereo, any sample rate) in any folder named `reverbs` o
 packs (subfolders) if you like; switch to **MY IRS**. The plugin remembers where it found them, so starting up and
 **RESCAN** are quick even on a full card.
 
+Any `.wav` works, not just rooms: a drum hit, a vocal phrase, a chord, a sample from your MPC. Your sound is played
+through it, and Stretch, Decay and Reverse turn it into something new. The Textures presets are a start.
+
 ## Gen 2 (RK3588, 64-bit)
 
 Gen 2 units (MPC Live III and kin) run a 64-bit system that can't load Gen 1's 32-bit plugins, so each release has two
@@ -159,7 +246,7 @@ same plugin, with the same page, parameters and presets, so a project moves betw
 LONG IR is off by default on Gen 1 because 20 s IRs use more of the second core and more memory, and take longer to
 prepare after each change. The convolution and the FFT are the same everywhere since 1.3.0 (both made Gen 1 cheaper).
 The audio thread's cost doesn't grow with IR length: it always runs the same first 93 ms of the IR (zero latency);
-everything later runs on worker threads. 1.2.0 was tested on an MPC Live III and an Akai Force (MPC OS 3.9.1). As for
+everything later runs on worker threads. 1.4.0 was tested on an MPC Live III and an Akai Force (MPC OS 3.10). As for
 every Gen 2 plugin today, installing on Gen 2 needs root access on the unit (mpc-vst-plugins docs/GEN2.md).
 
 ## Install

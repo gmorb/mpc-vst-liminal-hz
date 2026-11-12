@@ -5,12 +5,14 @@
 // level normalisation, IR crossfade, odd host block sizes, loading WAVs. IRs built with LongConvolver::Inline (the
 // same arithmetic as Threaded, deterministic without real-time pacing).
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <random>
 #include <string>
 #include <vector>
 #include "reverb_engine.h"
+#include "wav_reader.h"
 using namespace irrev;
 static int fails = 0;
 #define CHECK(c, ...) do { printf("%s ", (c) ? "ok  " : "FAIL"); printf(__VA_ARGS__); printf("\n"); if (!(c)) fails++; } while (0)
@@ -278,6 +280,24 @@ int main(int argc, char** argv) {
     }
     IRShape a1; auto i1 = ir_shaped({L, Rr}, a1), i2 = ir_shaped({L, Rr}, a1);
     CHECK(i1 && i2 && i1->sonics == i2->sonics && i1->t60 == i2->t60, "Decay 100%%: the IR as prepared before (the reshaping is skipped)");
+    {   // band-limited IRs at Stretch x Decay: Grain Cloud and Tuned Chord (nothing much above ~5 kHz; Stretch 200% on
+        // Gen 1 halves that again) were "Silent IR" at Stretch 200% with any Decay but 100%: an all but empty band's
+        // "decay time" is noise, and lifting it overflowed a float (inf, then NaN). The factory files themselves.
+      bool all = true; int tried = 0; std::string what;
+      for (const char* f : {"packaging/factory/Textures/Grain_Cloud.wav", "packaging/factory/Textures/Tuned_Chord.wav",
+                            "packaging/factory/Textures/Struck_Pipe.wav", "packaging/factory/Spaces/Backrooms.wav"}) {
+        WavData w; std::string err;
+        if (!read_wav(f, &w, &err)) continue;
+        for (double st : {0.5, 1.0, 1.5, 2.0})
+          for (double d : {0.5, 1.5, 2.5, 3.0})
+            for (int hq = 0; hq < 2; hq++) {
+              IRShape s; s.stretch = st; s.decay = d; tried++;
+              auto ir = ReverbIR::make(w.channels, w.rate, RATE, s, &err, LongConvolver::Inline, hq ? Quality::high() : platform::default_quality());
+              if (!ir || !std::isfinite(ir->t60)) { all = false; char b[160]; snprintf(b, sizeof b, " [%s stretch %.1f decay %.1f hq %d: %s]", f + 18, st, d, hq, err.c_str()); what += b; }
+            }
+      }
+      CHECK(all && tried == 128, "the factory Textures prepare at every Stretch x Decay, standard and high quality (%d tried)%s", tried, what.c_str());
+    }
   }
   { // high quality (LONG IR on Gen 1, always on Gen 2; platform.h): long IRs, Decay past 5 s, band-limited resampling
     const Quality HQ = Quality::high();
@@ -331,6 +351,19 @@ int main(int argc, char** argv) {
       if (same) { auto y1 = impulse_response(*x1, x1->frames), y3 = impulse_response(*x3, x3->frames); same = y1 == y3; }
       CHECK(same && x2 && x2->frames == x1->frames / 2, "a kept resampling gives the same IR (%zu, %zu frames; End 50%%: %zu)",
             x1 ? x1->frames : 0, x3 ? x3->frames : 0, x2 ? x2->frames : 0);
+      // several are kept: back to the first IR after three others is still quick, and still the same IR
+      using C = std::chrono::steady_clock;
+      auto ms = [](C::time_point a) { return std::chrono::duration<double, std::milli>(C::now() - a).count(); };
+      std::vector<std::vector<float>> others(3, c);
+      for (int k = 0; k < 3; k++) for (float& v : others[k]) v *= 0.5f + 0.1f * k;   // three different IRs
+      std::vector<float> c8((size_t)(8 * r48)); for (size_t i = 0; i < c8.size(); i++) c8[i] = c[i % n];
+      auto t0 = C::now(); auto f1 = ReverbIR::make({c8}, r48, RATE, a1, &err, LongConvolver::Inline, HQ); const double cold = ms(t0);
+      for (auto& o : others) ReverbIR::make({o}, r48, RATE, a1, &err, LongConvolver::Inline, HQ);
+      t0 = C::now(); auto f2 = ReverbIR::make({c8}, r48, RATE, a1, &err, LongConvolver::Inline, HQ); const double warm = ms(t0);
+      bool same2 = f1 && f2 && f1->frames == f2->frames;
+      if (same2) { auto y1 = impulse_response(*f1, f1->frames), y2 = impulse_response(*f2, f2->frames); same2 = y1 == y2; }
+      CHECK(same2 && warm < 0.7 * cold, "4 resamplings kept: an 8 s 48 kHz IR again after 3 others, %.0f ms (first time %.0f ms), the same IR",
+            warm, cold);
     }
     {   // the standard quality (Gen 1 with LONG IR off) keeps 5 s, and a 5 s IR also uses the far stage (both builds)
       IRShape s0;
@@ -434,6 +467,34 @@ int main(int argc, char** argv) {
     IRShape rv = keep; rv.reverse = true;
     auto sw = ir_shaped({L, R}, rv);
     CHECK(st && st->swell == 0.0f && sw && sw->swell > 2.5f, "a reversed room swells (to %.2f s); the room itself doesn't", sw ? sw->swell : 0.f);
+  }
+  { // Duck: the wet signal turned down while the input plays, back in the gaps; the feedback loop untouched
+    const size_t N = (size_t)(4.0 * RATE), on = (size_t)(1.5 * RATE);   // 1.5 s of noise at -12 dBFS, then silence
+    std::mt19937 rn(5); std::normal_distribution<float> gn(0, 1);
+    std::vector<float> xl(N, 0.0f), xr(N, 0.0f);
+    for (size_t i = 0; i < on; i++) { xl[i] = 0.25f * 0.5f * gn(rn); xr[i] = 0.25f * 0.5f * gn(rn); }
+    auto room = [&] { return ir_of({decay((size_t)(1.5 * RATE), 31, 0.3f), decay((size_t)(1.5 * RATE), 32, 0.3f)}); };
+    auto render = [&](float duck, float fb, int mode) {        // mode 0: duck untouched, 1: set
+      ReverbEngine e(RATE); e.params.mix = 1; e.params.feedback = fb;
+      if (mode == 1) e.params.duck = duck;
+      e.set_ir(room());
+      std::vector<float> ol, orr; run(e, xl, xr, ol, orr); return ol;
+    };
+    auto seg = [](const std::vector<float>& v, double a, double b) {
+      return std::vector<float>(v.begin() + (size_t)(a * RATE), v.begin() + (size_t)(b * RATE)); };
+    const auto base = render(0, 0, 0), zero = render(0, 0, 1), full = render(1, 0, 1), half = render(0.5f, 0, 1);
+    CHECK(base == zero, "Duck 0: the output bit for bit as without Duck");
+    const double during = 20 * std::log10(rms(seg(full, 0.8, 1.4)) / rms(seg(base, 0.8, 1.4))),
+                 during_half = 20 * std::log10(rms(seg(half, 0.8, 1.4)) / rms(seg(base, 0.8, 1.4)));
+    CHECK(during < -21 && during > -25 && during_half < -10 && during_half > -14,
+          "a steady loud input: the reverb %.1f dB at Duck 100%%, %.1f dB at 50%%", during, during_half);
+    const double gap = 20 * std::log10(rms(seg(full, 1.9, 2.3)) / rms(seg(base, 1.9, 2.3)));
+    CHECK(gap > -1.0, "0.4 s after the input stops the tail is back (%.2f dB)", gap);
+    const auto fb0 = render(0, 0.6f, 1), fb1 = render(1, 0.6f, 1);
+    double late = 0, late_ref = 0;
+    for (size_t i = (size_t)(3.0 * RATE); i < N; i++) { late += std::fabs(fb1[i] - fb0[i]); late_ref += std::fabs(fb0[i]); }
+    CHECK(late_ref > 0 && late / late_ref < 1e-3, "with Feedback 60%%, the tail after the input (3-4 s) is as without Duck (diff %.1e)",
+          late_ref > 0 ? late / late_ref : -1.0);
   }
   printf("%s (%d failure%s)\n", fails ? "FAILED" : "PASSED", fails, fails == 1 ? "" : "s");
   return fails ? 1 : 0;

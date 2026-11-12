@@ -638,7 +638,12 @@
         "Reverse Bloom",
         "Sub Tunnel",
         "Shimmer Fog",
-        "Liminal Hz"
+        "Liminal Hz",
+        "Struck Pipe",
+        "Grain Cloud",
+        "Tuned Chord",
+        "Breath",
+        "Bouncing Ball"
       ],
       "default": 0
     },
@@ -824,6 +829,22 @@
       "default": 0,
       "display": "string",
       "type": "readout"
+    },
+    {
+      "key": "duck",
+      "name": "Duck",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 0
+    },
+    {
+      "key": "predelay_sync", "name": "Sync",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
     }
   ]
 }

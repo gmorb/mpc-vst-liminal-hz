@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 the mpc-vst-liminal-hz contributors
 """make_factory_irs.py [out dir] -- Liminal Hz's factory IRs: synthetic, atmospheric spaces, echoes and strange
-rooms, generated from scratch (no recordings: free to ship under the plugin's licence). Default out dir:
+rooms, and Textures that aren't rooms at all (an object, a cloud, a chord, a breath, a bounce), generated from scratch (no recordings: free to ship under the plugin's licence). Default out dir:
 packaging/factory/<Category>/<Name_With_Underscores>.wav (the page shows the names with spaces). Stereo, 24-bit, 44.1 kHz, deterministic (fixed seeds).
 
 Each IR = early reflections (softened taps, panned) + a diffuse tail: independent noise per channel, split into
@@ -200,6 +200,76 @@ def liminal_hz(n, rng):
     R = (tail(n, (3.8, 3.4, 2.6, 1.8), rng, onset=0.033, build=0.12) + beat * 0.95) * (1 + 0.35 * np.sin(2 * np.pi * 0.7 * t + 1.1))
     return L, R
 
+# ---- Textures: not rooms at all. Any sound can be an IR: the input is played "through" it (an object, a cloud of
+# grains, a chord, a breath, a bounce), which is the most creative thing a convolution reverb does.
+def struck_pipe(n, rng):
+    """a metal pipe struck once: inharmonic partials (a free bar's 1 : 2.76 : 5.40 : 8.93 ...), the high ones die first"""
+    t = np.arange(n) / SR
+    f0, ratios = 196.0, [1.0, 2.756, 5.404, 8.933, 13.34, 18.64]
+    out = []
+    for ch in range(2):
+        y = np.zeros(n)
+        for k, r in enumerate(ratios):
+            f = f0 * r * (1 + rng.uniform(-0.008, 0.008))   # (each side a hair apart: they drift, wide)
+            y += np.sin(2 * np.pi * f * t + rng.uniform(0, 2 * np.pi)) * np.exp(-6.91 * t / (2.4 / (1 + 0.55 * k))) / (1 + 0.4 * k)
+        y += 0.06 * tail(n, (0.3, 0.25, 0.12, 0.06), rng, build=0.0005)   # the strike's noise
+        out.append(y)
+    return out[0], out[1]
+
+def grain_cloud(n, rng):
+    """hundreds of tiny grains (short windowed bursts of band-passed noise, each about half an octave wide) scattered
+    across the IR, thinning out. Noise, not sine tones: pure-tone grains gave the IR needle-sharp resonances (~118 dB
+    over its median) that rang out any steady partial landing on one (a synth's harmonics, or its aliasing)"""
+    L, R = np.zeros(n), np.zeros(n)
+    for _ in range(420):
+        t0 = rng.exponential(0.7)
+        i = int(t0 * SR)
+        g_n = int(rng.uniform(0.012, 0.06) * SR)
+        if i + g_n >= n: continue
+        f = 2 ** rng.uniform(np.log2(300), np.log2(5000))
+        fq = np.fft.rfftfreq(g_n, 1 / SR)
+        band = np.exp(-0.5 * (np.log2(np.maximum(fq, 1.0) / f) / 0.25) ** 2)               # ~half an octave
+        p = rng.beta(0.3, 0.3)                                                       # each grain its own place, mostly to a side
+        for out, gain in ((L, np.sqrt(1 - p)), (R, np.sqrt(p))):                     # (its own noise on each side)
+            g = np.fft.irfft(np.fft.rfft(rng.standard_normal(g_n)) * band, g_n); g /= np.sqrt(np.mean(g ** 2)) + 1e-12
+            out[i:i + g_n] += np.hanning(g_n) * g * np.exp(-t0 / 1.4) * gain
+    return L, R
+
+def tuned_chord(n, rng):
+    """the input rings a chord: resonances on C, E, G, B, D (Cmaj9) and their octaves, slowly beating"""
+    notes = [130.81, 164.81, 196.0, 246.94, 293.66, 261.63, 392.0, 493.88, 587.33]
+    L = resonance(n, notes, 3.6, 1.0, rng, detune=0.6) + 0.05 * tail(n, (1.2, 1.0, 0.6, 0.3), rng, build=0.002)
+    R = resonance(n, notes, 3.6, 1.0, rng, detune=0.6) + 0.05 * tail(n, (1.2, 1.0, 0.6, 0.3), rng, build=0.002)
+    return L, R
+
+def breath(n, rng):
+    """a soft breath: noise through two vowel formants, swelling in and out in under a second"""
+    t = np.arange(n) / SR
+    env = np.sin(np.pi * np.minimum(t / 0.9, 1.0)) ** 2 * np.exp(-t / 0.5)
+    out = []
+    for ch in range(2):
+        X = np.fft.rfft(rng.standard_normal(n)); f = np.fft.rfftfreq(n, 1 / SR)
+        form = sum(g / (1 + ((f - fc) / bw) ** 2) for fc, bw, g in ((700, 180, 1.0), (1220, 220, 0.7), (2600, 400, 0.3)))
+        out.append(np.fft.irfft(X * form, n) * env)
+    return out[0], out[1]
+
+def bouncing_ball(n, rng):
+    """a ball dropped on a hard floor: bounces closer and closer together, each softer, wandering across"""
+    L, R = np.zeros(n), np.zeros(n)
+    gap, g, t0, side = 0.42, 1.0, 0.0, 0.5
+    tok_n = int(0.03 * SR)
+    while g > 0.02:
+        i = int(t0 * SR)
+        if i + tok_n >= n: break
+        side = min(0.9, max(0.1, side + rng.uniform(-0.25, 0.25)))
+        for ch, pan in ((L, np.sqrt(1 - side)), (R, np.sqrt(side))):
+            tok = tail(tok_n, (0.05, 0.04, 0.02, 0.01), rng, build=0.0003)          # a short knock (its own noise per side)
+            ch[i:i + tok_n] += g * pan * tok
+        t0 += gap; gap *= 0.78; g *= 0.8
+    L += 0.05 * tail(n, (0.9, 0.7, 0.4, 0.2), rng, onset=0.0, build=0.002)        # the floor's small room
+    R += 0.05 * tail(n, (0.9, 0.7, 0.4, 0.2), rng, onset=0.0, build=0.002)
+    return L, R
+
 FACTORY = [
     ("Spaces", "Empty Mall", 4.2, empty_mall), ("Spaces", "Pool Rooms", 3.6, pool_rooms),
     ("Spaces", "Fluorescent Hall", 4.8, fluorescent_hall), ("Spaces", "Backrooms", 2.2, backrooms),
@@ -209,6 +279,9 @@ FACTORY = [
     ("Strange", "Glass Void", 4.8, glass_void), ("Strange", "Reverse Bloom", 2.3, reverse_bloom),
     ("Strange", "Sub Tunnel", 4.8, sub_tunnel), ("Strange", "Shimmer Fog", 4.8, shimmer_fog),
     ("Strange", "Liminal Hz", 4.8, liminal_hz),
+    ("Textures", "Struck Pipe", 2.6, struck_pipe), ("Textures", "Grain Cloud", 2.8, grain_cloud),
+    ("Textures", "Tuned Chord", 3.0, tuned_chord), ("Textures", "Breath", 1.6, breath),
+    ("Textures", "Bouncing Ball", 2.4, bouncing_ball),
 ]
 
 

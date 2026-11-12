@@ -60,6 +60,13 @@ wordmark(d, 84, 300, 96, by=False)
 d.text((88,350),'by Gm0rb',font=fR(30),fill=GR,anchor='ls')
 d.text((88,440),'Real rooms, halls and echoes from impulse responses.',font=fR(30),fill=(196,190,178),anchor='ls')
 d.text((88,482),'The space for your NAM amp  \u00b7  Akai Force & MPC  \u00b7  TONE3000 IRs',font=fR(22),fill=DIM,anchor='ls')
+# what's new: an amber "NEW IN 1.4" pill and the four features (this is also the repo's social preview: keep it current)
+x=88; y=548; pill='NEW IN 1.4'; fp=fS(19); tw=d.textlength(pill,font=fp)
+d.rounded_rectangle([x,y-24,x+tw+28,y+8],radius=16,outline=AMB,width=2); d.text((x+14,y),pill,font=fp,fill=AMB,anchor='ls')
+x+=tw+48
+for k,word in enumerate(['Duck','Tempo SYNC','Textures',"MPC's preset menu"]):
+    if k: d.text((x,y),'\u00b7',font=fR(22),fill=DIM,anchor='ls'); x+=d.textlength('\u00b7',font=fR(22))+14
+    d.text((x,y),word,font=fS(22),fill=(222,214,198),anchor='ls'); x+=d.textlength(word,font=fS(22))+14
 im.save(os.path.join(OUTD,'banner.png'))
 
 # 3. Impulse: the IR painting, large, with the glow
@@ -80,16 +87,16 @@ im.convert('RGB').save(os.path.join(OUTD,'shape.png'))
 # 4. Controls: the engraved knobs at real values
 im=vignette(bg(0.8),0.5).convert('RGBA'); d=ImageDraw.Draw(im)
 big=Image.open(A+'knob_big.png'); fw=big.width
-# factory 'Liminal Hz' (Low Cut and High Cut turn on a log scale; Decay 50-300%)
-knobs=[('Mix','40%',0.40),('Pre-delay','35 ms',0.14),('Feedback','50%',0.50),('Low Cut','80 Hz',0.354),('High Cut','11.0 kHz',0.800),('Width','150%',0.75),('Output','0.0 dB',0.67),('Decay','100%',0.20)]
-size=132; gap=(W-120-size*len(knobs))/(len(knobs)-1); x=60
+# factory 'Liminal Hz', Duck 25% (Low Cut and High Cut turn on a log scale; Decay 50-300%)
+knobs=[('Mix','40%',0.40),('Pre-delay','35 ms',0.14),('Feedback','50%',0.50),('Low Cut','80 Hz',0.354),('High Cut','11.0 kHz',0.800),('Width','150%',0.75),('Duck','25%',0.25),('Output','0.0 dB',0.67),('Decay','100%',0.20)]
+size=118; gap=(W-120-size*len(knobs))/(len(knobs)-1); x=60
 for nm,val,v in knobs:
     f=int(round(v*127)); fr=big.crop((0,f*fw,fw,(f+1)*fw)).resize((size,size),Image.LANCZOS)
     im.alpha_composite(fr,(int(x),250))
     cx=int(x+size/2); d.text((cx,438),nm,font=fS(24),fill=GR,anchor='ms'); d.text((cx,478),val,font=fS(32),fill=IV,anchor='ms')
     x+=size+gap
 wordmark(d, 64, 150, 60)
-d.text((66,560),'14 factory spaces & echoes  \u00b7  IRs up to 20 s with LONG IR  \u00b7  decay, stretch, reverse, fades  \u00b7  My Presets  \u00b7  TONE3000',font=fR(22),fill=DIM,anchor='ls')
+d.text((66,560),'19 factory IRs  \u00b7  IRs up to 20 s with LONG IR  \u00b7  decay, stretch, reverse  \u00b7  duck, tempo sync  \u00b7  My Presets  \u00b7  TONE3000',font=fR(22),fill=DIM,anchor='ls')
 im.convert('RGB').save(os.path.join(OUTD,'controls.png'))
 
 # 5. The lists and the phone pages (when their renders are given)

@@ -54,12 +54,17 @@ struct AEffect {
   char future[56];
 };
 enum {
-  effOpen = 0, effClose = 1, effGetParamLabel = 6, effGetParamDisplay = 7, effGetParamName = 8,
+  effOpen = 0, effClose = 1, effSetProgram = 2, effGetProgram = 3, effGetProgramName = 5, effGetProgramNameIndexed = 29,
+  effGetParamLabel = 6, effGetParamDisplay = 7, effGetParamName = 8,
   effSetSampleRate = 10, effSetBlockSize = 11, effMainsChanged = 12, effGetChunk = 23, effSetChunk = 24, effProcessEvents = 25,
   effCanBeAutomated = 26, effGetPlugCategory = 35, effGetEffectName = 45, effGetVendorString = 47,
   effGetProductString = 48, effGetVendorVersion = 49, effCanDo = 51, effGetVstVersion = 58,
 };
-enum { audioMasterAutomate = 0, audioMasterUpdateDisplay = 42 };
+enum { audioMasterAutomate = 0, audioMasterGetTime = 7, audioMasterUpdateDisplay = 42, kVstTempoValid = 1 << 10 };
+struct VstTimeInfo {                           // (audioMasterGetTime's answer; MPC gives a valid tempo: mpc-vst-plugins docs/NOTES.md)
+  double samplePos, sampleRate, nanoSeconds, ppqPos, tempo, barStartPos, cycleStartPos, cycleEndPos;
+  int32_t timeSigNumerator, timeSigDenominator, smpteOffset, smpteFrameRate, samplesToNextClock, flags;
+};
 enum { effFlagsCanReplacing = 1 << 4, effFlagsProgramChunks = 1 << 5 };
 enum { kPlugCategEffect = 1 };
 struct VstEvent { int32_t type, byteSize, deltaFrames, flags; char data[16]; };   // type 1: MIDI (VstMidiEvent)
@@ -92,6 +97,8 @@ enum {
   P_LONG_IR,                                   // LONG IR: the high IR quality (engine/platform.h); a device setting, not a sound's
   P_LONG_IR_TAP,                               // its button: two taps turn it on (the first warns: CPU heavy), one turns it off
   P_LONG_IR_INFO,                              // read-only: "Off · IRs up to 5 s", "CPU heavy · tap again", "On · IRs up to 20 s"
+  P_DUCK,                                      // Duck: the reverb turned down while the input plays (engine: ReverbParams::duck)
+  P_PREDELAY_SYNC,                             // SYNC: Pre-delay in note values at the project tempo
   P_PRESET_OPEN,                               // the PRESET popup's open flag (added by the layout's popup)
   P_COUNT
 };
@@ -113,6 +120,10 @@ struct Browser {
   std::string notice;
 };
 static const int kArmSeconds = 4;
+// A tap MPC delivers twice (or a toggle it echoes) within this is one tap: a two-tap DELETE must not arm and confirm
+// on one touch. (LONG IR's warn-then-confirm taps behaved so on the device: the first tap turned it on.)
+static const int kTapMs = 300;
+static const double kDispGapMs = 100, kDispHoldMs = 600;   // UpdateDisplay pacing (notify())
 
 // My Presets (engine/presets.h): the saved presets, the one selected, and what the worker is asked to do
 struct MyPresets {
@@ -134,7 +145,14 @@ struct MyPresets {
 static const struct { const char* key; int p; } kPresetParams[] = {
   {"mix", P_MIX}, {"predelay", P_PREDELAY}, {"lowcut", P_LOWCUT}, {"highcut", P_HIGHCUT}, {"width", P_WIDTH},
   {"length", P_LENGTH}, {"output", P_OUTPUT}, {"start", P_START}, {"fade_in", P_FADE_IN}, {"fade_out", P_FADE_OUT},
-  {"stretch", P_STRETCH}, {"reverse", P_REVERSE}, {"feedback", P_FEEDBACK}, {"decay", P_DECAY}};
+  {"stretch", P_STRETCH}, {"reverse", P_REVERSE}, {"feedback", P_FEEDBACK}, {"decay", P_DECAY}, {"duck", P_DUCK},
+  {"predelay_sync", P_PREDELAY_SYNC}};
+
+// SYNC: the Pre-delay knob's steps, in beats (quarter notes); T triplet, D dotted
+static const struct { const char* name; double beats; } kNotes[] = {
+  {"0", 0}, {"1/128", 1 / 32.0}, {"1/64", 1 / 16.0}, {"1/32", 1 / 8.0}, {"1/16 T", 1 / 6.0}, {"1/16", 1 / 4.0},
+  {"1/16 D", 3 / 8.0}, {"1/8 T", 1 / 3.0}, {"1/8", 1 / 2.0}, {"1/8 D", 3 / 4.0}, {"1/4", 1.0}};
+static const int kNoteCount = (int)(sizeof kNotes / sizeof kNotes[0]);
 
 struct Inst {
   AEffect fx;
@@ -152,6 +170,9 @@ struct Inst {
   std::thread worker;
   std::atomic<int> changed[P_COUNT];
   std::atomic<int> update_display{0};
+  std::atomic<float> host_view[P_COUNT];       // each value as the host last had it (it wrote it, or was told): -1 unknown
+  std::chrono::steady_clock::time_point disp_last, disp_since;   // UpdateDisplay: last sent, first unsent request (audio thread)
+  bool disp_wait = false;                      // an UpdateDisplay is due (audio thread)
   std::string chunk;
   std::vector<LibEntry> libs[2];               // 0: the factory IRs, 1: My IRs (reverbs/ folders)
   long late_seen = 0;                          // late tail blocks already noticed (host thread, under mu)
@@ -164,8 +185,14 @@ struct Inst {
   int marq_sent = 0;                           // the scroll step the rows were last redrawn at (worker, under mu)
   std::string sonics;                          // the loaded IR's sonics, as words (under mu)
   int playhead_sent = 0, playhead_age = 0;     // the playhead as last reported (audio thread)
-  std::chrono::steady_clock::time_point long_armed_until;   // LONG IR: the first tap warned; a second before this turns it on
-  bool long_armed = false;                     // (under mu)
+  std::chrono::steady_clock::time_point long_tap_at;   // LONG IR's old tap parameter: the last tap taken (see kTapMs)
+  std::vector<LibEntry> prog_irs;              // MPC's PRESET menu: My IRs as programs (the folder index, read at load)
+  std::atomic<int> cur_prog{0};                // the program MPC's menu shows as current
+  std::chrono::steady_clock::time_point chunk_at;   // a project's state arrived (a program picked just after: the host)
+  std::atomic<bool> preset_clean{false};       // the settings are a factory preset's, untouched: a My IR picked -> Init
+  std::atomic<bool> init_pending{false};       // (a TONE3000 download selected on the worker: Init after publishing)
+  std::atomic<double> bpm{120.0};              // SYNC: the host's tempo (audio thread writes; 120 until it gives one)
+  std::atomic<bool> tempo_ok{false};           // the host gave a tempo
 };
 
 static float clamp01(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
@@ -197,6 +224,10 @@ struct Preset {
 // Feedback (0-100%, eased, damped and guarded in the engine): these keep the tails the presets had before the runaway
 // fix (Tape Corridor 20 -> 34, Dream Ping-Pong 15 -> 39, Intercom Echo 25 -> 43, Shimmer Fog 10 -> 12: its repeats are
 // now damped, 4.1 s for 4.4 s). Liminal Hz's 12 ran away (an endless drone 9 dB over the rest): 50 is a long tail that ends.
+// Levels (an audit of every preset, 1.4.0): over drums, a vocal, a synth chord and pink noise each preset's peak stays
+// within ~3 dB of the input's and its level within about +-3 dB of the dry; a -12 dBFS sine sweep stays under 0 dBFS;
+// summed to mono a vocal loses at most ~4 dB. Resonant IRs (Sub Tunnel, Liminal Hz's feedback on held notes, the
+// Textures; unit-energy IRs put much more gain on their peaks than a room) get less Mix, a trimmed Output, or less Width.
 static const Preset kPresets[] = {
   {"Empty Mall", "Spaces", 35, 20, 90, 9000, 120, 100, 0, 0, 0, 10, 100, 0, 0},
   {"Pool Rooms", "Spaces", 30, 8, 120, 14000, 110, 100, 0, 0, 0, 10, 100, 0, 0},
@@ -207,13 +238,81 @@ static const Preset kPresets[] = {
   {"Dream Ping-Pong", "Echoes", 35, 0, 140, 12000, 160, 100, 0, 0, 0, 8, 100, 0, 39},
   {"Parking Slap", "Echoes", 30, 0, 100, 8000, 120, 100, 0, 0, 0, 10, 100, 0, 0},
   {"Intercom Echo", "Echoes", 30, 0, 300, 4000, 100, 100, 0, 0, 0, 10, 100, 0, 43},
-  {"Glass Void", "Strange", 30, 40, 200, 14000, 140, 100, 0, 0, 5, 15, 100, 0, 0},
+  {"Glass Void", "Strange", 30, 40, 200, 14000, 115, 100, 0, 0, 5, 15, 100, 0, 0},
   {"Reverse Bloom", "Strange", 40, 0, 120, 10000, 140, 100, 0, 0, 0, 4, 100, 0, 0},
-  {"Sub Tunnel", "Strange", 30, 20, 30, 5000, 120, 100, 0, 0, 0, 12, 100, 0, 0},
+  {"Sub Tunnel", "Strange", 22, 20, 30, 5000, 120, 100, -3, 0, 0, 12, 100, 0, 0},
   {"Shimmer Fog", "Strange", 38, 50, 250, 16000, 170, 100, 0, 0, 10, 15, 100, 0, 12},
-  {"Liminal Hz", "Strange", 40, 35, 80, 11000, 150, 100, 0, 0, 5, 15, 100, 0, 50}
+  {"Liminal Hz", "Strange", 30, 35, 80, 11000, 150, 100, -2, 0, 5, 15, 100, 0, 45},
+  // Textures: not rooms. The input played through an object, a cloud of grains, a chord, a breath, a bounce
+  {"Struck Pipe", "Textures", 20, 0, 120, 12000, 130, 100, -2, 0, 0, 10, 100, 0, 0},
+  {"Grain Cloud", "Textures", 40, 10, 150, 14000, 120, 100, -4, 0, 0, 15, 100, 0, 0},
+  {"Tuned Chord", "Textures", 12, 0, 100, 10000, 100, 100, -2, 0, 0, 10, 100, 0, 0},
+  {"Breath", "Textures", 35, 0, 200, 12000, 110, 100, -5, 0, 0, 15, 100, 0, 0},
+  {"Bouncing Ball", "Textures", 35, 0, 120, 12000, 150, 100, 0, 0, 0, 10, 100, 0, 0}
 };
 static const int kPresetCount = (int)(sizeof kPresets / sizeof kPresets[0]);
+
+// What each factory IR suits best: shown after its category on the page's pack line ("Strange · best on pads, vocals").
+static const struct { const char *ir, *best; } kBestOn[] = {
+  {"Empty Mall", "drums, vocals"}, {"Pool Rooms", "snares, vocals"}, {"Fluorescent Hall", "keys, pads"},
+  {"Backrooms", "pads, drones"}, {"Stairwell Flutter", "snares, claps"}, {"Tape Corridor", "vocals, keys"},
+  {"Dream Ping-Pong", "keys, plucks"}, {"Parking Slap", "drums, rap vocals"}, {"Intercom Echo", "vocals, FX"},
+  {"Glass Void", "pads, vocals"}, {"Reverse Bloom", "drums, vocals"}, {"Sub Tunnel", "drums, drones"},
+  {"Shimmer Fog", "pads, guitars"}, {"Liminal Hz", "chords, pads"}, {"Struck Pipe", "drums, percussion"},
+  {"Grain Cloud", "vocals, pads"}, {"Tuned Chord", "drums, vocals"}, {"Breath", "vocals, hi-hats"},
+  {"Bouncing Ball", "snares, one-shots"}};
+static const char* best_on(const std::string& ir) {
+  for (const auto& b : kBestOn) if (ir == b.ir) return b.best;
+  return nullptr;
+}
+
+// VST programs: MPC's own PRESET menu (top of the screen) lists them and loads one with effSetProgram
+// (mpc-vst-plugins docs/NOTES.md, 2026-10-07). VST2 has no folders, so the list is grouped by what each preset is for,
+// named "Use: Name" (<= 23 characters): Init, the Drum, Vocal, Keys, Pad and FX presets, then My IRs ("My IR: Name",
+// each with Init's settings), read from the folder index when the plugin loads, so IRs added or deleted show on the
+// next load. The factory programs keep their places; My IRs come last.
+static const struct { const char *use, *name; } kProgOrder[] = {
+  {"Drum", "Empty Mall"}, {"Drum", "Pool Rooms"}, {"Drum", "Stairwell Flutter"}, {"Drum", "Parking Slap"},
+  {"Drum", "Struck Pipe"}, {"Drum", "Bouncing Ball"},
+  {"Vocal", "Tape Corridor"}, {"Vocal", "Intercom Echo"}, {"Vocal", "Glass Void"},
+  {"Keys", "Fluorescent Hall"}, {"Keys", "Dream Ping-Pong"}, {"Keys", "Liminal Hz"},
+  {"Pad", "Backrooms"}, {"Pad", "Shimmer Fog"},
+  {"FX", "Reverse Bloom"}, {"FX", "Sub Tunnel"}, {"FX", "Grain Cloud"}, {"FX", "Tuned Chord"}, {"FX", "Breath"}};
+static_assert(sizeof kProgOrder / sizeof kProgOrder[0] == sizeof kPresets / sizeof kPresets[0], "every preset in the menu");
+static const int kProgramCount = 1 + kPresetCount;   // Init and the factory presets (My IRs follow)
+static const int kMaxProgIrs = 500;                  // (a very big IR collection: the first 500)
+static int preset_of_prog(int p) {                   // program -> PRESET index (0 Init, 1.. kPresets); -1: a My IR
+  if (p <= 0) return 0;
+  if (p >= kProgramCount) return -1;
+  for (int k = 0; k < kPresetCount; k++) if (!strcmp(kPresets[k].name, kProgOrder[p - 1].name)) return k + 1;
+  return 0;
+}
+static int prog_of_preset(int k) {                   // PRESET index -> program
+  if (k <= 0 || k > kPresetCount) return 0;
+  for (int p = 0; p < kPresetCount; p++) if (!strcmp(kPresets[k - 1].name, kProgOrder[p].name)) return p + 1;
+  return 0;
+}
+static std::string fit23(std::string t) {            // VST2 program names: 23 bytes, never cutting a UTF-8 letter
+  if (t.size() <= 23) return t;
+  size_t n = 23;
+  while (n > 0 && ((unsigned char)t[n] & 0xC0) == 0x80) n--;
+  return t.substr(0, n);
+}
+static int program_count(const Inst* w) { return kProgramCount + (int)w->prog_irs.size(); }
+static std::string program_name(const Inst* w, int k) {
+  if (k == 0) return "Init";
+  if (k > 0 && k < kProgramCount) return std::string(kProgOrder[k - 1].use) + ": " + kProgOrder[k - 1].name;
+  const int j = k - kProgramCount;
+  if (j < 0 || j >= (int)w->prog_irs.size()) return "";
+  std::string f = w->prog_irs[j].file;
+  const size_t d = f.find_last_of('.');
+  return fit23("My IR: " + (d == std::string::npos ? f : f.substr(0, d)));
+}
+static void ir_picked(Inst* w, int before);    // (below: an IR picked; one of yours: back to Init)
+static int prog_of_ir(const Inst* w, const std::string& path) {   // a My IR's program (-1: not in the menu)
+  for (int j = 0; j < (int)w->prog_irs.size(); j++) if (!path.empty() && w->prog_irs[j].path == path) return kProgramCount + j;
+  return -1;
+}
 
 static bool is_display(int i) { return (i >= P_WAVE0 && i <= P_PLAYHEAD) || i == P_SONICS; }   // read-only, not automatable
 static bool is_browser(int i) { return (i >= P_IR && i <= P_IR_BROWSE) || i == P_IR_DELETE; }
@@ -224,17 +323,25 @@ static bool is_long(int i) { return i >= P_LONG_IR && i <= P_LONG_IR_INFO; }   /
 static bool long_ir_on(const Inst* w) { return platform::kGen2 || w->norm[P_LONG_IR] > 0.5f; }
 static Quality quality_of(const Inst* w) { return platform::quality(long_ir_on(w)); }
 
+static bool sync_on(const Inst* w) { return w->norm[P_PREDELAY_SYNC] > 0.5f; }
+static int sync_note(const Inst* w) { return (int)lroundf(clamp01(w->norm[P_PREDELAY]) * (kNoteCount - 1)); }
+static void sync_predelay(Inst* w) {           // SYNC: the note at the tempo, as ms (any thread; the engine glides to it)
+  const double ms = kNotes[sync_note(w)].beats * 60000.0 / std::max(20.0, w->bpm.load());
+  w->eng->params.predelay_ms = (float)std::min(ms, (double)ReverbEngine::kMaxPredelay);
+}
 static void apply_param(Inst* w, int i) {      // plain parameter -> engine (atomics)
   ReverbParams& e = w->eng->params;
   const float v = real_of(i, w->norm[i]);
   switch (i) {
     case P_MIX: e.mix = v / 100.0f; break;
-    case P_PREDELAY: e.predelay_ms = v; break;
+    case P_PREDELAY: if (!sync_on(w)) e.predelay_ms = v; else sync_predelay(w); break;
     case P_LOWCUT: e.lowcut_hz = v; break;
     case P_HIGHCUT: e.highcut_hz = v; break;
     case P_WIDTH: e.width = v / 100.0f; break;
     case P_OUTPUT: e.output_db = v; break;
     case P_FEEDBACK: e.feedback = v / 100.0f; break;
+    case P_DUCK: e.duck = v / 100.0f; break;
+    case P_PREDELAY_SYNC: apply_param(w, P_PREDELAY); break;   // (synced, process() sets the time from the tempo)
     default: break;
   }
 }
@@ -447,7 +554,7 @@ static void worker_main(Inst* w) {
           w->changed[P_SOURCE] = 1;
           w->ir.lib = w->libs[1];
           int k = Library::find(w->ir.lib, w->select_after_scan, "", "");
-          if (k >= 0) { w->ir.want = k; w->ir.saved = LibEntry(); w->ir.error.clear(); }
+          if (k >= 0) { w->ir.want = k; w->ir.saved = LibEntry(); w->ir.error.clear(); w->init_pending = true; }
           w->select_after_scan.clear();
         }
         requested(w->ir);
@@ -471,7 +578,7 @@ static void worker_main(Inst* w) {
               Library::find(quick, s.path, s.display, s.file) < 0) complete = false;
           if (!w->select_after_scan.empty() && Library::find(quick, w->select_after_scan, "", "") < 0) complete = false;
         }
-        if (complete) { publish(quick); published_quick = true; load_ir(w); }   // the saved IR sounds before the walk ends
+        if (complete) { publish(quick); published_quick = true; if (w->init_pending.exchange(false)) ir_picked(w, -1); load_ir(w); }   // the saved IR sounds before the walk ends
       }
       // 2. The walk of the cards (it also refreshes the folder index for next time). Publishes again only if it
       //    found something different from the quick pass, so a list being browsed doesn't jump for nothing.
@@ -479,6 +586,7 @@ static void worker_main(Inst* w) {
       bool same = published_quick && mine.size() == quick.size();
       for (size_t i = 0; same && i < mine.size(); i++) same = mine[i].path == quick[i].path;
       if (!same) publish(mine);
+      if (w->init_pending.exchange(false)) ir_picked(w, -1);   // (a TONE3000 download: one of your own IRs, picked)
     }
     {                                          // My Presets: read the folder, save the asked-for sound, delete
       bool refresh, save;
@@ -530,13 +638,27 @@ static void worker_main(Inst* w) {
         std::string err;
         const bool ok = Library::remove(victim, &err);     // permanent
         std::lock_guard<std::mutex> lk(w->mu);
-        if (ok) {
-          w->ir.notice = "Deleted";
-          w->ir.notice_until = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-          w->ir.error.clear();
-          w->ir.loaded = LibEntry();
-          w->scan_req = w->work_req = true;
-          w->scanning = true;
+        if (ok) {                              // taken out of the lists here: no walk of the cards ("Searching...")
+          Browser& b = w->ir;
+          b.notice = "Deleted";
+          b.notice_until = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+          b.error.clear();
+          b.loaded = LibEntry();
+          auto drop = [&](std::vector<LibEntry>& l) {
+            l.erase(std::remove_if(l.begin(), l.end(), [&](const LibEntry& x) { return x.path == victim.path; }), l.end());
+          };
+          drop(w->libs[1]);
+          b.lib = w->libs[source_of(w)];
+          if (b.want >= (int)b.lib.size()) b.want = b.lib.empty() ? -1 : 0;   // the next IR, as a rescan picked
+          if (b.want < 0) {                    // the last one: nothing plays
+            b.shape_valid = false;
+            if (w->eng) w->eng->set_ir(nullptr);
+            for (int c = 0; c < ReverbIR::kCols; c++) { w->wave[c] = 0; w->changed[P_WAVE0 + c] = 1; }
+            w->sonics.clear();
+          }
+          requested(b);
+          menu_clamp(w);
+          browser_changed(w);
         } else {
           w->ir.error = err;
         }
@@ -549,7 +671,6 @@ static void worker_main(Inst* w) {
       if (!w->ir.notice.empty() && now >= w->ir.notice_until) { w->ir.notice.clear(); w->update_display = 1; }
       if (!w->mp.armed_name.empty() && now >= w->mp.armed_until) { w->mp.armed_name.clear(); w->update_display = 1; }
       if (!w->mp.notice.empty() && now >= w->mp.notice_until) { w->mp.notice.clear(); w->update_display = 1; }
-      if (w->long_armed && now >= w->long_armed_until) { w->long_armed = false; w->changed[P_LONG_IR_INFO] = 1; w->update_display = 1; }
     }
     load_ir(w);
     std::lock_guard<std::mutex> lk(w->mu);
@@ -572,6 +693,48 @@ static void set_real(Inst* w, int i, float real) {   // a plain parameter by its
   w->changed[i] = 1;
 }
 
+// a sound setting (what Init resets and a factory preset sets): not the IR, the lists, the buttons, LONG IR
+static bool is_setting(int i) {
+  return !is_browser(i) && !is_display(i) && !is_mp(i) && !PARAMS[i].momentary && i != P_PRESET && i != P_PRESET_OPEN &&
+         i != P_RESCAN && i != P_T3K_INFO && i != P_SOURCE && !is_menu(i) && !is_long(i);
+}
+static void reset_settings(Inst* w) {          // every setting at its default (Init's), the IR as it is
+  for (int i = 0; i < P_COUNT; i++)
+    if (is_setting(i)) { w->norm[i] = def_norm(i); apply_param(w, i); w->changed[i] = 1; }
+}
+// One of your own IRs picked on the page: the settings go back to Init (a factory preset's, or the last IR's, belong to
+// that sound), as the My IR programs in MPC's menu do. A My Preset sets its own IR and settings and never comes here.
+// Not under mu.
+static void back_to_init(Inst* w) {
+  w->preset_clean = false;
+  reset_settings(w);
+  w->norm[P_PRESET] = 0;
+  w->changed[P_PRESET] = 1;
+  std::lock_guard<std::mutex> lk(w->mu);
+  w->mp.active = false;                        // (no My Preset is loaded any more)
+  if (w->ir.want >= 0) w->ir.loading = true;  // (Init's shape: the IR is prepared again)
+  kick(w, false);
+  w->update_display = 1;
+}
+
+// an IR picked on the page (arrows, packs, the IR list, the menu, a TONE3000 download): one of your own goes back to
+// Init and MPC's menu shows its program. Not when the host sets the IR while restoring a project (its first 2 s) or
+// the same IR again. Not under mu.
+static void ir_picked(Inst* w, int before) {
+  int prog = -1, now = -1; bool mine;
+  {
+    std::lock_guard<std::mutex> lk(w->mu);
+    mine = source_of(w) == 1;
+    const Browser& b = w->ir;
+    now = b.want;
+    if (mine && b.want >= 0 && b.want < (int)b.lib.size()) prog = prog_of_ir(w, b.lib[b.want].path);
+  }
+  if (!mine || now == before) return;
+  if (std::chrono::steady_clock::now() - w->chunk_at < std::chrono::seconds(2)) return;   // (the project's own state)
+  back_to_init(w);
+  w->cur_prog = std::max(0, prog);
+}
+
 // PRESET picked (k = 0: Init): settings, then the factory IR (or none); closes the popup
 static void apply_preset(Inst* w, int k) {
   if (k < 0 || k > kPresetCount) return;
@@ -579,12 +742,10 @@ static void apply_preset(Inst* w, int k) {
   w->norm[P_PRESET_OPEN] = 0;                  // a pick closes the list
   w->changed[P_PRESET] = 1;
   w->changed[P_PRESET_OPEN] = 1;
+  w->cur_prog = prog_of_preset(k);
+  w->preset_clean = k > 0;
   if (k == 0) {                                // Init: every setting at its default, no IR
-    for (int i = 0; i < P_COUNT; i++)
-      if (!is_browser(i) && !is_display(i) && !is_mp(i) && !PARAMS[i].momentary && i != P_PRESET && i != P_PRESET_OPEN &&
-          i != P_RESCAN && i != P_T3K_INFO && i != P_SOURCE && !is_menu(i) && !is_long(i)) {
-        w->norm[i] = def_norm(i); apply_param(w, i); w->changed[i] = 1;
-      }
+    reset_settings(w);
     std::lock_guard<std::mutex> lk(w->mu);
     w->mp.active = false;
     w->mp.notice.clear(); w->mp.armed_name.clear();
@@ -601,7 +762,8 @@ static void apply_preset(Inst* w, int k) {
   const int vals[][2] = {{P_MIX, p.mix}, {P_PREDELAY, p.predelay}, {P_LOWCUT, p.lowcut}, {P_HIGHCUT, p.highcut},
                          {P_WIDTH, p.width}, {P_LENGTH, p.length}, {P_OUTPUT, p.output}, {P_START, p.start},
                          {P_FADE_IN, p.fade_in}, {P_FADE_OUT, p.fade_out}, {P_STRETCH, p.stretch},
-                         {P_REVERSE, p.reverse}, {P_FEEDBACK, p.feedback}, {P_DECAY, 100}};
+                         {P_REVERSE, p.reverse}, {P_FEEDBACK, p.feedback}, {P_DECAY, 100}, {P_DUCK, 0},
+                         {P_PREDELAY_SYNC, 0}};
   for (const auto& kv : vals) set_real(w, kv[0], (float)kv[1]);
   set_real(w, P_SOURCE, 0);                    // the factory list
   std::lock_guard<std::mutex> lk(w->mu);
@@ -612,6 +774,30 @@ static void apply_preset(Inst* w, int k) {
   b.want = Library::find(b.lib, "", std::string(p.category) + "/" + factory_file(p.name), "");
   b.saved = LibEntry();
   b.error = b.want < 0 ? std::string("Factory IR missing: ") + p.name : std::string();
+  requested(b);
+  kick(w, false);
+  browser_changed(w);
+  w->update_display = 1;
+}
+
+// a My IR from MPC's PRESET menu: Init's settings with that IR (from My IRs; found once they're scanned if not yet)
+static void pick_ir_program(Inst* w, int j) {
+  if (j < 0 || j >= (int)w->prog_irs.size()) return;
+  const LibEntry e = w->prog_irs[j];
+  reset_settings(w);
+  w->preset_clean = false;
+  w->norm[P_PRESET] = 0; w->changed[P_PRESET] = 1;
+  w->norm[P_PRESET_OPEN] = 0; w->changed[P_PRESET_OPEN] = 1;
+  set_real(w, P_SOURCE, 1);                    // My IRs
+  std::lock_guard<std::mutex> lk(w->mu);
+  w->mp.active = false;
+  w->mp.notice.clear(); w->mp.armed_name.clear();
+  Browser& b = w->ir;
+  b.lib = w->libs[1];
+  b.want = Library::find(b.lib, e.path, e.display, e.file);
+  b.saved = b.want < 0 ? e : LibEntry();
+  b.error.clear();
+  if (b.want < 0 && w->scanned) b.error = "IR missing: " + e.display;   // (deleted since the plugin loaded)
   requested(b);
   kick(w, false);
   browser_changed(w);
@@ -639,6 +825,8 @@ static PresetData mp_snapshot(Inst* w) {
 // a preset's settings, then its IR (found in its list, or the other; waits for the first scan if need be)
 static void mp_apply(Inst* w, const PresetData& p) {
   set_real(w, P_DECAY, 100);                   // (presets saved before Decay: as recorded)
+  set_real(w, P_DUCK, 0);                      // (and before Duck and SYNC: off)
+  set_real(w, P_PREDELAY_SYNC, 0);
   for (const auto& kv : p.values)
     for (const auto& kp : kPresetParams)
       if (kv.first == kp.key) set_real(w, kp.p, kv.second);
@@ -679,6 +867,7 @@ static void mp_choose(Inst* w, int idx) {      // select list[idx] and apply it
     w->changed[P_PRESET] = 1;
     w->update_display = 1;
   }
+  w->preset_clean = false;                     // (a My Preset: your own settings, kept whatever IR follows)
   mp_apply(w, p);
 }
 
@@ -703,7 +892,9 @@ static void set_mp_param(Inst* w, int i, float v) {
       if (v >= 0.5f) {
         if (m.want >= 0 && m.want < n) {
           const std::string name = m.list[m.want].name;
-          if (m.armed_name == name && now < m.armed_until) { m.armed_name.clear(); m.delete_name = name; kick(w, false); }
+          const auto armed_at = m.armed_until - std::chrono::seconds(kArmSeconds);
+          if (m.armed_name == name && now < armed_at + std::chrono::milliseconds(kTapMs)) {}   // (the same tap, twice)
+          else if (m.armed_name == name && now < m.armed_until) { m.armed_name.clear(); m.delete_name = name; kick(w, false); }
           else { m.armed_name = name; m.armed_until = now + std::chrono::seconds(kArmSeconds); }
         } else {
           m.notice = "Pick a saved preset first"; m.notice_until = now + std::chrono::seconds(3);
@@ -811,6 +1002,8 @@ static void open_presets_page(Inst* w) {
 // a tap on the IR List / My Presets buttons, the page buttons, or a row
 static void set_menu_param(Inst* w, int i, float v) {
   int pick = -1;                               // a My Preset to load (mp_choose takes mu itself)
+  bool row_ir = false;                         // an IR List row: an IR picked
+  int before = -1;                             // (the IR it was)
   {
     std::lock_guard<std::mutex> lk(w->mu);
     const int m = w->menu, sz = menu_page_size(m);
@@ -836,8 +1029,10 @@ static void set_menu_param(Inst* w, int i, float v) {
       if (m && r < sz && idx < menu_count(w, m)) {
         if (m == 1) {                          // the IR: as stepping to it (the list stays open: try another)
           Browser& b = w->ir;
+          before = b.want;
           b.want = idx; b.saved = LibEntry(); b.error.clear(); requested(b); kick(w, false);
           browser_changed(w);
+          row_ir = true;
         } else {
           pick = idx;
         }
@@ -848,12 +1043,14 @@ static void set_menu_param(Inst* w, int i, float v) {
     w->update_display = 1;
   }
   if (pick >= 0) mp_choose(w, pick);
+  if (row_ir) ir_picked(w, before);
 }
 
 static void set_parameter(AEffect* e, int32_t i, float v) {
   Inst* w = (Inst*)e->object;
   if (i < 0 || i >= P_COUNT) return;
   v = clamp01(v);
+  w->host_view[i] = v;                         // what the host now shows (notify() tells it when that changes)
   if (i == P_RESCAN || i == P_T3K_INFO) {
     if (i == P_RESCAN && v >= 0.5f) {
       std::lock_guard<std::mutex> lk(w->mu);
@@ -871,13 +1068,17 @@ static void set_parameter(AEffect* e, int32_t i, float v) {
     {
       std::lock_guard<std::mutex> lk(w->mu);   // (kick() too: the worker reads work_req under mu)
       const bool was = long_ir_on(w);
-      if (i == P_LONG_IR) {                      // set directly (a project, the host's parameter list): no warning
+      // The page's LONG IR button is this setting itself (MPC switches it, as REVERSE): one tap on, one off; the
+      // line under it says CPU heavy while it's on. (It was two taps, the first a warning, on a separate tap
+      // parameter: on the device each tap arrived twice, so it came on at once and warned again on the way off.)
+      if (i == P_LONG_IR) {
         if (!platform::kGen2) w->norm[P_LONG_IR] = v >= 0.5f ? 1.0f : 0.0f;
-      } else if (v >= 0.5f && !platform::kGen2) {   // the button
+      } else if (v >= 0.5f && !platform::kGen2) {   // the old tap parameter (a host's list): a toggle, one per tap
         const auto now = std::chrono::steady_clock::now();
-        if (w->norm[P_LONG_IR] > 0.5f) { w->norm[P_LONG_IR] = 0; w->long_armed = false; }   // off: one tap
-        else if (w->long_armed && now < w->long_armed_until) { w->norm[P_LONG_IR] = 1; w->long_armed = false; }
-        else { w->long_armed = true; w->long_armed_until = now + std::chrono::seconds(kArmSeconds); }   // warn first
+        if (now - w->long_tap_at >= std::chrono::milliseconds(kTapMs)) {
+          w->norm[P_LONG_IR] = w->norm[P_LONG_IR] > 0.5f ? 0.0f : 1.0f;
+          w->long_tap_at = now;
+        }
       }
       if (long_ir_on(w) != was) {                // prepared again at the new quality (crossfaded in)
         if (w->ir.want >= 0) w->ir.loading = true;
@@ -904,6 +1105,7 @@ static void set_parameter(AEffect* e, int32_t i, float v) {
     return;
   }
   if (!is_browser(i)) {
+    if (is_setting(i) && std::fabs(v - w->norm[i]) > 1e-6f) w->preset_clean = false;   // (you changed the preset)
     w->norm[i] = v;
     apply_param(w, i);
     if (is_shape(i)) {                         // a new shape: the IR is prepared again (crossfaded in)
@@ -914,23 +1116,25 @@ static void set_parameter(AEffect* e, int32_t i, float v) {
     w->update_display = 1;
     return;
   }
-  bool browse = false;
+  bool browse = false, picked = false;         // picked: an IR chosen (one of yours: back to Init, see back_to_init)
+  int before = -1;                             // (the IR it was)
   {
     std::lock_guard<std::mutex> lk(w->mu);
     Browser& b = w->ir;
+    before = b.want;
     const int n = (int)b.lib.size();
     if (i == P_IR_SRC || i == P_IR_INFO || i == P_IR_PACK) return;   // read-only
     if (i == P_IR) {
       if (n > 0) {
         b.want = n > 1 ? (int)lroundf(v * (n - 1)) : 0;
-        b.saved = LibEntry(); b.error.clear(); requested(b); kick(w, false);
+        b.saved = LibEntry(); b.error.clear(); requested(b); kick(w, false); picked = true;
         w->changed[P_IR_SRC] = 1;
       }
     } else if (i == P_IR_PREV || i == P_IR_NEXT) {
       if (v >= 0.5f && n > 0) {
         if (b.want < 0) b.want = i == P_IR_NEXT ? 0 : n - 1;   // from "no IR": the first / the last
         else b.want = ((b.want + (i == P_IR_NEXT ? 1 : -1)) % n + n) % n;
-        b.saved = LibEntry(); b.error.clear(); requested(b); kick(w, false);
+        b.saved = LibEntry(); b.error.clear(); requested(b); kick(w, false); picked = true;
         browser_changed(w);
       }
       w->changed[i] = 1;
@@ -951,7 +1155,7 @@ static void set_parameter(AEffect* e, int32_t i, float v) {
           else { while (j > 0 && b.lib[j - 1].pack == prev) j--; k = j; }
         }
         b.want = k;
-        b.saved = LibEntry(); b.error.clear(); requested(b); kick(w, false);
+        b.saved = LibEntry(); b.error.clear(); requested(b); kick(w, false); picked = true;
         browser_changed(w);
       }
       w->changed[i] = 1;
@@ -964,13 +1168,16 @@ static void set_parameter(AEffect* e, int32_t i, float v) {
       } else if (v >= 0.5f && b.want >= 0 && b.want < n) {
         const auto now = std::chrono::steady_clock::now();
         const std::string& path = b.lib[b.want].path;
-        if (b.armed_path == path && now < b.armed_until) { b.armed_path.clear(); b.delete_req = true; kick(w, false); }
+        const auto armed_at = b.armed_until - std::chrono::seconds(kArmSeconds);
+        if (b.armed_path == path && now < armed_at + std::chrono::milliseconds(kTapMs)) {}   // (the same tap, twice)
+        else if (b.armed_path == path && now < b.armed_until) { b.armed_path.clear(); b.delete_req = true; kick(w, false); }
         else { b.armed_path = path; b.armed_until = now + std::chrono::seconds(kArmSeconds); }
       }
       w->changed[i] = 1;
     }
     w->update_display = 1;
   }
+  if (picked) ir_picked(w, before);
   if (browse) open_tones(w);
 }
 
@@ -1012,13 +1219,28 @@ static void notify(Inst* w) {                  // audio thread: report values th
       w->master(&w->fx, audioMasterAutomate, P_PLAYHEAD, 0, nullptr, col / (float)ReverbEngine::kPlay);
     }
   }
-  const bool disp = w->update_display.exchange(0);
+  // UpdateDisplay: MPC answers each one by reading every parameter again and rebuilding its screen (mpc-vst-plugins
+  // wrapper/vst2_wrap.c), the slow part of a preset pick on the device. So they're paced: at most one per kDispGapMs,
+  // and while an IR is being prepared one waits (up to kDispHoldMs), so a pick redraws once, with the new IR's name.
+  const auto now = std::chrono::steady_clock::now();
+  if (w->update_display.exchange(0) && !w->disp_wait) { w->disp_wait = true; w->disp_since = now; }
+  bool disp = false;
+  if (w->disp_wait) {
+    auto ms = [&](std::chrono::steady_clock::time_point t) { return std::chrono::duration<double, std::milli>(now - t).count(); };
+    bool loading = true;                       // (unknown while the lock is busy: treated as loading)
+    {
+      std::unique_lock<std::mutex> lk(w->mu, std::try_to_lock);   // never wait on the audio thread
+      if (lk.owns_lock()) loading = w->ir.loading;
+    }
+    disp = ms(w->disp_last) >= kDispGapMs && (!loading || ms(w->disp_since) >= kDispHoldMs);
+  }
+  if (disp) { w->disp_wait = false; w->disp_last = now; }
   if (disp && w->menu.load()) {                // a list is open: its title and rows are read again
     w->changed[P_MENU_TITLE] = 1;
     for (int r = P_ROW1; r <= P_ROW_LAST; r++) w->changed[r] = 1;
   }
   for (int i = 0; i < P_COUNT; i++) {
-    if (!w->changed[i].exchange(0)) continue;
+    if (!w->changed[i].exchange(0)) continue;  // (values go at once: knobs move and the popup closes without waiting)
     float v = 0;
     if (is_display(i) && i != P_PLAYHEAD && i != P_SONICS) v = w->wave[i - P_WAVE0] / (float)(8 * ReverbIR::kTones - 1);
     if (i == P_IR || i == P_IR_SRC || is_row(i)) {
@@ -1028,6 +1250,8 @@ static void notify(Inst* w) {                  // audio thread: report values th
     }
     if (i == P_MENU) v = w->menu / 2.0f;
     if (i == P_LONG_IR) v = long_ir_on(w) ? 1.0f : 0.0f;
+    if ((disp || w->disp_wait) && v == w->host_view[i].load()) continue;   // the host has it; an UpdateDisplay redraws its text
+    w->host_view[i] = v;
     w->master(&w->fx, audioMasterAutomate, i, 0, nullptr, v);
   }
   if (disp) w->master(&w->fx, audioMasterUpdateDisplay, 0, 0, nullptr, 0);
@@ -1035,6 +1259,14 @@ static void notify(Inst* w) {                  // audio thread: report values th
 
 static void process_replacing(AEffect* e, float** in, float** out, int32_t n) {
   Inst* w = (Inst*)e->object;
+  if (w->master && sync_on(w)) {               // SYNC: the tempo, every block (MPC answers at once; a tempo change glides)
+    const VstTimeInfo* ti = (const VstTimeInfo*)w->master(&w->fx, audioMasterGetTime, 0, kVstTempoValid, nullptr, 0);
+    if (ti && (ti->flags & kVstTempoValid) && ti->tempo > 0) {
+      w->bpm = ti->tempo;
+      if (!w->tempo_ok.exchange(true)) { w->changed[P_PREDELAY] = 1; w->update_display = 1; }   // (the "@120" goes)
+    }
+    sync_predelay(w);
+  }
   if (w->master) notify(w);
   if (n <= 0) return;
   w->eng->process(in[0], in[1], out[0], out[1], n);
@@ -1108,9 +1340,7 @@ static std::string display_of(Inst* w, int i) {
   if (i == P_MENU) return p.opts[std::max(0, std::min(2, w->menu.load()))];
   if (i == P_LONG_IR_INFO) {
     if (platform::kGen2) return "Gen 2 \xC2\xB7 always on";
-    std::lock_guard<std::mutex> lk(w->mu);
-    if (w->long_armed && std::chrono::steady_clock::now() < w->long_armed_until) return "CPU heavy \xC2\xB7 tap again";
-    return long_ir_on(w) ? "On \xC2\xB7 IRs up to 20 s" : "Off \xC2\xB7 IRs up to 5 s";
+    return long_ir_on(w) ? "On \xC2\xB7 CPU heavy \xC2\xB7 20 s" : "Off \xC2\xB7 IRs up to 5 s";
   }
   if (i == P_LONG_IR) return long_ir_on(w) ? "On" : "Off";
   if (i == P_MENU_TITLE || is_row(i)) {
@@ -1157,7 +1387,9 @@ static std::string display_of(Inst* w, int i) {
       if (cur->t3k && !cur->t3k_title.empty()) return cur->t3k_title;
       if (cur->pack.empty()) return "Loose files";
       size_t s = cur->pack.find_last_of('/');
-      return s == std::string::npos ? cur->pack : cur->pack.substr(s + 1);
+      const std::string pack = s == std::string::npos ? cur->pack : cur->pack.substr(s + 1);
+      const char* best = source_of(w) == 0 ? best_on(factory_name(stem_of(cur->file))) : nullptr;
+      return best ? pack + " · best on " + best : pack;   // a factory IR: what it suits
     }
     if (i == P_IR_SRC) return cur && cur->t3k ? "TONE3000" : "Local";
     if (i == P_IR_INFO) {
@@ -1197,6 +1429,10 @@ static std::string display_of(Inst* w, int i) {
     return w->sonics.empty() ? (w->ir.loading ? "listening..." : "") : w->sonics;
   }
   if (is_display(i)) return p.opts[w->wave[i - P_WAVE0].load()];
+  if (i == P_PREDELAY && sync_on(w)) {         // SYNC: the note value ("1/8 D"); without a tempo from the host, at 120
+    const int k = sync_note(w);
+    return k == 0 || w->tempo_ok ? std::string(kNotes[k].name) : std::string(kNotes[k].name) + " @120";
+  }
   if (p.nopts > 1) return p.opts[(int)real_of(i, w->norm[i])];
   if (p.momentary) return "";
   const float v = real_of(i, w->norm[i]);
@@ -1223,6 +1459,7 @@ static int get_chunk(Inst* w) {
   const LibEntry& e = (b.want >= 0 && b.want < (int)b.lib.size()) ? b.lib[b.want] : b.saved;
   s += "ir_path=" + e.path + "\nir_display=" + e.display + "\nir_file=" + e.file + "\n";
   if (!w->mp.sel_name.empty()) s += "mp_name=" + w->mp.sel_name + "\nmp_active=" + (w->mp.active ? "1" : "0") + "\n";
+  if (w->preset_clean) s += "preset_clean=1\n";   // (the settings are still the factory preset's)
   w->chunk = s;
   return (int)w->chunk.size() + 1;
 }
@@ -1237,7 +1474,7 @@ static bool set_chunk(Inst* w, const char* data, size_t len) {
   if (pos == std::string::npos) return false;
   LibEntry saved;
   std::string mp_name;
-  bool mp_active = false;
+  bool mp_active = false, clean = false;
   while (pos < s.size()) {
     size_t nl = s.find('\n', pos);
     if (nl == std::string::npos) nl = s.size();
@@ -1251,6 +1488,7 @@ static bool set_chunk(Inst* w, const char* data, size_t len) {
     if (k == "ir_file") { saved.file = v; continue; }
     if (k == "mp_name") { mp_name = v; continue; }
     if (k == "mp_active") { mp_active = v == "1"; continue; }
+    if (k == "preset_clean") { clean = v == "1"; continue; }
     for (int i = 0; i < P_COUNT; i++) {
       if (is_browser(i) || is_mp(i) || is_menu(i) || PARAMS[i].momentary || i == P_LONG_IR_INFO || k != PARAMS[i].key) continue;
       const param_t& p = PARAMS[i];
@@ -1259,18 +1497,24 @@ static bool set_chunk(Inst* w, const char* data, size_t len) {
       apply_param(w, i);
     }
   }
+  w->preset_clean = clean;
+  w->chunk_at = std::chrono::steady_clock::now();   // (programs the host picks in the next 2 s: its saved one, ignored)
   std::lock_guard<std::mutex> lk(w->mu);
   w->mp.sel_name = mp_name;                    // the selected My Preset: shown again, not applied again (the project holds its sound)
   w->mp.active = mp_active && !mp_name.empty();
   w->mp.want = -1;
   for (int k = 0; k < (int)w->mp.list.size(); k++) if (!mp_name.empty() && ieq(w->mp.list[k].name, mp_name)) w->mp.want = k;
   w->ir.saved = saved;
+  {                                            // what MPC's menu shows: the project's My IR, else its PRESET
+    const int pi = source_of(w) == 1 ? prog_of_ir(w, saved.path) : -1;
+    w->cur_prog = pi >= 0 ? pi : prog_of_preset((int)lroundf(w->norm[P_PRESET] * kPresetCount));
+  }
   w->ir.lib = w->libs[source_of(w)];           // the project's list (Factory / My IRs)
   w->ir.error.clear();
   if (w->scanned) resolve(w->ir);
   requested(w->ir);
   kick(w, !w->scanned);
-  for (int i = 0; i < P_COUNT; i++) w->changed[i] = 1;
+  for (int i = 0; i < P_COUNT; i++) { w->changed[i] = 1; w->host_view[i] = -1.0f; }   // (all reported again)
   w->update_display = 1;
   return true;
 }
@@ -1340,6 +1584,29 @@ static intptr_t dispatcher(AEffect* e, int32_t op, int32_t idx, intptr_t v, void
       }
       return 1;
     }
+    case effSetProgram: {                      // MPC's PRESET menu: a factory preset (as our PRESET list) or a My IR
+      if (v < 0 || v >= program_count(w) || (int)v == w->cur_prog) return 1;   // (the current one, as hosts re-select: kept)
+      // A project's state just arrived: a host may now re-select the program it saved, and My IRs' places move when IRs
+      // are added or deleted, so the number could name another sound. The project's own state is the sound: ignored.
+      if (std::chrono::steady_clock::now() - w->chunk_at < std::chrono::seconds(2)) return 1;
+      const int k = preset_of_prog((int)v);
+      if (k >= 0) {
+        set_parameter(e, P_PRESET, (float)k / kPresetCount);
+        w->host_view[P_PRESET] = -1.0f; w->changed[P_PRESET] = 1;    // (the host didn't write it: told)
+      } else {
+        pick_ir_program(w, (int)v - kProgramCount);
+      }
+      w->cur_prog = (int)v;
+      return 1;
+    }
+    case effGetProgram: return w->cur_prog;
+    case effGetProgramName:
+      if (p) copy_text(p, program_name(w, w->cur_prog), 24);
+      return 1;
+    case effGetProgramNameIndexed:
+      if (!p || idx < 0 || idx >= program_count(w)) return 0;
+      copy_text(p, program_name(w, idx), 24);
+      return 1;
     case effGetChunk: { int len = get_chunk(w); *(void**)p = (void*)w->chunk.c_str(); return len; }
     case effSetChunk: return (v > 0 && p) ? (set_chunk(w, (const char*)p, (size_t)v) ? 1 : 0) : 0;
     default: return 0;
@@ -1350,7 +1617,7 @@ extern "C" __attribute__((visibility("default"))) AEffect* VSTPluginMain(audioMa
   Inst* w = new (std::nothrow) Inst();
   if (!w) return nullptr;
   w->master = master;
-  for (int i = 0; i < P_COUNT; i++) { w->changed[i] = 0; w->norm[i] = def_norm(i); }
+  for (int i = 0; i < P_COUNT; i++) { w->changed[i] = 0; w->norm[i] = def_norm(i); w->host_view[i] = -1.0f; }
   for (auto& c : w->wave) c = 0;
   AEffect* e = &w->fx;
   memset(e, 0, sizeof *e);
@@ -1361,6 +1628,14 @@ extern "C" __attribute__((visibility("default"))) AEffect* VSTPluginMain(audioMa
   e->getParameter = get_parameter;
   e->processReplacing = process_replacing;
   e->numParams = P_COUNT;
+  {                                            // MPC's PRESET menu: Init, the factory presets, then My IRs, read from the
+    std::vector<LibEntry> mine;                // folder index the last scan left (fast: no walk of the cards; a first
+    if (Library::scan_quick("reverbs", ".wav", &mine)) {   // load has none yet, the next one lists them)
+      if ((int)mine.size() > kMaxProgIrs) mine.resize(kMaxProgIrs);
+      w->prog_irs = mine;
+    }
+  }
+  e->numPrograms = program_count(w);
   e->numInputs = 2;
   e->numOutputs = 2;
   e->flags = effFlagsCanReplacing | effFlagsProgramChunks;

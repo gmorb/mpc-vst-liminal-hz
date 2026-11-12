@@ -175,6 +175,10 @@ static size_t decay_reshape(std::vector<std::vector<float>>& h, double rate, dou
       ref[c][k] = (float)(a / c3);
     }
     const double tend = (double)fend * H / rate;
+    // a band lifted past what a float holds is left as it is: an all but empty band (a band-limited IR, Grain Cloud or
+    // Tuned Chord at Stretch 200%) measures a "decay time" that is noise, and its end late: exp(kdec * tend) overflowed
+    // (inf, then NaN, then "Silent IR"). Every band that prepared before is reshaped exactly as before.
+    if (m > 1 && !(kdec * tend < 80.0)) continue;
     for (int f = 0; f < F; f++) {
       const double t = (double)f * H / rate;
       const float g = (float)std::exp(kdec * std::min(t, tend + (m > 1 ? 0.0 : 1e9)));
@@ -255,11 +259,21 @@ static void resample_sinc(const std::vector<float>& in, double rate, double targ
 // of a preparation (a 20 s 48 kHz stereo IR: about 1 s on a PC, several on a Force). One entry, shared by every
 // instance (preparations run on each instance's worker thread, so it is locked); the key is the content itself.
 namespace {
-struct ResampleCache {
-  std::mutex mu;
-  uint64_t key = 0;
-  bool valid = false;
-  std::vector<std::vector<float>> out;
+struct ResampleCache {                                      // the last few IRs resampled (shared by every instance):
+  static const int kEntries = 4;                            // stepping back and forth through 48 kHz IRs, or between
+  struct Entry { uint64_t key = 0; bool valid = false; uint64_t used = 0; std::vector<std::vector<float>> out; };
+  std::mutex mu;                                            // presets, resamples each once (capped: <= 7 MB an entry)
+  Entry e[kEntries];
+  uint64_t tick = 0;
+  Entry* find(uint64_t key, size_t nch) {
+    for (Entry& x : e) if (x.valid && x.key == key && x.out.size() == nch) { x.used = ++tick; return &x; }
+    return nullptr;
+  }
+  void put(uint64_t key, const std::vector<std::vector<float>>& out) {
+    Entry* v = &e[0];                                       // the least recently used goes
+    for (Entry& x : e) { if (!x.valid) { v = &x; break; } if (x.used < v->used) v = &x; }
+    v->out = out; v->key = key; v->valid = true; v->used = ++tick;
+  }
 };
 ResampleCache& resample_cache() { static ResampleCache c; return c; }
 uint64_t resample_key(const std::vector<std::vector<float>>& ch, size_t nch, double rate, double target, const Quality& q) {
@@ -285,7 +299,7 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
   if (resample) {
     ResampleCache& rc = resample_cache();
     std::lock_guard<std::mutex> lk(rc.mu);
-    if (rc.valid && rc.key == rkey && rc.out.size() == nch) { h = rc.out; cached = true; }
+    if (const ResampleCache::Entry* x = rc.find(rkey, nch)) { h = x->out; cached = true; }
   }
   for (size_t c = 0; c < nch && !cached; c++) {           // to the host rate: cubic, zero-padded (as NAM's cab IRs)
     if (rate == target) { h[c] = channels[c]; continue; }
@@ -301,9 +315,11 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
     dsp::ResampleCubic<float>(padded, rate, target, 0.0, h[c]);
   }
   if (resample && !cached) {
+    const size_t keep = (size_t)(q.max_seconds * host_rate);   // (nothing past the cap is ever used, below)
+    for (auto& v : h) if (v.size() > keep) { v.resize(keep); v.shrink_to_fit(); }
     ResampleCache& rc = resample_cache();
     std::lock_guard<std::mutex> lk(rc.mu);
-    rc.out = h; rc.key = rkey; rc.valid = true;
+    rc.put(rkey, h);
   }
   size_t n = h[0].size();
   for (auto& v : h) n = std::min(n, v.size());
@@ -342,6 +358,7 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
   double e = 0;                                            // unit energy: IRs come out at similar levels
   for (auto& v : h) for (float x : v) e += (double)x * x;
   e /= (double)nch;
+  if (!std::isfinite(e)) { if (err) *err = "Bad IR"; return nullptr; }   // (never expected: see decay_reshape)
   if (!(e > 1e-20)) { if (err) *err = "Silent IR"; return nullptr; }
   const float g = (float)(decay_level / std::sqrt(e));
   for (auto& v : h) for (float& x : v) x *= g;
@@ -583,6 +600,12 @@ void ReverbEngine::block(const float* in_l, const float* in_r, float* out_l, flo
   const float mix0 = mix_prev_ < 0 ? mix : mix_prev_, width0 = width_prev_ < 0 ? width : width_prev_,
               gain0 = gain_prev_ < 0 ? gain : gain_prev_;
   mix_prev_ = mix; width_prev_ = width; gain_prev_ = gain;
+  const float duck = std::min(1.0f, std::max(0.0f, (float)params.duck)), duck0 = duck_prev_ < 0 ? duck : duck_prev_;
+  duck_prev_ = duck;
+  auto coef = [this](float secs) { return 1.0f - std::exp(-1.0f / (secs * (float)rate_)); };
+  const float d_fol = coef(kDuckFollow), d_att = coef(kDuckAttack), d_rel = coef(kDuckRelease);
+  const bool ducking = duck > 0.0f || duck0 > 0.0f;         // (Duck 0: not a multiply more, the output as before)
+  if (!ducking) { duck_env_ = 0.0f; duck_red_ = 0.0f; }   // (turned on again: from no reduction)
   for (int i = 0; i < B; i++) {
     const float t = (float)(i + 1) / B;
     const float mix = mix0 + (mix_prev_ - mix0) * t, width = width0 + (width_prev_ - width0) * t,
@@ -594,6 +617,15 @@ void ReverbEngine::block(const float* in_l, const float* in_r, float* out_l, flo
     float l = lp_[0].run(hp_[0].run(wl_[i])), r = lp_[1].run(hp_[1].run(wr_[i]));
     const float m = 0.5f * (l + r), s = 0.5f * (l - r) * width;   // width: mid/side
     l = m + s; r = m - s;
+    if (ducking) {                             // Duck (followed only while on: Duck 0 is the output as before)
+      const float x = std::max(std::fabs(in_l[i]), std::fabs(in_r[i]));
+      duck_env_ = x > duck_env_ ? x : duck_env_ + d_fol * (x - duck_env_);
+      const float db = 20.0f * std::log10(duck_env_ + 1e-9f);
+      const float want = kDuckDb * std::min(1.0f, std::max(0.0f, (db - kDuckLoDb) / (kDuckHiDb - kDuckLoDb)));
+      duck_red_ += (want > duck_red_ ? d_att : d_rel) * (want - duck_red_);
+      const float g = std::exp(-0.11512925f * duck_red_ * (duck0 + (duck - duck0) * t));   // (ln 10 / 20)
+      l *= g; r *= g;
+    }
     const float dry = 1.0f - mix * presence_;
     out_l[i] = gain * (dry * in_l[i] + mix * l);
     out_r[i] = gain * (dry * in_r[i] + mix * r);

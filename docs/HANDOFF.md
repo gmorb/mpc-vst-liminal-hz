@@ -210,8 +210,7 @@ The bars worked because their playhead was a separate strip below them. v5: colu
 just touch), the glow as its own strip under the painting (glow5_*, 668x30). Mockups are now composed from the kit's
 own state images at the kit's own bounds (TUI.json: Image components with IndexedEnabling/<state>/<n>/Parameter <i>),
 not from the raw art: the raw-art overlays had hidden this.
-Open: the user saw a pause when picking a preset (and after DELETE); not yet investigated.
-Open: the "Tail late N×" count never resets (after one busy moment it stays on the detail line); should decay or reset per IR/preset.
+(Was open: the pause on a preset pick / after DELETE -- see 1.4.0 below. The "Tail late N×" count: fixed, shown 5 s after the last late block.)
 
 ## 2026-10-02: device confirmed the painting + glow strip work; text enlarged
 User photo: the shape painting and the glow strip show and move. Text too small on the device: roles raised (name 48,
@@ -257,7 +256,7 @@ display, the controls, factory presets, install; then the CPU design, build and 
   that time -> on; on -> off at once; Gen 2: no effect), `long_ir_info` (readout: "Off · IRs up to 5 s", "CPU heavy ·
   tap again", "On · IRs up to 20 s", "Gen 2 · always on"). `P_PRESET_OPEN` (the popup's flag) moves 3 indices later:
   projects store parameters by key, so nothing changes for them.
-- Page: `button cx=1160 cy=618 "LONG IR"` and `readout cx=1160 cy=660 w=236` under REVERSE (skin_post role
+- Page: `toggle cx=1160 cy=608 "LONG IR"` and `readout cx=1160 cy=660 w=236` under REVERSE (skin_post role
   shReadout_236x34). No new skin_check warnings (the 19 there are the lists laid over the page, as before).
 - To do on a Force: `tools/bench_reverb` built for armv7 (2-stage vs 3-stage worker load, 5 s and 20 s stereo, misses),
   MPC's CPU meter with LONG IR off and on, and how long a 20 s IR at Decay 300% takes to prepare.
@@ -265,3 +264,84 @@ display, the controls, factory presets, install; then the CPU design, build and 
   rate, target rate and quality; a shape change re-prepares from it. PC: 20 s 48 kHz stereo at high quality, first
   load ~1.05 s, End/fade/Reverse ~0.12 s, Decay 150% ~0.57 s, Stretch (resamples) ~1.0 s. PC bench (worker, % of a core,
   stereo): 5 s 1.9 -> 0.7, 10 s 3.3 -> 0.8, 20 s 7.0 -> 1.3 (2048-only vs with the far stage).
+
+## 1.4.0: the preset pause, Duck, SYNC, Q-Links, Textures (2026-11-08; offline only so far)
+- **The pause** (open since 2026-10-02). Measured offline (PC, a paced host with a UI thread that re-reads every
+  parameter on each UpdateDisplay, as MPC rebuilds its screen): the plugin itself was cheap (setParameter on a pick
+  20-50 µs, a factory IR prepared in 7-25 ms, no audio blocks late), but a pick sent 2 UpdateDisplays (the pick, then
+  the IR ready) + 31 Automates, and every knob step sent an UpdateDisplay. MPC answers each UpdateDisplay by reading
+  every parameter and rebuilding the screen (mpc-vst-plugins wrapper/vst2_wrap.c), so the screen work was the likely
+  pause. notify() now paces them: at most one per kDispGapMs (100 ms), held up to kDispHoldMs (600 ms: a factory IR is ready in ~30 ms on a PC, ~400 ms under qemu-arm) while
+  Browser::loading (read with try_lock), and an Automate is skipped when an UpdateDisplay is due and the host already
+  has the value (host_view[], from setParameter and Automate; reset to -1 on open and setChunk). A pick: 1 + 18.
+  DELETE used to rescan the cards (walk -> "Searching..."); now the worker drops the entry from libs[1] and selects
+  the same index (the next IR), as the rescan did. ResampleCache: 4 entries, LRU, each capped at the quality's
+  max_seconds (<= 7 MB). **Device check:** a preset pick and a DELETE on the Force should no longer hitch; if they
+  still do, time the screen redraw (the pick's single UpdateDisplay) and the Automates.
+- **Duck** (`duck`, 0-100%, appended): ReverbEngine, in the output loop after the feedback tap (fbl_/fbr_ are taken
+  before it): a peak follower on the input (kDuckFollow 20 ms), reduction target kDuckDb (24) x clamp((dB - kDuckLoDb
+  -50) / 30), smoothed (kDuckAttack 5 ms, kDuckRelease 80 ms), gain exp(-ln10/20 x red x knob), the knob glides per
+  block. Duck 0: the follower is skipped and reset, so the output is bit-identical.
+- **SYNC** (`predelay_sync`, Off/On, appended): the wrapper's kNotes (11 steps, beats); process_replacing() asks
+  audioMasterGetTime(kVstTempoValid) every block while SYNC is on (kit NOTES.md: MPC answers flags 0x7fc4 with a valid
+  tempo, verified on Gen 1 2026-09-23; Gen 2 assumed the same host code), sets predelay_ms = beats x 60000 / bpm. No
+  tempo: 120 BPM, and the value reads "1/8 @120". kMaxPredelay 250 -> 2000 ms (2 x 88 k floats).
+- Both appended before P_PRESET_OPEN; kPresetParams has them; mp_apply sets both off before applying (older .lhzp);
+  apply_preset sets both 0; Init resets them (defaults).
+- Page: bottom row respaced (MIX 84, PRE-DELAY 208, SYNC toggle 300 bw=72, FEEDBACK 392, LOW CUT 512, HIGH CUT 628,
+  WIDTH 744, DUCK 860, OUTPUT 976; captions tone x=480, out x=826). New skin_check notes: knob boxes overlap 14 px
+  (as the trim row always did), FEEDBACK/LOW CUT 10 px, SYNC 9 px each side. SYNC was bw=60 at first, and MPC cut
+  the word on the device: its label font is 25 px ("SYNC" ~58 px wide), and a box wants ~20% more than the text.
+- Q-Links (both banks): mix, decay, feedback, predelay, duck, lowcut, highcut, width, ir, stretch, start, length,
+  fade_in, fade_out, reverse, output.
+- Textures: tools/make_factory_irs.py appends 5 builders (seeds continue: the 14 earlier files are byte-identical);
+  packaging/factory/Textures (3.2 MB); 5 presets appended (PRESET: Init + 19; norm = k / 19); the popup is cols=4
+  cw=300 (it was 3 x 340, which a fourth column pushed off the page). tools/demos/demo_host divides by 19.
+- **MPC's preset menu** (added the same day): VST programs = Init + kPresets, named program_name() "Space|Echo|Strange|
+  Texture: <name>" (<= 23 chars, VST's 24-byte buffer); effSetProgram -> set_parameter(P_PRESET), then host_view[P_PRESET]
+  = -1 and changed (the host didn't write it); re-selecting the current program is ignored (JUCE re-selects at load;
+  the kit's rule, mpc-vst-plugins NOTES.md 2026-10-07). effGetProgram is the PRESET param's index (after a My Preset
+  it shows whatever PRESET holds). **Device check:** the menu lists 20 names, picking one loads it and our PRESET field
+  follows; a project reload keeps edits.
+- **Best on**: kBestOn (factory IR name -> "drums, vocals"...), appended to the pack line for the Factory list
+  ("Strange · best on chords, pads"); My IRs and TONE3000 packs unchanged. README has the table.
+- **Marketing kit**: tools/demos (12 demos; make_video.py takes several wet parts for before/after, demo_host takes
+  bpm=), tools/trailer (score.py: two songs, the style setting the tempo and meter: dark, 120 BPM in
+  5/4, a round sub ostinato (sine + triangle, under ~700 Hz), heartbeat, a glass pad, a theremin-like falling lead,
+  toms; cyber, 100 BPM, slow and heavy: a broken kick, a backbeat snare, an 8th bass pulse, 8th-gated chords, a soft
+  square hook; trap, 140 BPM half-time: sliding 808s, a clap on 3, hat rolls, a dark mono synth through Dream
+  Ping-Pong. render.sh <style> plays every stem (none dry) through a factory preset, mix.py <style>
+  cuts the tails that would ring over a hit (GATES) and masters, make_trailer.py wide|tall --style <style> draws the
+  dark edit (paintings, red titles), cyber's own edit in the plugin's amber and ivory (a terminal boot, HUD
+  panels, a scope, a countdown, punch-ins) or trap's (hard cuts on the 808s and claps, huge stacked words, a ghost
+  word drifting behind, page punch-ins),
+  from the real page states), and tools/make_feature_images.py (docs/images/feature-*.png, plus 1080x1080 posts). The trailer files are not in the repo
+  (~40 MB): upload them (YouTube, socials) and link them.
+
+
+## 1.4.0 after the first device test (2026-11-11; offline, to check on the device)
+- **LONG IR**: the user saw a tap warn and turn it on at once, and the warning again on the way off: each tap
+  evidently reached `long_ir_tap` twice (arm, then confirm). The page control is now `toggle key=long_ir` (the On/Off
+  setting itself, exactly like REVERSE); the info line reads "On · CPU heavy · 20 s" while on. **Not** `button`:
+  the kit's button (`shTrig_*`) has a Mouse Down "Toggle Switch" action *and* a Button component that both flip the
+  value, so a tap flipped it twice and LONG IR never stayed on (the second device report). A `toggle` (`shToggle`)
+  routes Mouse Down to Q-Link focus and lets the pill alone switch it. MPC writes the parameter name ("Long IR") under it.
+  `long_ir_tap` stays (appended params never go) as a toggle that counts events within `kTapMs` (300 ms) as one.
+- **DELETE** (IR and My Preset) keeps two taps; the confirming one must come >= kTapMs after the arming one, so a
+  doubled event only arms (plugin_test sends doubled taps). Check on the device that a real double tap still deletes.
+- **SYNC's label**: MPC writes the parameter's *name* under a toggle (Label "type": "Name"), not the layout's label,
+  so it showed "Pre-delay Sync" in a 72 px box. params.json's name is now "Sync". (The page preview shows the layout
+  label, which is why the earlier 60 -> 72 px fix looked fine offline.)
+- **MPC's preset menu (VST programs)**: `kProgOrder` lists the factory presets by use (Drum, Vocal, Keys, Pad, FX;
+  "Use: Name", <= 23 bytes); program 0 is Init; then up to `kMaxProgIrs` (500) My IRs read with
+  `Library::scan_quick` at instantiation (the folder index the last scan left: no card walk; a first-ever load has none),
+  named "My IR: <file>". `numPrograms` is fixed per instance, so new IRs show on the next load. A My IR program =
+  Init's settings + that IR (`pick_ir_program`; found after the scan if needed). `cur_prog` is what effGetProgram
+  reports (the project's My IR or PRESET after a chunk). effSetProgram is ignored for the current program and for
+  2 s after effSetChunk: My IRs' places move, so a host re-selecting its saved number could name another sound.
+  **Device check**: that MPC's menu lists the My IRs, that picking one loads it, and what MPC does at project load.
+- **Back to Init**: any IR picked from My IRs (arrows, packs, IR List, a TONE3000 download, the menu) resets the
+  settings to Init (`ir_picked` -> `back_to_init`; the user asked for this on My IR -> My IR switches too, after a
+  first version only did it after an untouched factory preset). Not when the IR didn't change (`before == want`: a host
+  re-sending P_IR), nor within 2 s of effSetChunk (a host restoring P_IR with the project). My Presets set the IR in
+  `mp_apply` and never come here. `preset_clean` is still saved in the chunk but no longer gates anything.

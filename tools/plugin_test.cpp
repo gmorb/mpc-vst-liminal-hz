@@ -35,12 +35,37 @@ enum { P_MIX, P_PREDELAY, P_LOWCUT, P_HIGHCUT, P_WIDTH, P_LENGTH, P_OUTPUT, P_IR
        P_START, P_FADE_IN, P_FADE_OUT, P_STRETCH, P_REVERSE, P_FEEDBACK,
        P_WAVE0, P_PLAYHEAD = P_WAVE0 + kCols, P_SOURCE, P_PRESET, P_SONICS,
        P_MP_INFO, P_MP_SAVE, P_MP_DELETE, P_MP_PHONE, P_MENU, P_IR_LIST, P_MP_LIST, P_MENU_CLOSE, P_MENU_PREV, P_MENU_NEXT,
-       P_MENU_TITLE, P_ROW1, P_ROW6 = P_ROW1 + 5, P_DECAY, P_LONG_IR, P_LONG_IR_TAP, P_LONG_IR_INFO, P_PRESET_OPEN, P_TOTAL };
-static const int kPresets = 14;                 // factory presets after Init (PRESET's options: Init + 14)
+       P_MENU_TITLE, P_ROW1, P_ROW6 = P_ROW1 + 5, P_DECAY, P_LONG_IR, P_LONG_IR_TAP, P_LONG_IR_INFO, P_DUCK, P_PREDELAY_SYNC,
+       P_PRESET_OPEN, P_TOTAL };
+static const int kPresets = 19;                 // factory presets after Init (PRESET's options: Init + 19)
 static int fails = 0;
 #define CHECK(c, ...) do { printf("%s ", (c) ? "ok  " : "FAIL"); printf(__VA_ARGS__); printf("\n"); if (!(c)) fails++; } while (0)
 static AEffect* (*entry)(hostcb);
-static intptr_t host(AEffect*, int32_t op, int32_t, intptr_t, void*, float) { return op == 1 ? 2400 : 0; }
+static std::atomic<int> n_update{0}, n_automate{0};   // the host calls a plugin makes (UpdateDisplay, Automate)
+struct VstTimeInfo {
+  double samplePos, sampleRate, nanoSeconds, ppqPos, tempo, barStartPos, cycleStartPos, cycleEndPos;
+  int32_t timeSigNumerator, timeSigDenominator, smpteOffset, smpteFrameRate, samplesToNextClock, flags;
+};
+static std::atomic<double> host_tempo{0};              // the project tempo the host gives (0: none, as no tempo valid)
+static intptr_t host(AEffect*, int32_t op, int32_t, intptr_t, void*, float) {
+  if (op == 42) n_update++;
+  if (op == 0) n_automate++;
+  if (op == 7) {                                       // audioMasterGetTime
+    static thread_local VstTimeInfo ti;
+    ti = VstTimeInfo(); ti.sampleRate = 44100; ti.tempo = host_tempo; ti.flags = host_tempo > 0 ? (1 << 10) : 0;
+    return (intptr_t)&ti;
+  }
+  return op == 1 ? 2400 : 0;
+}
+static void play_paced(AEffect* a, double secs) {   // audio at MPC's pace (the plugin reports to the host from process)
+  std::vector<float> l(128, 0.f), r(128, 0.f), ol(128), orr(128);
+  const auto t0 = std::chrono::steady_clock::now();
+  for (long b = 0; b < (long)(secs * 44100 / 128); b++) {
+    std::this_thread::sleep_until(t0 + std::chrono::microseconds((long long)(b * 128 * 1e6 / 44100)));
+    float* in[2] = {l.data(), r.data()}; float* out[2] = {ol.data(), orr.data()};
+    a->pr(a, in, out, 128);
+  }
+}
 static std::string disp(AEffect* a, int i) { char b[256] = {0}; a->d(a, 7, i, 0, b, 0); return b; }
 static bool wait_for(std::function<bool()> ok, double secs = 30) {
   for (int i = 0; i < secs * 50; i++) { if (ok()) return true; std::this_thread::sleep_for(std::chrono::milliseconds(20)); }
@@ -210,7 +235,7 @@ int main(int argc, char** argv) {
     wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Fluorescent Hall"; }, 60);
     bool pf = false; double pt = tail_rms(pz, &pf);
     CHECK(pz->getP(pz, P_PRESET_OPEN) == 0 && disp(pz, P_PRESET) == "Fluorescent Hall" && disp(pz, P_SOURCE) == "Factory" &&
-          disp(pz, P_IR) == "Fluorescent Hall" && disp(pz, P_IR_PACK) == "Spaces" && disp(pz, P_MIX) == "40%" &&
+          disp(pz, P_IR) == "Fluorescent Hall" && disp(pz, P_IR_PACK) == "Spaces \xC2\xB7 best on keys, pads" && disp(pz, P_MIX) == "40%" &&
           disp(pz, P_PREDELAY) == "30 ms" && pf && pt > 1e-4,
           "a preset: the list closes, [%s] in [%s] [%s], mix %s, pre-delay %s, it reverberates (%.4f)", disp(pz, P_IR).c_str(),
           disp(pz, P_IR_PACK).c_str(), disp(pz, P_IR_INFO).c_str(), disp(pz, P_MIX).c_str(), disp(pz, P_PREDELAY).c_str(), pt);
@@ -224,6 +249,97 @@ int main(int argc, char** argv) {
     CHECK(disp(pr, P_IR) == "Fluorescent Hall" && disp(pr, P_SOURCE) == "Factory" && pr->getP(pr, P_PRESET_OPEN) == 0,
           "a project on a factory IR reopens with it: [%s] (%s)", disp(pr, P_IR).c_str(), disp(pr, P_SOURCE).c_str());
     pr->d(pr, 1, 0, 0, nullptr, 0);
+    { // a pick costs the host little: setParameter returns at once (never waits on the worker), and MPC is asked to
+      // redraw its screen once (an UpdateDisplay rebuilds the whole page), not once for the pick and again for the IR
+      play_paced(pz, 0.5);
+      n_update = 0; n_automate = 0;
+      const auto t0 = std::chrono::steady_clock::now();
+      pz->setP(pz, P_PRESET, 6.0f / kPresets);                 // "Tape Corridor"
+      const double set_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+      std::atomic<double> ready_ms{-1};                        // when the IR was ready (the UI thread's view)
+      std::thread ui([&] { while (ready_ms < 0) { if (idle(pz) && disp(pz, P_IR) == "Tape Corridor")
+          ready_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        else if (std::chrono::steady_clock::now() - t0 > std::chrono::seconds(5)) break; std::this_thread::sleep_for(std::chrono::milliseconds(2)); } });
+      play_paced(pz, 1.0);
+      ui.join();
+      // one redraw when the IR is ready within the hold (600 ms; a factory IR: ~30 ms on a PC, ~400 under qemu-arm)
+      const int want = ready_ms >= 0 && ready_ms < 500 ? 1 : 2;
+      CHECK(set_ms < 5 && n_update >= 1 && n_update <= want && n_automate <= 32 && disp(pz, P_IR) == "Tape Corridor",
+            "a preset pick: setParameter %.2f ms, %d UpdateDisplay (IR ready in %.0f ms), %d Automate, [%s]", set_ms, n_update.load(),
+            ready_ms.load(), n_automate.load(), disp(pz, P_IR).c_str());
+      n_update = 0;
+      for (int k = 0; k < 20; k++) { pz->setP(pz, P_MIX, 0.3f + 0.01f * k); play_paced(pz, 0.02); }   // a knob turned for 0.4 s
+      play_paced(pz, 0.3);
+      CHECK(n_update >= 2 && n_update <= 6 && disp(pz, P_MIX) == "49%", "a knob turned for 0.4 s: %d UpdateDisplays (paced, at most one per 100 ms), mix %s",
+            n_update.load(), disp(pz, P_MIX).c_str());
+    }
+    {   // the fourth column: Textures (not rooms), each with its IR
+      const char* tex[] = {"Struck Pipe", "Grain Cloud", "Tuned Chord", "Breath", "Bouncing Ball"};
+      int found = 0;
+      for (int k = 0; k < 5; k++) {
+        pz->setP(pz, P_PRESET, (15.0f + k) / kPresets);
+        if (wait_for([&] { return idle(pz) && disp(pz, P_IR) == tex[k]; }, 20) && disp(pz, P_PRESET) == tex[k] && disp(pz, P_IR_PACK).rfind("Textures \xC2\xB7 best on ", 0) == 0) found++;
+      }
+      bool tf = false; const double tt = tail_rms(pz, &tf);
+      CHECK(found == 5 && tf && tt > 1e-5, "the Textures presets: %d of 5 load their IR, [%s] sounds (%.4f)", found, disp(pz, P_IR).c_str(), tt);
+    }
+    {   // MPC's own PRESET menu: VST programs by use (Init, Drum/Vocal/Keys/Pad/FX "Use: Name"), then My IRs
+      auto pname = [&](int k) { char b[64] = {0}; pz->d(pz, 29, k, 0, b, 0); return std::string(b); };
+      bool short_ok = true;
+      for (int k = 0; k < pz->numPrograms; k++) short_ok = short_ok && !pname(k).empty() && pname(k).size() <= 23;
+      int big = -1;
+      for (int k = kPresets + 1; k < pz->numPrograms; k++) if (pname(k) == "My IR: Big Hall") big = k;
+      CHECK(pz->numPrograms > kPresets + 1 && short_ok && pname(0) == "Init" && pname(1) == "Drum: Empty Mall" &&
+            pname(3) == "Drum: Stairwell Flutter" && pname(12) == "Keys: Liminal Hz" && pname(19) == "FX: Breath" &&
+            pname(kPresets + 1).rfind("My IR: ", 0) == 0 && big > kPresets,
+            "%d programs, all <= 23 characters: [%s] [%s] [%s] [%s] [%s], My IRs from [%s]", pz->numPrograms, pname(0).c_str(),
+            pname(1).c_str(), pname(3).c_str(), pname(12).c_str(), pname(19).c_str(), pname(kPresets + 1).c_str());
+      pz->d(pz, 2, 0, 12, nullptr, 0);                         // effSetProgram: Liminal Hz
+      wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Liminal Hz"; }, 20);
+      char cur[64] = {0}; pz->d(pz, 5, 0, 0, cur, 0);
+      const bool picked = disp(pz, P_PRESET) == "Liminal Hz" && pz->d(pz, 3, 0, 0, nullptr, 0) == 12 && std::string(cur) == "Keys: Liminal Hz" &&
+                          disp(pz, P_IR_PACK) == "Strange \xC2\xB7 best on chords, pads";
+      pz->setP(pz, P_MIX, 0.77f);                              // an edit, then the host re-selects the same program
+      pz->d(pz, 2, 0, 12, nullptr, 0);
+      CHECK(picked && disp(pz, P_MIX) == "77%", "effSetProgram 12 loads [%s] ([%s], pack [%s]); re-selecting it keeps edits (mix %s)",
+            disp(pz, P_PRESET).c_str(), cur, disp(pz, P_IR_PACK).c_str(), disp(pz, P_MIX).c_str());
+      pz->d(pz, 2, 0, big, nullptr, 0);                        // a My IR from the menu: Init's settings with that IR
+      wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Big Hall"; }, 20);
+      char cur2[64] = {0}; pz->d(pz, 5, 0, 0, cur2, 0);
+      CHECK(disp(pz, P_IR) == "Big Hall" && disp(pz, P_SOURCE) == "My IRs" && disp(pz, P_MIX) == "30%" && disp(pz, P_PRESET) == "Init" &&
+            std::string(cur2) == "My IR: Big Hall", "a My IR program: [%s] in %s, Init's settings (mix %s), menu [%s]",
+            disp(pz, P_IR).c_str(), disp(pz, P_SOURCE).c_str(), disp(pz, P_MIX).c_str(), cur2);
+      // the page: any My IR picked (after a factory preset, after an edit, from another My IR) goes back to Init;
+      // the same IR picked again keeps your edits
+      pz->setP(pz, P_PRESET, 3.0f / kPresets);                 // Fluorescent Hall: mix 40%
+      wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Fluorescent Hall"; }, 20);
+      pz->setP(pz, P_MIX, 0.5f);                               // an edit
+      pz->setP(pz, P_SOURCE, 1.0f);                            // My IRs
+      press(pz, P_IR_NEXT);
+      wait_for([&] { return idle(pz); }, 20);
+      const std::string m1v = disp(pz, P_MIX), p1v = disp(pz, P_PRESET), ir1 = disp(pz, P_IR);
+      pz->setP(pz, P_MIX, 0.6f);                               // an edit on that My IR, then the next My IR
+      press(pz, P_IR_NEXT);
+      wait_for([&] { return idle(pz); }, 20);
+      const std::string m2v = disp(pz, P_MIX), ir2 = disp(pz, P_IR);
+      pz->setP(pz, P_MIX, 0.5f);                               // an edit, then the same IR again (the host re-sending it)
+      pz->setP(pz, P_IR, pz->getP(pz, P_IR));
+      wait_for([&] { return idle(pz); }, 20);
+      CHECK(m1v == "30%" && p1v == "Init" && m2v == "30%" && ir1 != ir2 && disp(pz, P_MIX) == "50%",
+            "a My IR after an edited factory preset: Init (mix %s, %s); the next My IR [%s -> %s]: Init again (mix %s); "
+            "the same IR again keeps the edit (mix %s)", m1v.c_str(), p1v.c_str(), ir1.c_str(), ir2.c_str(), m2v.c_str(),
+            disp(pz, P_MIX).c_str());
+      // a project's state, then the host re-selecting a program at once: the project's sound stays
+      const std::string ch = chunk_of(pz);
+      pz->d(pz, 24, 0, (intptr_t)ch.size() + 1, (void*)ch.c_str(), 0);
+      pz->d(pz, 2, 0, 1, nullptr, 0);                          // (Empty Mall)
+      press(pz, P_IR_NEXT);                                    // (the host restoring the IR: no Init)
+      wait_for([&] { return idle(pz); }, 20);
+      CHECK(disp(pz, P_MIX) == "50%" && disp(pz, P_PRESET) != "Empty Mall", "a program or IR set just after a project's state "
+            "keeps its sound (mix %s, %s)", disp(pz, P_MIX).c_str(), disp(pz, P_PRESET).c_str());
+      pz->setP(pz, P_SOURCE, 0.0f);
+      wait_for([&] { return idle(pz); }, 20);
+    }
     pz->setP(pz, P_PRESET, 0.0f);                              // Init
     wait_for([&] { return idle(pz); });
     bool zf = false; double zt = tail_rms(pz, &zf);
@@ -355,8 +471,9 @@ int main(int argc, char** argv) {
     CHECK(title(mp) == "Presets 1-4 of 6", "NEXT wraps: [%s]", title(mp).c_str());
     // DELETE: two taps, permanently; the list closes up
     press(mp, P_MENU_NEXT);                                                    // page 2 holds Zeta 3 (selected)
-    press(mp, P_MP_DELETE);
-    CHECK(info() == "Tap DELETE again to delete it permanently" && fs::exists(pdir / "Zeta 3.lhzp"), "one tap asks: [%s]", info().c_str());
+    press(mp, P_MP_DELETE); press(mp, P_MP_DELETE);          // (one touch MPC delivers twice: it only asks)
+    CHECK(info() == "Tap DELETE again to delete it permanently" && fs::exists(pdir / "Zeta 3.lhzp"), "one tap (even doubled) asks: [%s]", info().c_str());
+    std::this_thread::sleep_for(std::chrono::milliseconds(350));
     press(mp, P_MP_DELETE);
     wait_for([&] { return !fs::exists(pdir / "Zeta 3.lhzp") && title(mp) == "Presets 5-5 of 5"; }, 10);
     CHECK(!fs::exists(pdir / "Zeta 3.lhzp") && fs::exists(pdir / "Zeta 2.lhzp") && title(mp) == "Presets 5-5 of 5" && row(mp, 1) == "" && disp(mp, P_PRESET) != "My: Zeta 3",
@@ -421,8 +538,9 @@ int main(int argc, char** argv) {
   }
 
   // projects
+  press(a, P_IR_NEXT); wait_for([&] { return idle(a) && disp(a, P_IR) == "Small Hall"; });   // (a My IR: Init, then the edits)
   a->setP(a, P_MIX, 0.5f); a->setP(a, P_PREDELAY, 0.2f);
-  press(a, P_IR_NEXT); wait_for([&] { return idle(a) && disp(a, P_IR) == "Small Hall"; });
+  wait_for([&] { return idle(a); });
   void* chunk = nullptr; intptr_t len = a->d(a, 23, 0, 0, &chunk, 0);
   std::string saved((const char*)chunk, len);
   AEffect* b = open_plugin();
@@ -487,10 +605,14 @@ int main(int argc, char** argv) {
     wait_for([&] { return idle(x); });
     x->setP(x, P_SOURCE, 1.0f);
     for (int k = 0; k < 10 && disp(x, P_IR) != "Small Hall"; k++) { press(x, P_IR_NEXT); wait_for([&] { return idle(x); }); }
+    press(x, P_IR_DELETE); press(x, P_IR_DELETE);              // (one touch MPC delivers twice: it only asks)
+    CHECK(disp(x, P_IR) == "Small Hall" && disp(x, P_IR_INFO) == "Tap DELETE again to delete it permanently" &&
+          fs::exists(m1 / "662522/reverbs/Halls/Small Hall.wav"), "one tap (even doubled) asks: [%s]", disp(x, P_IR_INFO).c_str());
+    std::this_thread::sleep_for(std::chrono::milliseconds(350));
     press(x, P_IR_DELETE);
-    CHECK(disp(x, P_IR) == "Small Hall" && disp(x, P_IR_INFO) == "Tap DELETE again to delete it permanently", "one tap asks: [%s]", disp(x, P_IR_INFO).c_str());
-    press(x, P_IR_DELETE);
-    wait_for([&] { return disp(x, P_IR_INFO) == "Deleted"; }, 5);
+    bool searched = false;
+    wait_for([&] { searched = searched || disp(x, P_IR_INFO) == "Searching..."; return disp(x, P_IR_INFO) == "Deleted"; }, 5);
+    CHECK(!searched, "DELETE takes the IR out of the list without searching the cards again");
     CHECK(!fs::exists(m1 / "662522/reverbs/Halls/Small Hall.wav") && !fs::exists(m1 / "662522/Deleted"),
           "two taps: the IR is deleted permanently (info [%s])", disp(x, P_IR_INFO).c_str());
     wait_for([&] { return idle(x) && disp(x, P_IR) != "Small Hall"; }, 10);
@@ -567,28 +689,23 @@ int main(int argc, char** argv) {
     const double cut = late_rms(d);
     CHECK(d->getP(d, P_LONG_IR) == 0.0f && off == "Off \xC2\xB7 IRs up to 5 s" && cut < 1e-6,
           "LONG IR off by default: [%s], the 7 s IR stops at 5 s (rms %.2g at 5.5-6.5 s)", off.c_str(), cut);
-    press(d, P_LONG_IR_TAP);
-    const std::string warn = disp(d, P_LONG_IR_INFO);
-    CHECK(d->getP(d, P_LONG_IR) == 0.0f && warn == "CPU heavy \xC2\xB7 tap again",
-          "LONG IR, first tap: only a warning [%s]", warn.c_str());
-    press(d, P_LONG_IR_TAP);
+    d->setP(d, P_LONG_IR, 1.0f);                                // the page's button: the setting itself, one tap
     const std::string on = disp(d, P_LONG_IR_INFO);
     wait_for([&] { return idle(d); }, 60);
     const double longer = late_rms(d);
-    CHECK(d->getP(d, P_LONG_IR) == 1.0f && on == "On \xC2\xB7 IRs up to 20 s" && longer > 1e-5,
-          "LONG IR, second tap: on [%s], the 7 s IR plays past 5 s (rms %.2g)", on.c_str(), longer);
+    CHECK(d->getP(d, P_LONG_IR) == 1.0f && on == "On \xC2\xB7 CPU heavy \xC2\xB7 20 s" && longer > 1e-5,
+          "LONG IR, one tap: on [%s], the 7 s IR plays past 5 s (rms %.2g)", on.c_str(), longer);
     const std::string st = chunk_of(d);
     CHECK(st.find("long_ir=1\n") != std::string::npos && st.find("long_ir_info") == std::string::npos,
           "LONG IR is saved in the project (and its status line isn't)");
-    press(d, P_LONG_IR_TAP);
+    d->setP(d, P_LONG_IR, 0.0f);
     CHECK(d->getP(d, P_LONG_IR) == 0.0f && disp(d, P_LONG_IR_INFO) == "Off \xC2\xB7 IRs up to 5 s",
           "LONG IR, a tap while on: off at once [%s]", disp(d, P_LONG_IR_INFO).c_str());
-    press(d, P_LONG_IR_TAP);                                    // armed, then left: the warning runs out
-    std::this_thread::sleep_for(std::chrono::milliseconds(4400));
-    const std::string later = disp(d, P_LONG_IR_INFO);
+    press(d, P_LONG_IR_TAP); press(d, P_LONG_IR_TAP);           // the old tap parameter: a toggle; a tap arriving twice is one
+    const bool tap_on = d->getP(d, P_LONG_IR) == 1.0f;
+    std::this_thread::sleep_for(std::chrono::milliseconds(350));
     press(d, P_LONG_IR_TAP);
-    CHECK(later == "Off \xC2\xB7 IRs up to 5 s" && d->getP(d, P_LONG_IR) == 0.0f && disp(d, P_LONG_IR_INFO) == "CPU heavy \xC2\xB7 tap again",
-          "LONG IR: a first tap is forgotten after 4 s (then a tap warns again) [%s]", later.c_str());
+    CHECK(tap_on && d->getP(d, P_LONG_IR) == 0.0f, "LONG IR's tap parameter: one tap on (a doubled event counts once), the next off");
     {   // a project with LONG IR on turns it on with no warning; Init and factory presets leave it as it is
       AEffect* q = open_plugin();
       const std::string ch = "echo-vault=1\nmix=40\nlong_ir=1\nir_path=\nir_display=\nir_file=\n";
@@ -596,7 +713,7 @@ int main(int argc, char** argv) {
       const bool restored = q->getP(q, P_LONG_IR) == 1.0f;
       q->setP(q, P_PRESET, 0.0f);                               // Init
       q->setP(q, P_PRESET, 3.0f / kPresets);                    // Fluorescent Hall
-      CHECK(restored && q->getP(q, P_LONG_IR) == 1.0f && disp(q, P_LONG_IR_INFO) == "On \xC2\xB7 IRs up to 20 s",
+      CHECK(restored && q->getP(q, P_LONG_IR) == 1.0f && disp(q, P_LONG_IR_INFO) == "On \xC2\xB7 CPU heavy \xC2\xB7 20 s",
             "LONG IR from a project (no warning), kept by Init and a factory preset [%s]", disp(q, P_LONG_IR_INFO).c_str());
       wait_for([&] { return idle(q); }, 30);
       q->d(q, 1, 0, 0, nullptr, 0);
@@ -605,6 +722,62 @@ int main(int argc, char** argv) {
 #endif
     d->setP(d, P_MIX, 0.3f);
     wait_for([&] { return idle(d); }, 30);
+  }
+  {   // Duck and SYNC: in projects and My Presets, off after Init or a factory preset; SYNC follows the host's tempo
+    AEffect* q = open_plugin();
+    wait_for([&] { return idle(q); });
+    q->setP(q, P_PRESET, 1.0f / kPresets);                      // Empty Mall
+    wait_for([&] { return idle(q) && disp(q, P_IR) == "Empty Mall"; }, 30);
+    CHECK(disp(q, P_DUCK) == "0%" && disp(q, P_PREDELAY_SYNC) == "Off", "Duck and SYNC start off: [%s] [%s]",
+          disp(q, P_DUCK).c_str(), disp(q, P_PREDELAY_SYNC).c_str());
+    q->setP(q, P_MIX, 1.0f);
+    auto onset = [&] {                                          // where a click's reverb starts (samples), mix 100%
+      std::vector<float> l(128), ol(128), orr(128);
+      for (int b = 0; b < 2400; b++) { std::fill(l.begin(), l.end(), 0.0f);   // (7 s of silence: the last click's tail gone)
+        float* in[2] = {l.data(), l.data()}; float* out[2] = {ol.data(), orr.data()}; q->pr(q, in, out, 128); }
+      for (long b = 0; b < (long)(2.5 * 44100 / 128); b++) {
+        std::fill(l.begin(), l.end(), 0.0f); if (b == 0) l[0] = 1.0f;
+        float* in[2] = {l.data(), l.data()}; float* out[2] = {ol.data(), orr.data()};
+        q->pr(q, in, out, 128);
+        std::this_thread::sleep_for(std::chrono::microseconds(2900));   // (real time: the tail's worker keeps up, as on MPC)
+        for (int i = 0; i < 128; i++) if (std::fabs(ol[i]) > 1e-4f || std::fabs(orr[i]) > 1e-4f) return b * 128 + i;
+      }
+      return -1L;
+    };
+    q->setP(q, P_PREDELAY, 0.0f);
+    const long base = onset();
+    host_tempo = 100;
+    q->setP(q, P_PREDELAY_SYNC, 1.0f);
+    q->setP(q, P_PREDELAY, 1.0f);                               // the knob's top: 1/4
+    const long q100 = onset() - base;
+    const std::string n100 = disp(q, P_PREDELAY);
+    host_tempo = 150;
+    const long q150 = onset() - base;
+    q->setP(q, P_PREDELAY, 0.8f);                               // 1/8
+    const long e150 = onset() - base;
+    const std::string n8 = disp(q, P_PREDELAY);
+    CHECK(n100 == "1/4" && n8 == "1/8" && std::labs(q100 - 26460) <= 2 && std::labs(q150 - 17640) <= 2 && std::labs(e150 - 8820) <= 2,
+          "SYNC: [%s] at 100 BPM %ld samples (600 ms), at 150 BPM %ld (400 ms); [%s] %ld (200 ms)", n100.c_str(), q100, q150, n8.c_str(), e150);
+    host_tempo = 0;
+    CHECK(disp(q, P_PREDELAY).find("1/8") == 0, "a host without a tempo: the note at 120 BPM [%s]", disp(q, P_PREDELAY).c_str());
+    q->setP(q, P_DUCK, 0.4f);
+    const std::string st = chunk_of(q);
+    CHECK(disp(q, P_DUCK) == "40%" && st.find("\nduck=40\n") != std::string::npos && st.find("\npredelay_sync=1\n") != std::string::npos,
+          "Duck [%s] and SYNC are saved in the project", disp(q, P_DUCK).c_str());
+    AEffect* r = open_plugin();                                 // ... and come back with it
+    r->d(r, 24, 0, (intptr_t)st.size() + 1, (void*)st.c_str(), 0);
+    CHECK(disp(r, P_DUCK) == "40%" && disp(r, P_PREDELAY_SYNC) == "On" && disp(r, P_PREDELAY).find("1/8") == 0,
+          "a project reopens with Duck %s, SYNC %s, Pre-delay [%s]", disp(r, P_DUCK).c_str(), disp(r, P_PREDELAY_SYNC).c_str(), disp(r, P_PREDELAY).c_str());
+    wait_for([&] { return idle(r); }, 30);
+    r->d(r, 1, 0, 0, nullptr, 0);
+    q->setP(q, P_PRESET, 4.0f / kPresets);                      // a factory preset: both off
+    const bool fp = disp(q, P_DUCK) == "0%" && disp(q, P_PREDELAY_SYNC) == "Off" && disp(q, P_PREDELAY).find(" ms") != std::string::npos;
+    q->setP(q, P_DUCK, 0.4f); q->setP(q, P_PREDELAY_SYNC, 1.0f);
+    q->setP(q, P_PRESET, 0.0f);                                 // Init: both off
+    CHECK(fp && disp(q, P_DUCK) == "0%" && disp(q, P_PREDELAY_SYNC) == "Off", "a factory preset and Init turn Duck and SYNC off [%s]",
+          disp(q, P_PREDELAY).c_str());
+    wait_for([&] { return idle(q); }, 30);
+    q->d(q, 1, 0, 0, nullptr, 0);
   }
   std::atomic<bool> run{true}, sane{true}; std::atomic<long> blocks{0};
   std::thread audio([&] {
