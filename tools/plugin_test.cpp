@@ -283,23 +283,56 @@ int main(int argc, char** argv) {
       bool tf = false; const double tt = tail_rms(pz, &tf);
       CHECK(found == 5 && tf && tt > 1e-5, "the Textures presets: %d of 5 load their IR, [%s] sounds (%.4f)", found, disp(pz, P_IR).c_str(), tt);
     }
-    {   // MPC's own PRESET menu: VST programs (Init + the factory presets, "Category: Name"), loading as our list does
+    {   // MPC's own PRESET menu: VST programs by use (Init, Drum/Vocal/Keys/Pad/FX "Use: Name"), then My IRs
       auto pname = [&](int k) { char b[64] = {0}; pz->d(pz, 29, k, 0, b, 0); return std::string(b); };
       bool short_ok = true;
       for (int k = 0; k < pz->numPrograms; k++) short_ok = short_ok && !pname(k).empty() && pname(k).size() <= 23;
-      CHECK(pz->numPrograms == kPresets + 1 && short_ok && pname(0) == "Init" && pname(3) == "Space: Fluorescent Hall" &&
-            pname(7) == "Echo: Dream Ping-Pong" && pname(14) == "Strange: Liminal Hz" && pname(19) == "Texture: Bouncing Ball",
-            "%d programs, all <= 23 characters: [%s] [%s] [%s] [%s]", pz->numPrograms, pname(0).c_str(), pname(3).c_str(),
-            pname(14).c_str(), pname(19).c_str());
-      pz->d(pz, 2, 0, 14, nullptr, 0);                         // effSetProgram: Liminal Hz
+      int big = -1;
+      for (int k = kPresets + 1; k < pz->numPrograms; k++) if (pname(k) == "My IR: Big Hall") big = k;
+      CHECK(pz->numPrograms > kPresets + 1 && short_ok && pname(0) == "Init" && pname(1) == "Drum: Empty Mall" &&
+            pname(3) == "Drum: Stairwell Flutter" && pname(12) == "Keys: Liminal Hz" && pname(19) == "FX: Breath" &&
+            pname(kPresets + 1).rfind("My IR: ", 0) == 0 && big > kPresets,
+            "%d programs, all <= 23 characters: [%s] [%s] [%s] [%s] [%s], My IRs from [%s]", pz->numPrograms, pname(0).c_str(),
+            pname(1).c_str(), pname(3).c_str(), pname(12).c_str(), pname(19).c_str(), pname(kPresets + 1).c_str());
+      pz->d(pz, 2, 0, 12, nullptr, 0);                         // effSetProgram: Liminal Hz
       wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Liminal Hz"; }, 20);
       char cur[64] = {0}; pz->d(pz, 5, 0, 0, cur, 0);
-      const bool picked = disp(pz, P_PRESET) == "Liminal Hz" && pz->d(pz, 3, 0, 0, nullptr, 0) == 14 && std::string(cur) == "Strange: Liminal Hz" &&
+      const bool picked = disp(pz, P_PRESET) == "Liminal Hz" && pz->d(pz, 3, 0, 0, nullptr, 0) == 12 && std::string(cur) == "Keys: Liminal Hz" &&
                           disp(pz, P_IR_PACK) == "Strange \xC2\xB7 best on chords, pads";
       pz->setP(pz, P_MIX, 0.77f);                              // an edit, then the host re-selects the same program
-      pz->d(pz, 2, 0, 14, nullptr, 0);
-      CHECK(picked && disp(pz, P_MIX) == "77%", "effSetProgram 14 loads [%s] ([%s], pack [%s]); re-selecting it keeps edits (mix %s)",
+      pz->d(pz, 2, 0, 12, nullptr, 0);
+      CHECK(picked && disp(pz, P_MIX) == "77%", "effSetProgram 12 loads [%s] ([%s], pack [%s]); re-selecting it keeps edits (mix %s)",
             disp(pz, P_PRESET).c_str(), cur, disp(pz, P_IR_PACK).c_str(), disp(pz, P_MIX).c_str());
+      pz->d(pz, 2, 0, big, nullptr, 0);                        // a My IR from the menu: Init's settings with that IR
+      wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Big Hall"; }, 20);
+      char cur2[64] = {0}; pz->d(pz, 5, 0, 0, cur2, 0);
+      CHECK(disp(pz, P_IR) == "Big Hall" && disp(pz, P_SOURCE) == "My IRs" && disp(pz, P_MIX) == "30%" && disp(pz, P_PRESET) == "Init" &&
+            std::string(cur2) == "My IR: Big Hall", "a My IR program: [%s] in %s, Init's settings (mix %s), menu [%s]",
+            disp(pz, P_IR).c_str(), disp(pz, P_SOURCE).c_str(), disp(pz, P_MIX).c_str(), cur2);
+      // the page: a My IR picked after an untouched factory preset goes back to Init; after an edit, the edit stays
+      pz->setP(pz, P_PRESET, 3.0f / kPresets);                 // Fluorescent Hall: mix 40%
+      wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Fluorescent Hall"; }, 20);
+      pz->setP(pz, P_SOURCE, 1.0f);                            // My IRs
+      press(pz, P_IR_NEXT);
+      wait_for([&] { return idle(pz); }, 20);
+      const std::string m1v = disp(pz, P_MIX), p1v = disp(pz, P_PRESET);
+      pz->setP(pz, P_PRESET, 3.0f / kPresets);
+      wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Fluorescent Hall"; }, 20);
+      pz->setP(pz, P_MIX, 0.5f);                               // an edit
+      pz->setP(pz, P_SOURCE, 1.0f);
+      press(pz, P_IR_NEXT);
+      wait_for([&] { return idle(pz); }, 20);
+      CHECK(m1v == "30%" && p1v == "Init" && disp(pz, P_MIX) == "50%" && disp(pz, P_PRESET) == "Fluorescent Hall",
+            "a My IR after a factory preset: Init (mix %s, %s); after an edit the edit stays (mix %s, %s)", m1v.c_str(), p1v.c_str(),
+            disp(pz, P_MIX).c_str(), disp(pz, P_PRESET).c_str());
+      // a project's state, then the host re-selecting a program at once: the project's sound stays
+      const std::string ch = chunk_of(pz);
+      pz->d(pz, 24, 0, (intptr_t)ch.size() + 1, (void*)ch.c_str(), 0);
+      pz->d(pz, 2, 0, 1, nullptr, 0);                          // (Empty Mall)
+      CHECK(disp(pz, P_MIX) == "50%" && disp(pz, P_PRESET) != "Empty Mall", "a program picked just after a project's state is ignored (mix %s, %s)",
+            disp(pz, P_MIX).c_str(), disp(pz, P_PRESET).c_str());
+      pz->setP(pz, P_SOURCE, 0.0f);
+      wait_for([&] { return idle(pz); }, 20);
     }
     pz->setP(pz, P_PRESET, 0.0f);                              // Init
     wait_for([&] { return idle(pz); });
@@ -432,8 +465,9 @@ int main(int argc, char** argv) {
     CHECK(title(mp) == "Presets 1-4 of 6", "NEXT wraps: [%s]", title(mp).c_str());
     // DELETE: two taps, permanently; the list closes up
     press(mp, P_MENU_NEXT);                                                    // page 2 holds Zeta 3 (selected)
-    press(mp, P_MP_DELETE);
-    CHECK(info() == "Tap DELETE again to delete it permanently" && fs::exists(pdir / "Zeta 3.lhzp"), "one tap asks: [%s]", info().c_str());
+    press(mp, P_MP_DELETE); press(mp, P_MP_DELETE);          // (one touch MPC delivers twice: it only asks)
+    CHECK(info() == "Tap DELETE again to delete it permanently" && fs::exists(pdir / "Zeta 3.lhzp"), "one tap (even doubled) asks: [%s]", info().c_str());
+    std::this_thread::sleep_for(std::chrono::milliseconds(350));
     press(mp, P_MP_DELETE);
     wait_for([&] { return !fs::exists(pdir / "Zeta 3.lhzp") && title(mp) == "Presets 5-5 of 5"; }, 10);
     CHECK(!fs::exists(pdir / "Zeta 3.lhzp") && fs::exists(pdir / "Zeta 2.lhzp") && title(mp) == "Presets 5-5 of 5" && row(mp, 1) == "" && disp(mp, P_PRESET) != "My: Zeta 3",
@@ -564,8 +598,10 @@ int main(int argc, char** argv) {
     wait_for([&] { return idle(x); });
     x->setP(x, P_SOURCE, 1.0f);
     for (int k = 0; k < 10 && disp(x, P_IR) != "Small Hall"; k++) { press(x, P_IR_NEXT); wait_for([&] { return idle(x); }); }
-    press(x, P_IR_DELETE);
-    CHECK(disp(x, P_IR) == "Small Hall" && disp(x, P_IR_INFO) == "Tap DELETE again to delete it permanently", "one tap asks: [%s]", disp(x, P_IR_INFO).c_str());
+    press(x, P_IR_DELETE); press(x, P_IR_DELETE);              // (one touch MPC delivers twice: it only asks)
+    CHECK(disp(x, P_IR) == "Small Hall" && disp(x, P_IR_INFO) == "Tap DELETE again to delete it permanently" &&
+          fs::exists(m1 / "662522/reverbs/Halls/Small Hall.wav"), "one tap (even doubled) asks: [%s]", disp(x, P_IR_INFO).c_str());
+    std::this_thread::sleep_for(std::chrono::milliseconds(350));
     press(x, P_IR_DELETE);
     bool searched = false;
     wait_for([&] { searched = searched || disp(x, P_IR_INFO) == "Searching..."; return disp(x, P_IR_INFO) == "Deleted"; }, 5);
@@ -646,28 +682,23 @@ int main(int argc, char** argv) {
     const double cut = late_rms(d);
     CHECK(d->getP(d, P_LONG_IR) == 0.0f && off == "Off \xC2\xB7 IRs up to 5 s" && cut < 1e-6,
           "LONG IR off by default: [%s], the 7 s IR stops at 5 s (rms %.2g at 5.5-6.5 s)", off.c_str(), cut);
-    press(d, P_LONG_IR_TAP);
-    const std::string warn = disp(d, P_LONG_IR_INFO);
-    CHECK(d->getP(d, P_LONG_IR) == 0.0f && warn == "CPU heavy \xC2\xB7 tap again",
-          "LONG IR, first tap: only a warning [%s]", warn.c_str());
-    press(d, P_LONG_IR_TAP);
+    d->setP(d, P_LONG_IR, 1.0f);                                // the page's button: the setting itself, one tap
     const std::string on = disp(d, P_LONG_IR_INFO);
     wait_for([&] { return idle(d); }, 60);
     const double longer = late_rms(d);
-    CHECK(d->getP(d, P_LONG_IR) == 1.0f && on == "On \xC2\xB7 IRs up to 20 s" && longer > 1e-5,
-          "LONG IR, second tap: on [%s], the 7 s IR plays past 5 s (rms %.2g)", on.c_str(), longer);
+    CHECK(d->getP(d, P_LONG_IR) == 1.0f && on == "On \xC2\xB7 CPU heavy \xC2\xB7 20 s" && longer > 1e-5,
+          "LONG IR, one tap: on [%s], the 7 s IR plays past 5 s (rms %.2g)", on.c_str(), longer);
     const std::string st = chunk_of(d);
     CHECK(st.find("long_ir=1\n") != std::string::npos && st.find("long_ir_info") == std::string::npos,
           "LONG IR is saved in the project (and its status line isn't)");
-    press(d, P_LONG_IR_TAP);
+    d->setP(d, P_LONG_IR, 0.0f);
     CHECK(d->getP(d, P_LONG_IR) == 0.0f && disp(d, P_LONG_IR_INFO) == "Off \xC2\xB7 IRs up to 5 s",
           "LONG IR, a tap while on: off at once [%s]", disp(d, P_LONG_IR_INFO).c_str());
-    press(d, P_LONG_IR_TAP);                                    // armed, then left: the warning runs out
-    std::this_thread::sleep_for(std::chrono::milliseconds(4400));
-    const std::string later = disp(d, P_LONG_IR_INFO);
+    press(d, P_LONG_IR_TAP); press(d, P_LONG_IR_TAP);           // the old tap parameter: a toggle; a tap arriving twice is one
+    const bool tap_on = d->getP(d, P_LONG_IR) == 1.0f;
+    std::this_thread::sleep_for(std::chrono::milliseconds(350));
     press(d, P_LONG_IR_TAP);
-    CHECK(later == "Off \xC2\xB7 IRs up to 5 s" && d->getP(d, P_LONG_IR) == 0.0f && disp(d, P_LONG_IR_INFO) == "CPU heavy \xC2\xB7 tap again",
-          "LONG IR: a first tap is forgotten after 4 s (then a tap warns again) [%s]", later.c_str());
+    CHECK(tap_on && d->getP(d, P_LONG_IR) == 0.0f, "LONG IR's tap parameter: one tap on (a doubled event counts once), the next off");
     {   // a project with LONG IR on turns it on with no warning; Init and factory presets leave it as it is
       AEffect* q = open_plugin();
       const std::string ch = "echo-vault=1\nmix=40\nlong_ir=1\nir_path=\nir_display=\nir_file=\n";
@@ -675,7 +706,7 @@ int main(int argc, char** argv) {
       const bool restored = q->getP(q, P_LONG_IR) == 1.0f;
       q->setP(q, P_PRESET, 0.0f);                               // Init
       q->setP(q, P_PRESET, 3.0f / kPresets);                    // Fluorescent Hall
-      CHECK(restored && q->getP(q, P_LONG_IR) == 1.0f && disp(q, P_LONG_IR_INFO) == "On \xC2\xB7 IRs up to 20 s",
+      CHECK(restored && q->getP(q, P_LONG_IR) == 1.0f && disp(q, P_LONG_IR_INFO) == "On \xC2\xB7 CPU heavy \xC2\xB7 20 s",
             "LONG IR from a project (no warning), kept by Init and a factory preset [%s]", disp(q, P_LONG_IR_INFO).c_str());
       wait_for([&] { return idle(q); }, 30);
       q->d(q, 1, 0, 0, nullptr, 0);

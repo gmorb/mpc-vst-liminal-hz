@@ -318,3 +318,25 @@ display, the controls, factory presets, install; then the CPU design, build and 
   from the real page states), and tools/make_feature_images.py (docs/images/feature-*.png, plus 1080x1080 posts). The trailer files are not in the repo
   (~40 MB): upload them (YouTube, socials) and link them.
 
+
+## 1.4.0 after the first device test (2026-11-11; offline, to check on the device)
+- **LONG IR**: the user saw a tap warn and turn it on at once, and the warning again on the way off: each tap
+  evidently reached `long_ir_tap` twice (arm, then confirm). The page button is now `button key=long_ir` (the On/Off
+  setting itself, switched by MPC as a toggle, like REVERSE); the info line reads "On · CPU heavy · 20 s" while on.
+  `long_ir_tap` stays (appended params never go) as a toggle that counts events within `kTapMs` (300 ms) as one.
+- **DELETE** (IR and My Preset) keeps two taps; the confirming one must come >= kTapMs after the arming one, so a
+  doubled event only arms (plugin_test sends doubled taps). Check on the device that a real double tap still deletes.
+- **SYNC's label**: MPC writes the parameter's *name* under a toggle (Label "type": "Name"), not the layout's label,
+  so it showed "Pre-delay Sync" in a 72 px box. params.json's name is now "Sync". (The page preview shows the layout
+  label, which is why the earlier 60 -> 72 px fix looked fine offline.)
+- **MPC's preset menu (VST programs)**: `kProgOrder` lists the factory presets by use (Drum, Vocal, Keys, Pad, FX;
+  "Use: Name", <= 23 bytes); program 0 is Init; then up to `kMaxProgIrs` (500) My IRs read with
+  `Library::scan_quick` at instantiation (the folder index the last scan left: no card walk; a first-ever load has none),
+  named "My IR: <file>". `numPrograms` is fixed per instance, so new IRs show on the next load. A My IR program =
+  Init's settings + that IR (`pick_ir_program`; found after the scan if needed). `cur_prog` is what effGetProgram
+  reports (the project's My IR or PRESET after a chunk). effSetProgram is ignored for the current program and for
+  2 s after effSetChunk: My IRs' places move, so a host re-selecting its saved number could name another sound.
+  **Device check**: that MPC's menu lists the My IRs, that picking one loads it, and what MPC does at project load.
+- **Back to Init**: `preset_clean` is set by a factory preset pick and cleared by any changed setting (set_parameter,
+  value differs), Init, a My Preset; saved in the chunk ("preset_clean=1"). An IR picked from My IRs (arrows, packs,
+  IR List, a TONE3000 download, the menu) while it's set resets the settings to Init (`back_to_init`).

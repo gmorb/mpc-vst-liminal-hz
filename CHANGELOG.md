@@ -22,10 +22,14 @@
   Feedback 45%, Output -2 dB), Struck Pipe (Mix 20%, Output -2 dB), Grain Cloud (Output -4 dB, Width 120%), Tuned
   Chord (Mix 12%, Output -2 dB, Width 100%), Breath (Output -5 dB, Width 110%); Glass Void's Width is 115% so it holds
   up in mono. Projects keep their own settings; only the presets changed.
-- **MPC's own preset menu** (at the top of the screen) now lists Init and the 19 factory presets, named by category
-  ("Space: Empty Mall", "Echo: Tape Corridor", "Strange: Glass Void", "Texture: Breath"); picking one there is the
-  same as picking it in the plugin's PRESET list. Re-selecting the current one changes nothing, so a project's edits
-  are kept.
+- **MPC's own preset menu** (at the top of the screen) now lists Init, the 19 factory presets grouped by what they're
+  for (Drum, Vocal, Keys, Pad, FX: "Drum: Empty Mall", "Keys: Liminal Hz"), then **your own IRs** ("My IR: Big Hall",
+  each with Init's settings), read when the plugin loads, so IRs added or deleted show up on the next load. Picking a
+  factory preset there is the same as picking it in the plugin's PRESET list. Re-selecting the current one changes
+  nothing, and a pick in the first 2 s after a project's state arrives is ignored (a host re-selecting what it saved,
+  whose place may have moved): a project always reopens with its own sound.
+- **One of your own IRs after a factory preset goes back to Init**: a preset's settings belong to its IR. Only when
+  they're untouched (saved in the project as such): change anything and your settings stay; My Presets load as saved.
 - **What each IR suits**: under the IR's name, a factory IR's category now says what it's best on ("Strange · best
   on chords, pads"); the README has the table.
 - Seven more demos (the five Textures, Duck, SYNC), a trailer kit (`tools/trailer/`: three synthesized scores,
@@ -49,6 +53,12 @@
   Cut, Width, Output, Start, End, Fade In, Fade Out, Stretch, Reverse, Next Pack, Decay). Next Pack is gone from the
   Q-Links (PREV/NEXT PACK are on the page).
 - The bottom row is respaced to fit DUCK and SYNC.
+- **LONG IR is one tap on, one off** (it was two taps, the first a warning): on the device each tap reached the plugin
+  twice, so it came on at the first tap and warned again on the way off. The button is now the setting itself (as
+  REVERSE is), and the line under it reads "On · CPU heavy · 20 s" while it's on.
+- **DELETE** (an IR, a My Preset) still takes two taps, and now the second must come at least 0.3 s after the first,
+  so one touch delivered twice only asks.
+- SYNC's label is the parameter's name, which MPC writes under the switch: "Pre-delay Sync" didn't fit, it's "Sync".
 - Tests: plugin_test times a preset pick's setParameter and counts its host calls, checks DELETE never searches, SYNC
   at two tempos and without one, Duck and SYNC in projects, presets and Init, and the Textures presets; engine_test
   checks Duck (bit-identical at 0, -24/-12 dB, the release, Feedback tails untouched) and the 4-entry resample cache.

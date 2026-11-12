@@ -839,8 +839,7 @@
       "default": 0
     },
     {
-      "key": "predelay_sync",
-      "name": "Pre-delay Sync",
+      "key": "predelay_sync", "name": "Sync",
       "options": [
         "Off",
         "On"

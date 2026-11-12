@@ -85,7 +85,7 @@ One page, made for the MPC's touchscreen, with nothing hidden on other tabs:
   **DELETE** (for your own IRs: it asks twice); and the TONE3000 strip with **BROWSE** and its status line.
 - **Right, the shape** of the sound, and the shaping knobs: **trim**, **fade** and **time** (Stretch, Decay, Reverse).
 - **Below**, the mix controls: **space** (with **SYNC** beside Pre-delay), **tone** and **out** (Duck and Output); in
-  the corner, **LONG IR** and its status line (20 s IRs on Gen 1: it asks twice, as it is CPU heavy).
+  the corner, **LONG IR** and its status line (20 s IRs on Gen 1; it says CPU heavy while it's on).
 
 Behind it all, a doorway at the far end of an empty room.
 
@@ -137,9 +137,9 @@ The shape display shows what the IR sounds like, after your shaping:
   dark room stays a dark room, just bigger (Backrooms at 300% rings about 2.5x as long). At 100% the IR plays exactly
   as recorded. IRs are capped at 5 s on Gen 1 (for the RK3288's CPU), so long IRs gain less there; with LONG IR on,
   and always on Gen 2, the cap is 20 s, so a 5 s room at 300% rings its full ~15 s. Feedback can take the tail further.
-- **LONG IR** (lower right, under Reverse; Gen 1): 20 s IRs and the high-quality IR preparation of Gen 2. CPU heavy, so
-  two taps: the first warns ("CPU heavy · tap again"), the second (within 4 s) turns it on; one tap turns it off. A
-  project remembers it; presets and Init leave it alone. On Gen 2 it reads "Gen 2 · always on".
+- **LONG IR** (lower right, under Reverse; Gen 1): 20 s IRs and the high-quality IR preparation of Gen 2. One tap on,
+  one off; while it's on the line under it reads "On · CPU heavy · 20 s" (it uses more of the CPU). A project remembers
+  it; presets and Init leave it alone. On Gen 2 it reads "Gen 2 · always on".
 
 Shaping happens in the background and crossfades in. Mix, Width, Output, Duck and Pre-delay glide to a new value, so
 moving them never clicks.
@@ -149,10 +149,24 @@ End, Fade In, Fade Out, Reverse, Output. What you turn while playing comes first
 
 ## Factory presets
 
-Tap **PRESET** for a menu of 19 presets in four columns, plus **Init** (no IR: your sound passes through). They're
-also in **MPC's own preset menu** at the top of the screen, named by category ("Space: Empty Mall", "Echo: Tape
-Corridor", "Strange: Glass Void", "Texture: Breath"): picking one there is the same as picking it here. Under the IR's
-name, each factory IR says what it suits ("Strange · best on chords, pads"):
+Tap **PRESET** for a menu of 19 presets in four columns, plus **Init** (no IR: your sound passes through). Under the
+IR's name, each factory IR says what it suits ("Strange · best on chords, pads").
+
+**MPC's own preset menu** (at the top of the screen) has them too, grouped by what they're for: **Init**, then
+**Drum**, **Vocal**, **Keys**, **Pad** and **FX** presets ("Drum: Empty Mall", "Vocal: Tape Corridor", "Keys: Liminal
+Hz", "Pad: Backrooms", "FX: Grain Cloud"), then **your own IRs** ("My IR: Big Hall"), each with Init's settings. That
+list is read when the plugin loads, so IRs you add or delete show up the next time you load it or reopen a project.
+A project always reopens with its own sound, whatever the menu lists then.
+
+| Drum | Vocal | Keys | Pad | FX |
+|---|---|---|---|---|
+| Empty Mall, Pool Rooms, Stairwell Flutter, Parking Slap, Struck Pipe, Bouncing Ball | Tape Corridor, Intercom Echo, Glass Void | Fluorescent Hall, Dream Ping-Pong, Liminal Hz | Backrooms, Shimmer Fog | Reverse Bloom, Sub Tunnel, Grain Cloud, Tuned Chord, Breath |
+
+Picking one of your own IRs right after a factory preset (on the page or from the menu) puts the knobs back to Init:
+a preset's settings belong to its IR. If you've changed anything since picking the preset, your settings stay; My
+Presets always load exactly as saved.
+
+The plugin's own list, by kind:
 
 | Spaces | Best on | Echoes | Best on |
 |---|---|---|---|
