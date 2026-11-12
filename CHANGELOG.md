@@ -28,8 +28,10 @@
   factory preset there is the same as picking it in the plugin's PRESET list. Re-selecting the current one changes
   nothing, and a pick in the first 2 s after a project's state arrives is ignored (a host re-selecting what it saved,
   whose place may have moved): a project always reopens with its own sound.
-- **One of your own IRs after a factory preset goes back to Init**: a preset's settings belong to its IR. Only when
-  they're untouched (saved in the project as such): change anything and your settings stay; My Presets load as saved.
+- **Picking one of your own IRs goes back to Init**: on the page (arrows, packs, IR List, a TONE3000 download) or
+  from MPC's menu, after a factory preset or after another of your IRs, the knobs return to Init's: a sound's settings
+  belong to its IR. Picking the same IR again keeps your edits, a project reopens as saved, and My Presets load as
+  saved (their own IR and settings).
 - **What each IR suits**: under the IR's name, a factory IR's category now says what it's best on ("Strange · best
   on chords, pads"); the README has the table.
 - Seven more demos (the five Textures, Duck, SYNC), a trailer kit (`tools/trailer/`: three synthesized scores,
@@ -53,9 +55,11 @@
   Cut, Width, Output, Start, End, Fade In, Fade Out, Stretch, Reverse, Next Pack, Decay). Next Pack is gone from the
   Q-Links (PREV/NEXT PACK are on the page).
 - The bottom row is respaced to fit DUCK and SYNC.
-- **LONG IR is one tap on, one off** (it was two taps, the first a warning): on the device each tap reached the plugin
-  twice, so it came on at the first tap and warned again on the way off. The button is now the setting itself (as
-  REVERSE is), and the line under it reads "On · CPU heavy · 20 s" while it's on.
+- **LONG IR is an on/off switch like REVERSE** (it was two taps, the first a warning): on the device each tap reached
+  the plugin twice, so it came on at the first tap and warned again on the way off. It is now the same switch as
+  REVERSE, with "Long IR" written under it, and the line below reads "On · CPU heavy · 20 s" while it's on. (A first
+  fix used a plain button, which MPC treats as a momentary trigger: it flipped the setting twice per tap and never
+  showed it on.)
 - **DELETE** (an IR, a My Preset) still takes two taps, and now the second must come at least 0.3 s after the first,
   so one touch delivered twice only asks.
 - SYNC's label is the parameter's name, which MPC writes under the switch: "Pre-delay Sync" didn't fit, it's "Sync".

@@ -308,7 +308,7 @@ static std::string program_name(const Inst* w, int k) {
   const size_t d = f.find_last_of('.');
   return fit23("My IR: " + (d == std::string::npos ? f : f.substr(0, d)));
 }
-static void ir_picked(Inst* w);                // (below: an IR picked; maybe back to Init)
+static void ir_picked(Inst* w, int before);    // (below: an IR picked; one of yours: back to Init)
 static int prog_of_ir(const Inst* w, const std::string& path) {   // a My IR's program (-1: not in the menu)
   for (int j = 0; j < (int)w->prog_irs.size(); j++) if (!path.empty() && w->prog_irs[j].path == path) return kProgramCount + j;
   return -1;
@@ -578,7 +578,7 @@ static void worker_main(Inst* w) {
               Library::find(quick, s.path, s.display, s.file) < 0) complete = false;
           if (!w->select_after_scan.empty() && Library::find(quick, w->select_after_scan, "", "") < 0) complete = false;
         }
-        if (complete) { publish(quick); published_quick = true; if (w->init_pending.exchange(false)) ir_picked(w); load_ir(w); }   // the saved IR sounds before the walk ends
+        if (complete) { publish(quick); published_quick = true; if (w->init_pending.exchange(false)) ir_picked(w, -1); load_ir(w); }   // the saved IR sounds before the walk ends
       }
       // 2. The walk of the cards (it also refreshes the folder index for next time). Publishes again only if it
       //    found something different from the quick pass, so a list being browsed doesn't jump for nothing.
@@ -586,7 +586,7 @@ static void worker_main(Inst* w) {
       bool same = published_quick && mine.size() == quick.size();
       for (size_t i = 0; same && i < mine.size(); i++) same = mine[i].path == quick[i].path;
       if (!same) publish(mine);
-      if (w->init_pending.exchange(false)) ir_picked(w);   // (a TONE3000 download: one of your own IRs, picked)
+      if (w->init_pending.exchange(false)) ir_picked(w, -1);   // (a TONE3000 download: one of your own IRs, picked)
     }
     {                                          // My Presets: read the folder, save the asked-for sound, delete
       bool refresh, save;
@@ -702,33 +702,37 @@ static void reset_settings(Inst* w) {          // every setting at its default (
   for (int i = 0; i < P_COUNT; i++)
     if (is_setting(i)) { w->norm[i] = def_norm(i); apply_param(w, i); w->changed[i] = 1; }
 }
-// One of your own IRs picked while the settings are still a factory preset's, untouched: they belong to that preset's
-// IR, so they go back to Init (as the My IR programs in MPC's menu do). Settings you changed stay. Not under mu.
+// One of your own IRs picked on the page: the settings go back to Init (a factory preset's, or the last IR's, belong to
+// that sound), as the My IR programs in MPC's menu do. A My Preset sets its own IR and settings and never comes here.
+// Not under mu.
 static void back_to_init(Inst* w) {
-  if (!w->preset_clean.exchange(false)) return;
+  w->preset_clean = false;
   reset_settings(w);
   w->norm[P_PRESET] = 0;
   w->changed[P_PRESET] = 1;
   std::lock_guard<std::mutex> lk(w->mu);
+  w->mp.active = false;                        // (no My Preset is loaded any more)
   if (w->ir.want >= 0) w->ir.loading = true;  // (Init's shape: the IR is prepared again)
-  w->cur_prog = std::max(0, prog_of_ir(w, w->ir.want >= 0 && w->ir.want < (int)w->ir.lib.size() ? w->ir.lib[w->ir.want].path : ""));
   kick(w, false);
   w->update_display = 1;
 }
 
-// an IR picked on the page (arrows, packs, the IR list, a TONE3000 download): MPC's menu shows its program; one of
-// your own after an untouched factory preset: back to Init. Not under mu.
-static void ir_picked(Inst* w) {
-  int prog = -1; bool mine;
+// an IR picked on the page (arrows, packs, the IR list, the menu, a TONE3000 download): one of your own goes back to
+// Init and MPC's menu shows its program. Not when the host sets the IR while restoring a project (its first 2 s) or
+// the same IR again. Not under mu.
+static void ir_picked(Inst* w, int before) {
+  int prog = -1, now = -1; bool mine;
   {
     std::lock_guard<std::mutex> lk(w->mu);
     mine = source_of(w) == 1;
     const Browser& b = w->ir;
+    now = b.want;
     if (mine && b.want >= 0 && b.want < (int)b.lib.size()) prog = prog_of_ir(w, b.lib[b.want].path);
   }
-  if (!mine) return;
+  if (!mine || now == before) return;
+  if (std::chrono::steady_clock::now() - w->chunk_at < std::chrono::seconds(2)) return;   // (the project's own state)
   back_to_init(w);
-  if (prog >= 0) w->cur_prog = prog;
+  w->cur_prog = std::max(0, prog);
 }
 
 // PRESET picked (k = 0: Init): settings, then the factory IR (or none); closes the popup
@@ -999,6 +1003,7 @@ static void open_presets_page(Inst* w) {
 static void set_menu_param(Inst* w, int i, float v) {
   int pick = -1;                               // a My Preset to load (mp_choose takes mu itself)
   bool row_ir = false;                         // an IR List row: an IR picked
+  int before = -1;                             // (the IR it was)
   {
     std::lock_guard<std::mutex> lk(w->mu);
     const int m = w->menu, sz = menu_page_size(m);
@@ -1024,6 +1029,7 @@ static void set_menu_param(Inst* w, int i, float v) {
       if (m && r < sz && idx < menu_count(w, m)) {
         if (m == 1) {                          // the IR: as stepping to it (the list stays open: try another)
           Browser& b = w->ir;
+          before = b.want;
           b.want = idx; b.saved = LibEntry(); b.error.clear(); requested(b); kick(w, false);
           browser_changed(w);
           row_ir = true;
@@ -1037,7 +1043,7 @@ static void set_menu_param(Inst* w, int i, float v) {
     w->update_display = 1;
   }
   if (pick >= 0) mp_choose(w, pick);
-  if (row_ir) ir_picked(w);
+  if (row_ir) ir_picked(w, before);
 }
 
 static void set_parameter(AEffect* e, int32_t i, float v) {
@@ -1110,10 +1116,12 @@ static void set_parameter(AEffect* e, int32_t i, float v) {
     w->update_display = 1;
     return;
   }
-  bool browse = false, picked = false;         // picked: an IR chosen (My IRs: maybe back to Init, see back_to_init)
+  bool browse = false, picked = false;         // picked: an IR chosen (one of yours: back to Init, see back_to_init)
+  int before = -1;                             // (the IR it was)
   {
     std::lock_guard<std::mutex> lk(w->mu);
     Browser& b = w->ir;
+    before = b.want;
     const int n = (int)b.lib.size();
     if (i == P_IR_SRC || i == P_IR_INFO || i == P_IR_PACK) return;   // read-only
     if (i == P_IR) {
@@ -1169,7 +1177,7 @@ static void set_parameter(AEffect* e, int32_t i, float v) {
     }
     w->update_display = 1;
   }
-  if (picked) ir_picked(w);
+  if (picked) ir_picked(w, before);
   if (browse) open_tones(w);
 }
 

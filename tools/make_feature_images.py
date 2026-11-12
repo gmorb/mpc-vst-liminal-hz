@@ -236,7 +236,7 @@ def make_presets(W, H, social=False):
         d.text((900, 230), "the IR, its category and what it suits", font=F("r", 18), fill=DIM, anchor="ls")
         best = [("Drum \u00b7 Vocal \u00b7 Keys \u00b7 Pad \u00b7 FX", "the factory presets, by use"),
                 ("My IR", "your own IRs, with Init's settings"),
-                ("Back to Init", "a My IR after a factory preset")]
+                ("Back to Init", "whenever you pick one of your IRs")]
         for k, (c, b) in enumerate(best):
             y = 290 + k * 82
             d.text((900, y), c, font=F("s", 26), fill=AMB, anchor="ls")

@@ -256,7 +256,7 @@ display, the controls, factory presets, install; then the CPU design, build and 
   that time -> on; on -> off at once; Gen 2: no effect), `long_ir_info` (readout: "Off · IRs up to 5 s", "CPU heavy ·
   tap again", "On · IRs up to 20 s", "Gen 2 · always on"). `P_PRESET_OPEN` (the popup's flag) moves 3 indices later:
   projects store parameters by key, so nothing changes for them.
-- Page: `button cx=1160 cy=618 "LONG IR"` and `readout cx=1160 cy=660 w=236` under REVERSE (skin_post role
+- Page: `toggle cx=1160 cy=608 "LONG IR"` and `readout cx=1160 cy=660 w=236` under REVERSE (skin_post role
   shReadout_236x34). No new skin_check warnings (the 19 there are the lists laid over the page, as before).
 - To do on a Force: `tools/bench_reverb` built for armv7 (2-stage vs 3-stage worker load, 5 s and 20 s stereo, misses),
   MPC's CPU meter with LONG IR off and on, and how long a 20 s IR at Decay 300% takes to prepare.
@@ -321,8 +321,11 @@ display, the controls, factory presets, install; then the CPU design, build and 
 
 ## 1.4.0 after the first device test (2026-11-11; offline, to check on the device)
 - **LONG IR**: the user saw a tap warn and turn it on at once, and the warning again on the way off: each tap
-  evidently reached `long_ir_tap` twice (arm, then confirm). The page button is now `button key=long_ir` (the On/Off
-  setting itself, switched by MPC as a toggle, like REVERSE); the info line reads "On · CPU heavy · 20 s" while on.
+  evidently reached `long_ir_tap` twice (arm, then confirm). The page control is now `toggle key=long_ir` (the On/Off
+  setting itself, exactly like REVERSE); the info line reads "On · CPU heavy · 20 s" while on. **Not** `button`:
+  the kit's button (`shTrig_*`) has a Mouse Down "Toggle Switch" action *and* a Button component that both flip the
+  value, so a tap flipped it twice and LONG IR never stayed on (the second device report). A `toggle` (`shToggle`)
+  routes Mouse Down to Q-Link focus and lets the pill alone switch it. MPC writes the parameter name ("Long IR") under it.
   `long_ir_tap` stays (appended params never go) as a toggle that counts events within `kTapMs` (300 ms) as one.
 - **DELETE** (IR and My Preset) keeps two taps; the confirming one must come >= kTapMs after the arming one, so a
   doubled event only arms (plugin_test sends doubled taps). Check on the device that a real double tap still deletes.
@@ -337,6 +340,8 @@ display, the controls, factory presets, install; then the CPU design, build and 
   reports (the project's My IR or PRESET after a chunk). effSetProgram is ignored for the current program and for
   2 s after effSetChunk: My IRs' places move, so a host re-selecting its saved number could name another sound.
   **Device check**: that MPC's menu lists the My IRs, that picking one loads it, and what MPC does at project load.
-- **Back to Init**: `preset_clean` is set by a factory preset pick and cleared by any changed setting (set_parameter,
-  value differs), Init, a My Preset; saved in the chunk ("preset_clean=1"). An IR picked from My IRs (arrows, packs,
-  IR List, a TONE3000 download, the menu) while it's set resets the settings to Init (`back_to_init`).
+- **Back to Init**: any IR picked from My IRs (arrows, packs, IR List, a TONE3000 download, the menu) resets the
+  settings to Init (`ir_picked` -> `back_to_init`; the user asked for this on My IR -> My IR switches too, after a
+  first version only did it after an untouched factory preset). Not when the IR didn't change (`before == want`: a host
+  re-sending P_IR), nor within 2 s of effSetChunk (a host restoring P_IR with the project). My Presets set the IR in
+  `mp_apply` and never come here. `preset_clean` is still saved in the chunk but no longer gates anything.

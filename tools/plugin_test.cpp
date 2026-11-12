@@ -309,28 +309,34 @@ int main(int argc, char** argv) {
       CHECK(disp(pz, P_IR) == "Big Hall" && disp(pz, P_SOURCE) == "My IRs" && disp(pz, P_MIX) == "30%" && disp(pz, P_PRESET) == "Init" &&
             std::string(cur2) == "My IR: Big Hall", "a My IR program: [%s] in %s, Init's settings (mix %s), menu [%s]",
             disp(pz, P_IR).c_str(), disp(pz, P_SOURCE).c_str(), disp(pz, P_MIX).c_str(), cur2);
-      // the page: a My IR picked after an untouched factory preset goes back to Init; after an edit, the edit stays
+      // the page: any My IR picked (after a factory preset, after an edit, from another My IR) goes back to Init;
+      // the same IR picked again keeps your edits
       pz->setP(pz, P_PRESET, 3.0f / kPresets);                 // Fluorescent Hall: mix 40%
       wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Fluorescent Hall"; }, 20);
+      pz->setP(pz, P_MIX, 0.5f);                               // an edit
       pz->setP(pz, P_SOURCE, 1.0f);                            // My IRs
       press(pz, P_IR_NEXT);
       wait_for([&] { return idle(pz); }, 20);
-      const std::string m1v = disp(pz, P_MIX), p1v = disp(pz, P_PRESET);
-      pz->setP(pz, P_PRESET, 3.0f / kPresets);
-      wait_for([&] { return idle(pz) && disp(pz, P_IR) == "Fluorescent Hall"; }, 20);
-      pz->setP(pz, P_MIX, 0.5f);                               // an edit
-      pz->setP(pz, P_SOURCE, 1.0f);
+      const std::string m1v = disp(pz, P_MIX), p1v = disp(pz, P_PRESET), ir1 = disp(pz, P_IR);
+      pz->setP(pz, P_MIX, 0.6f);                               // an edit on that My IR, then the next My IR
       press(pz, P_IR_NEXT);
       wait_for([&] { return idle(pz); }, 20);
-      CHECK(m1v == "30%" && p1v == "Init" && disp(pz, P_MIX) == "50%" && disp(pz, P_PRESET) == "Fluorescent Hall",
-            "a My IR after a factory preset: Init (mix %s, %s); after an edit the edit stays (mix %s, %s)", m1v.c_str(), p1v.c_str(),
-            disp(pz, P_MIX).c_str(), disp(pz, P_PRESET).c_str());
+      const std::string m2v = disp(pz, P_MIX), ir2 = disp(pz, P_IR);
+      pz->setP(pz, P_MIX, 0.5f);                               // an edit, then the same IR again (the host re-sending it)
+      pz->setP(pz, P_IR, pz->getP(pz, P_IR));
+      wait_for([&] { return idle(pz); }, 20);
+      CHECK(m1v == "30%" && p1v == "Init" && m2v == "30%" && ir1 != ir2 && disp(pz, P_MIX) == "50%",
+            "a My IR after an edited factory preset: Init (mix %s, %s); the next My IR [%s -> %s]: Init again (mix %s); "
+            "the same IR again keeps the edit (mix %s)", m1v.c_str(), p1v.c_str(), ir1.c_str(), ir2.c_str(), m2v.c_str(),
+            disp(pz, P_MIX).c_str());
       // a project's state, then the host re-selecting a program at once: the project's sound stays
       const std::string ch = chunk_of(pz);
       pz->d(pz, 24, 0, (intptr_t)ch.size() + 1, (void*)ch.c_str(), 0);
       pz->d(pz, 2, 0, 1, nullptr, 0);                          // (Empty Mall)
-      CHECK(disp(pz, P_MIX) == "50%" && disp(pz, P_PRESET) != "Empty Mall", "a program picked just after a project's state is ignored (mix %s, %s)",
-            disp(pz, P_MIX).c_str(), disp(pz, P_PRESET).c_str());
+      press(pz, P_IR_NEXT);                                    // (the host restoring the IR: no Init)
+      wait_for([&] { return idle(pz); }, 20);
+      CHECK(disp(pz, P_MIX) == "50%" && disp(pz, P_PRESET) != "Empty Mall", "a program or IR set just after a project's state "
+            "keeps its sound (mix %s, %s)", disp(pz, P_MIX).c_str(), disp(pz, P_PRESET).c_str());
       pz->setP(pz, P_SOURCE, 0.0f);
       wait_for([&] { return idle(pz); }, 20);
     }
@@ -532,8 +538,9 @@ int main(int argc, char** argv) {
   }
 
   // projects
+  press(a, P_IR_NEXT); wait_for([&] { return idle(a) && disp(a, P_IR) == "Small Hall"; });   // (a My IR: Init, then the edits)
   a->setP(a, P_MIX, 0.5f); a->setP(a, P_PREDELAY, 0.2f);
-  press(a, P_IR_NEXT); wait_for([&] { return idle(a) && disp(a, P_IR) == "Small Hall"; });
+  wait_for([&] { return idle(a); });
   void* chunk = nullptr; intptr_t len = a->d(a, 23, 0, 0, &chunk, 0);
   std::string saved((const char*)chunk, len);
   AEffect* b = open_plugin();

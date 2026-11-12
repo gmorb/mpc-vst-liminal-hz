@@ -137,8 +137,8 @@ The shape display shows what the IR sounds like, after your shaping:
   dark room stays a dark room, just bigger (Backrooms at 300% rings about 2.5x as long). At 100% the IR plays exactly
   as recorded. IRs are capped at 5 s on Gen 1 (for the RK3288's CPU), so long IRs gain less there; with LONG IR on,
   and always on Gen 2, the cap is 20 s, so a 5 s room at 300% rings its full ~15 s. Feedback can take the tail further.
-- **LONG IR** (lower right, under Reverse; Gen 1): 20 s IRs and the high-quality IR preparation of Gen 2. One tap on,
-  one off; while it's on the line under it reads "On · CPU heavy · 20 s" (it uses more of the CPU). A project remembers
+- **LONG IR** (lower right, under Reverse; Gen 1): 20 s IRs and the high-quality IR preparation of Gen 2. An on/off
+  switch like Reverse; while it's on the line under it reads "On · CPU heavy · 20 s" (it uses more of the CPU). A project remembers
   it; presets and Init leave it alone. On Gen 2 it reads "Gen 2 · always on".
 
 Shaping happens in the background and crossfades in. Mix, Width, Output, Duck and Pre-delay glide to a new value, so
@@ -162,9 +162,9 @@ A project always reopens with its own sound, whatever the menu lists then.
 |---|---|---|---|---|
 | Empty Mall, Pool Rooms, Stairwell Flutter, Parking Slap, Struck Pipe, Bouncing Ball | Tape Corridor, Intercom Echo, Glass Void | Fluorescent Hall, Dream Ping-Pong, Liminal Hz | Backrooms, Shimmer Fog | Reverse Bloom, Sub Tunnel, Grain Cloud, Tuned Chord, Breath |
 
-Picking one of your own IRs right after a factory preset (on the page or from the menu) puts the knobs back to Init:
-a preset's settings belong to its IR. If you've changed anything since picking the preset, your settings stay; My
-Presets always load exactly as saved.
+Picking one of your own IRs (on the page or from the menu) puts the knobs back to Init, whether you came from a
+factory preset or another of your IRs: a sound's settings belong to its IR. Shape it from there; picking the same IR
+again keeps your changes. To keep a sound, save it as a My Preset: those always load exactly as saved.
 
 The plugin's own list, by kind:
 
