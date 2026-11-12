@@ -246,7 +246,7 @@ same plugin, with the same page, parameters and presets, so a project moves betw
 LONG IR is off by default on Gen 1 because 20 s IRs use more of the second core and more memory, and take longer to
 prepare after each change. The convolution and the FFT are the same everywhere since 1.3.0 (both made Gen 1 cheaper).
 The audio thread's cost doesn't grow with IR length: it always runs the same first 93 ms of the IR (zero latency);
-everything later runs on worker threads. 1.2.0 was tested on an MPC Live III and an Akai Force (MPC OS 3.9.1). As for
+everything later runs on worker threads. 1.4.0 was tested on an MPC Live III and an Akai Force (MPC OS 3.10). As for
 every Gen 2 plugin today, installing on Gen 2 needs root access on the unit (mpc-vst-plugins docs/GEN2.md).
 
 ## Install

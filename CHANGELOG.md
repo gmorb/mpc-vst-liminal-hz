@@ -2,6 +2,8 @@
 
 ## 1.4.0
 
+Tested on an MPC Live III (Gen 2) and an Akai Force (Gen 1), both on MPC OS 3.10.
+
 ### New
 - **Duck** (the out group, beside Output; 0-100%, default 0): the reverb is turned down while you play and blooms back
   in the gaps, so big rooms on snares and vocals don't muddy the groove. At 100% it drops by up to 24 dB under a loud
