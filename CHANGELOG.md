@@ -39,7 +39,7 @@ Tested on an MPC Live III (Gen 2) and an Akai Force (Gen 1), both on MPC OS 3.10
 - Seven more demos (the five Textures, Duck, SYNC), a trailer kit (`tools/trailer/`: three synthesized scores,
   dark, cyberpunk and trap, played through the plugin, and the videos), and images explaining the new features (`tools/make_feature_images.py`).
 - **Sound-design demos**: six more in the README, for ambience, FX and ear candy (a whisper, water drops, wind, clicks, a
-  riser and a fluorescent hum through Reverse Bloom, Struck Pipe, Tuned Chord, Bouncing Ball, Grain Cloud and Breath,
+  riser and an old music box through Reverse Bloom, Struck Pipe, Tuned Chord, Bouncing Ball, Grain Cloud and Breath,
   pushed with Stretch, Decay, Feedback and SYNC). The banner (also the repo's social preview) says what's new, and a
   "New in 1.4" card sums it up.
 
