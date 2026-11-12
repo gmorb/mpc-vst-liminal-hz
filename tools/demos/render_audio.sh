@@ -41,4 +41,4 @@ go drips drips 15 stretch=200 mix=70 feedback=35 decay=200 output=6.5           
 go wind wind 17 mix=85 decay=300 feedback=40 output=-2                            # Tuned Chord: wind that sings
 go ticks ticks 19 mix=75 feedback=45 predelay_sync=1 predelay=225 bpm=90 output=5.5   # Bouncing Ball: a glitch cascade
 go grains riser 16 stretch=200 mix=85 feedback=45 decay=250 output=-6             # Grain Cloud: a riser torn apart
-go hum hum 18 mix=70 feedback=55 decay=200 output=1.5                             # Breath: the building breathes
+go musicbox musicbox 18 mix=70 feedback=45 decay=200 output=-13.5                 # Breath: a music box, breathing (its notes sit in Breath's band: +13 dB)

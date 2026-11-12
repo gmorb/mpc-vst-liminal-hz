@@ -345,3 +345,24 @@ display, the controls, factory presets, install; then the CPU design, build and 
   first version only did it after an untouched factory preset). Not when the IR didn't change (`before == want`: a host
   re-sending P_IR), nor within 2 s of effSetChunk (a host restoring P_IR with the project). My Presets set the IR in
   `mp_apply` and never come here. `preset_clean` is still saved in the chunk but no longer gates anything.
+
+## 1.4.0, re-tagged: one tap, one step (issue #5; 2026-11-12; offline, to check on the device)
+- Report (ekeppel, MPC Key 61, MPC OS 3.10): NEXT/PREV PACK and the lists' PREV/NEXT stepped on press *and* release.
+- Cause, in the kit's skin: every `button` (shTrig_*) (and list row, shRow_*) had a Mouse Down action "Toggle Switch"
+  *and* a Button component (gestureBehaviour Instant) that switches the value again. The plugin reads these back as 0
+  (get_parameter), so both writes arrived as 0 -> 1 presses. The same thing doubled LONG IR's old tap parameter and
+  DELETE's confirming tap (the kTapMs guards in 1.4.0 worked around it for those two).
+- Fix: `vst/skin_post.py` sends Mouse Down to "Q-Link" on the buttons, exactly as `shToggle` (REVERSE, LONG IR)
+  does with the identical Button component, which the user confirmed switches once per tap on a Force and a Live III.
+  Enter on the encoder keeps "Toggle Switch". skin_post fails the build if any other definition with a Button (other
+  than a row) still switches on Mouse Down, or if none was found (the kit changed).
+- **Not the rows.** A first build changed the rows too, and on the device a tap on an IR List or My Presets row then
+  did nothing (the user, 2026-11-12). Why a row's Button alone doesn't write, when a toggle's does, isn't known (the
+  row's value reads back 1 for the item in use, a button's always 0; maybe that). The rows keep the kit's Mouse Down
+  "Toggle Switch"; picking a row twice is harmless (same IR: before == want, no Init; same My Preset: applied again). No plugin code changed; kTapMs stays as a guard.
+- To check on a device: NEXT PACK steps one pack per tap; the IR List's NEXT one page per tap; a row tap picks an IR
+  or a My Preset; CLOSE, DELETE
+  (two taps: arm, confirm), SAVE, RESCAN, BROWSE still work; holding a button doesn't repeat.
+- Also: the Breath sound-design demo is an old music box (liminal-hz-demo-musicbox.*), replacing the hum.
+- Released as 1.4.0 (the user's call): the first v1.4.0 tag (6e1342a) was never published, so it was deleted and
+  v1.4.0 re-tagged on the merge of this fix.

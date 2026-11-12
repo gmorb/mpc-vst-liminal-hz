@@ -39,7 +39,7 @@ Tested on an MPC Live III (Gen 2) and an Akai Force (Gen 1), both on MPC OS 3.10
 - Seven more demos (the five Textures, Duck, SYNC), a trailer kit (`tools/trailer/`: three synthesized scores,
   dark, cyberpunk and trap, played through the plugin, and the videos), and images explaining the new features (`tools/make_feature_images.py`).
 - **Sound-design demos**: six more in the README, for ambience, FX and ear candy (a whisper, water drops, wind, clicks, a
-  riser and a fluorescent hum through Reverse Bloom, Struck Pipe, Tuned Chord, Bouncing Ball, Grain Cloud and Breath,
+  riser and an old music box through Reverse Bloom, Struck Pipe, Tuned Chord, Bouncing Ball, Grain Cloud and Breath,
   pushed with Stretch, Decay, Feedback and SYNC). The banner (also the repo's social preview) says what's new, and a
   "New in 1.4" card sums it up.
 
@@ -70,6 +70,10 @@ Tested on an MPC Live III (Gen 2) and an Akai Force (Gen 1), both on MPC OS 3.10
   checks Duck (bit-identical at 0, -24/-12 dB, the release, Feedback tails untouched) and the 4-entry resample cache.
 
 ### Fixed
+- **One tap is one step** (issue #5): NEXT PACK and PREV PACK, the IR List's and My Presets' PREV and NEXT, CLOSE,
+  DELETE, SAVE, RESCAN and BROWSE took a step when pressed and another when released, so paging skipped
+  every other pack or page. MPC's button switched the value twice per tap (once on touch, once by the button itself);
+  it now switches it once, as REVERSE and LONG IR do. Thanks to ekeppel for the report (MPC Key 61, MPC OS 3.10).
 - **Stretch 200% with Decay** (Gen 1, LONG IR off) made Grain Cloud, Tuned Chord and Shimmer Fog a "Silent IR" at any
   Decay over 100%: stretching leaves a band-limited IR's top octaves all but empty, an empty band's measured decay time
   is noise, and lengthening it overflowed a float. Such a band is now left as it is. Every setting that worked before

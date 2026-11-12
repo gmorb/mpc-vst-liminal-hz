@@ -222,15 +222,19 @@ def riser(total_s):                           # a 3 s riser: noise opening up an
         out[:m, ch] = (y * 0.8 + sw) * (t / 3.0) ** 1.5
     return out
 
-def hum(total_s):                             # a fluorescent tube: a 60 Hz buzz with its harmonics, flickering, a tick or two
-    n = int(total_s * SR); out = np.zeros((n, 2)); t = np.arange(n) / SR
-    buzz = sum(np.sin(2 * np.pi * 60 * k * t + k) / k ** 1.2 for k in range(1, 40) if 60 * k < 8000) * 0.25
-    buzz += 0.04 * np.sin(2 * np.pi * 120 * t) * sd.standard_normal(n)
-    on = np.ones(n)
-    for a, b in ((0.9, 0.97), (1.02, 1.08), (2.3, 2.36), (2.4, 2.75)): on[int(a * SR):int(b * SR)] = 0.12
-    on = lp(on, 80) * (t < 3.6) * np.minimum(1, t / 0.05)
-    for tk in (0.9, 2.3, 2.4): place(out, sd.standard_normal(int(0.004 * SR)) * 0.5, tk)
-    out[:, 0] += buzz * on; out[:, 1] += buzz * on
+def musicbox(total_s):                             # an old music box (A minor, a little out of tune): tuned metal tines,
+    n = int(total_s * SR); out = np.zeros((n, 2))                           # sparse, with room between the notes
+    notes = ((0.00, 81, -0.3), (0.38, 76, 0.2), (0.62, 72, -0.1), (1.00, 71, 0.3), (1.38, 69, -0.2), (1.92, 68, 0.1),
+             (2.20, 76, -0.3), (2.62, 69, 0.2), (2.64, 57, 0.0), (3.10, 64, -0.1))     # (time, MIDI note, pan)
+    for i, (t0, m, pan) in enumerate(notes):
+        f = 440 * 2 ** ((m - 69) / 12) * (1 + 0.004 * sd.standard_normal())   # (worn tines: each a little off)
+        L = int(2.5 * SR); t = np.arange(L) / SR
+        tine = sum(a * np.exp(-t / d) * np.sin(2 * np.pi * f * r * t + ph)
+                   for r, a, d, ph in ((1, 1.0, 1.1, 0), (2.76, 0.30, 0.35, 1.1), (5.40, 0.10, 0.12, 2.3), (8.93, 0.04, 0.06, 0.4))
+                   if f * r < 16000)
+        tine *= np.minimum(1, t / 0.001) * (0.9 + 0.2 * sd.random())
+        tine[:int(0.002 * SR)] += sd.standard_normal(int(0.002 * SR)) * 0.08   # (the pin's pluck)
+        place(out, tine * 0.4, t0, pan)
     return out
 
 def norm(x, peak=0.7):
@@ -253,5 +257,5 @@ if __name__ == "__main__":
     write(os.path.join(d, "wind.wav"), norm(wind(10.0)))      # two gusts (3.9 s), then the tail
     write(os.path.join(d, "ticks.wav"), norm(ticks(8.0)))     # 5 clicks (2.0 s), then the tail
     write(os.path.join(d, "riser.wav"), norm(riser(10.0)))    # a 3 s riser, then the tail
-    write(os.path.join(d, "hum.wav"), norm(hum(10.0)))        # a flickering tube (3.6 s), then the tail
+    write(os.path.join(d, "musicbox.wav"), norm(musicbox(10.0)))   # a music box phrase (3.1 s), then the tail
     print("wrote", d)
