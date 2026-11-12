@@ -62,7 +62,7 @@ dry sound, then Liminal Hz.
   <tr>
     <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-ticks.mp4"><img src="docs/demos/liminal-hz-demo-ticks.jpg" width="250" alt="Demo: five clicks through Bouncing Ball, synced to the tempo"></a><br><b>Five clicks, a glitch cascade</b><br><sub>Bouncing Ball · SYNC 1/8 D · Feedback 45%</sub></td>
     <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-grains.mp4"><img src="docs/demos/liminal-hz-demo-grains.jpg" width="250" alt="Demo: a noise riser through Grain Cloud, stretched, with feedback"></a><br><b>A riser, torn into grains</b><br><sub>Grain Cloud · Stretch 200% · Decay 250%</sub></td>
-    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-hum.mp4"><img src="docs/demos/liminal-hz-demo-hum.jpg" width="250" alt="Demo: a flickering fluorescent hum through Breath, with feedback"></a><br><b>The building breathes</b><br><sub>Breath · Feedback 55% · Decay 200%</sub></td>
+    <td align="center" width="33%"><a href="docs/demos/liminal-hz-demo-hum.mp4"><img src="docs/demos/liminal-hz-demo-hum.jpg" width="250" alt="Demo: a fluorescent tube flickering through Breath, with feedback"></a><br><b>A flickering light, breathing</b><br><sub>Breath · Feedback 55% · Decay 200%</sub></td>
   </tr>
 </table>
 

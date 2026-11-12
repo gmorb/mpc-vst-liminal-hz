@@ -57,8 +57,8 @@ DEMOS = {
                   settings="Bouncing Ball · SYNC 1/8 D at 90 BPM · Feedback 45%", dry_end=2.4),
     "grains": dict(src="riser", wet="grains", title=["A riser,", "torn into grains"],
                    settings="Grain Cloud · Stretch 200% · Decay 250% · Feedback 45%", dry_end=3.4),
-    "hum": dict(src="hum", wet="hum", title=["The building", "breathes"],
-                settings="Breath · Mix 70% · Feedback 55% · Decay 200%", dry_end=4.0),
+    "hum": dict(src="hum", wet="hum", title=["A flickering light,", "breathing"],
+                settings="Breath · Mix 70% · Feedback 55% · Decay 200%", dry_end=3.4),
 }
 
 def F(name, size): return ImageFont.truetype(FONTS + name, size)
