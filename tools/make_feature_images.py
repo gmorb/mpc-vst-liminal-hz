@@ -205,11 +205,11 @@ def make_textures(W, H, social=False):
         wordmark(d, 640, 1010, 34)
     return im
 
-PROGRAMS = ["Init", "Space: Empty Mall", "Space: Pool Rooms", "Space: Fluorescent Hall", "Space: Backrooms",
-            "Echo: Stairwell Flutter", "Echo: Tape Corridor", "Echo: Dream Ping-Pong", "Echo: Parking Slap",
-            "Echo: Intercom Echo", "Strange: Glass Void", "Strange: Reverse Bloom", "Strange: Sub Tunnel",
-            "Strange: Shimmer Fog", "Strange: Liminal Hz", "Texture: Struck Pipe", "Texture: Grain Cloud",
-            "Texture: Tuned Chord", "Texture: Breath", "Texture: Bouncing Ball"]
+PROGRAMS = ["Init", "Drum: Empty Mall", "Drum: Pool Rooms", "Drum: Stairwell Flutter", "Drum: Parking Slap",
+            "Drum: Struck Pipe", "Drum: Bouncing Ball", "Vocal: Tape Corridor", "Vocal: Intercom Echo", "Vocal: Glass Void",
+            "Keys: Fluorescent Hall", "Keys: Dream Ping-Pong", "Keys: Liminal Hz", "Pad: Backrooms", "Pad: Shimmer Fog",
+            "FX: Reverse Bloom", "FX: Sub Tunnel", "FX: Grain Cloud", "FX: Tuned Chord", "FX: Breath",
+            "My IR: Big Hall", "My IR: Spring Box"]      # (the last two: your own IRs, examples)
 
 def program_list(w, h, rows, start=0, hi=14):
     im = Image.new("RGB", (w, h), (16, 16, 18)); d = ImageDraw.Draw(im)
@@ -219,30 +219,33 @@ def program_list(w, h, rows, start=0, hi=14):
         if i >= len(PROGRAMS): break
         y = k * rh
         if i == hi: d.rectangle((0, y, w, y + rh), fill=(44, 38, 28))
-        d.text((18, y + rh / 2), PROGRAMS[i], font=F("s" if i == hi else "r", min(26, rh * 0.55)), fill=AMB if i == hi else IV, anchor="lm")
+        mine = PROGRAMS[i].startswith("My IR")
+        d.text((18, y + rh / 2), PROGRAMS[i], font=F("s" if i == hi else "r", min(26, rh * 0.55)),
+               fill=AMB if i == hi else (GR if mine else IV), anchor="lm")
     return im
 
 def make_presets(W, H, social=False):
     im = canvas(W, H); d = ImageDraw.Draw(im)
-    body = ["All 19 factory presets (and Init) are now in MPC's own preset menu at the top of the screen, named by "
-            "category: Space, Echo, Strange, Texture. Pick one there or in the plugin's PRESET list: same thing.",
-            "And each factory IR now says what it suits, under its name: \"Strange · best on chords, pads\"."]
+    body = ["MPC's own preset menu at the top of the screen now lists every factory preset, grouped by what it's for, "
+            "then your own IRs, which it picks up each time the plugin loads.",
+            "And each factory IR says what it suits, under its name: \"Strange · best on chords, pads\"."]
     if not social:
         header(d, 60, 90, "NEW IN 1.4  ·  PRESETS", "MPC's preset menu", body, 470)
-        framed(im, program_list(300, 520, 20, 0, 14), (580, 60))
+        framed(im, program_list(300, 520, 22, 0, 12), (580, 60))
         framed(im, page_crop("stabs", (0, 120, 430, 300), 0.78), (900, 60))
         d.text((900, 230), "the IR, its category and what it suits", font=F("r", 18), fill=DIM, anchor="ls")
-        best = [("Space", "drums, vocals, keys, pads"), ("Echo", "snares, vocals, keys, plucks"),
-                ("Strange", "pads, vocals, chords, drones"), ("Texture", "drums, vocals, hi-hats, one-shots")]
+        best = [("Drum \u00b7 Vocal \u00b7 Keys \u00b7 Pad \u00b7 FX", "the factory presets, by use"),
+                ("My IR", "your own IRs, with Init's settings"),
+                ("Back to Init", "a My IR after a factory preset")]
         for k, (c, b) in enumerate(best):
-            y = 290 + k * 62
+            y = 290 + k * 82
             d.text((900, y), c, font=F("s", 26), fill=AMB, anchor="ls")
-            d.text((900, y + 28), b, font=F("r", 20), fill=GR, anchor="ls")
+            d.text((900, y + 30), b, font=F("r", 20), fill=GR, anchor="ls")
         d.text((900, 560), "(a menu drawn here, not a screenshot", font=F("r", 16), fill=DIM, anchor="ls")
         d.text((900, 580), " of MPC: the names are what it lists)", font=F("r", 16), fill=DIM, anchor="ls")
     else:
         header(d, 70, 110, "NEW IN 1.4", "In MPC's preset menu", body[:1], 940, 1.25)
-        framed(im, program_list(440, 520, 13, 4, 14), (70, 440))
+        framed(im, program_list(440, 520, 13, 9, 12), (70, 440))
         framed(im, page_crop("stabs", (0, 120, 430, 300), 1.0), (540, 440))
         d.text((540, 650), "each IR says what it suits", font=F("r", 22), fill=GR, anchor="ls")
         wordmark(d, 640, 1010, 34)
@@ -252,7 +255,7 @@ def make_presets(W, H, social=False):
 FEATS = [("duck", "Duck", "The reverb ducks while you play and blooms in the gaps."),
          ("sync", "Tempo SYNC", "Pre-delay in note values, locked to your MPC's tempo."),
          ("textures", "Textures", "Five IRs that aren't rooms: a pipe, grains, a chord, a breath, a bounce."),
-         ("presets", "MPC's preset menu", "All 19 presets in MPC's own menu, each with what it suits.")]
+         ("presets", "MPC's preset menu", "The presets by use in MPC's own menu, and your own IRs too.")]
 
 def make_overview(W, H, social=False):
     im = canvas(W, H); d = ImageDraw.Draw(im)
