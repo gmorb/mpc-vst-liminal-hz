@@ -382,3 +382,13 @@ display, the controls, factory presets, install; then the CPU design, build and 
   (it plays the MPC's quirks, including the parameter-0 toggle on every prepare: Mix, harmless). It first failed one
   check: a project's state left an open list open; set_chunk now closes it (menu = 0, nothing armed).
 - Not verified: whether projects saved with the old (Synths / install.sh) install find the new one.
+
+## The user manual (2026-11-13)
+- `docs/Liminal-Hz-<major.minor>-User-Manual.pdf`, built by `tools/make_manual.py` from `docs/manual-src/manual.html` +
+  `manual.css` (Chromium via Python Playwright, then pypdf puts the footer-less cover in front). Filled in at build time:
+  VERSION, the factory preset table (parsed from kPresets), the page-overview callouts (CALLOUTS: page coordinates,
+  layout.conf y - 86), the signal-flow SVG, the contents page numbers (a first print finds each "CHAPTER n").
+- Fonts from the kit (MPC_VST/tools/html_art/fonts), images from docs/images (page-render, ir-list, my-presets, shape,
+  phone) and vst/art/texture.png for the cover. Rebuild after any change to the page, presets or controls.
+- 1.3's manual was only a release asset (Liminal-Hz-1.3-User-Manual.pdf, no source in the repo); 1.4's text is that
+  manual updated. package.sh copies the PDF into dist/ and the release workflow uploads dist/*.pdf.

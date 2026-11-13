@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Liminal Hz {{version_short}} User Manual</title>
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+
+<!-- ============================================================ cover -->
+<section class="cover">
+  <div class="mark">LIMINAL <b>Hz</b></div>
+  <div class="by">by Gm0rb</div>
+  <div class="title">User Manual</div>
+  <div class="tag">Convolution reverb, echoes, strange spaces and textures<br>for Akai MPC and Force, Gen 1 and Gen 2</div>
+  <div class="foot"><span>Version {{version}}</span><span>Not affiliated with or endorsed by Akai Professional, inMusic or TONE3000</span></div>
+</section>
+
+<!-- ============================================================ contents -->
+<section class="chapter" data-ch="contents">
+  <div class="eyebrow">Contents</div>
+  <h1>Inside this manual</h1>
+  <p class="sub">Read chapters 1 to 4 to get playing. The rest is reference: come back to it when you want to go deeper.</p>
+  <table class="toc">
+    <tr><td class="n">1</td><td class="t">Welcome</td><td class="d">What Liminal Hz is, what an impulse response is, what's new in 1.4</td><td class="p">{{p:1}}</td></tr>
+    <tr><td class="n">2</td><td class="t">Installing</td><td class="d">MPC OS 3.10.1 and later, earlier firmware, updating, removing</td><td class="p">{{p:2}}</td></tr>
+    <tr><td class="n">3</td><td class="t">Quick start</td><td class="d">From an empty insert slot to your first saved sound in ten steps</td><td class="p">{{p:3}}</td></tr>
+    <tr><td class="n">4</td><td class="t">The page, at a glance</td><td class="d">Every area of the screen, numbered</td><td class="p">{{p:4}}</td></tr>
+    <tr><td class="n">5</td><td class="t">Choosing a space</td><td class="d">Factory presets, MPC's preset menu, factory IRs, your IRs, the IR List, RESCAN, DELETE</td><td class="p">{{p:5}}</td></tr>
+    <tr><td class="n">6</td><td class="t">The controls</td><td class="d">Every knob and switch: space, tone, out, trim, fade, time</td><td class="p">{{p:6}}</td></tr>
+    <tr><td class="n">7</td><td class="t">Reading the shape display</td><td class="d">The sonics line, the painting, the glow</td><td class="p">{{p:7}}</td></tr>
+    <tr><td class="n">8</td><td class="t">My Presets</td><td class="d">Saving, loading, naming on your phone, the files</td><td class="p">{{p:8}}</td></tr>
+    <tr><td class="n">9</td><td class="t">Your phone: TONE3000 and preset names</td><td class="d">The two phone pages, downloading IRs</td><td class="p">{{p:9}}</td></tr>
+    <tr><td class="n">10</td><td class="t">Your own IRs</td><td class="d">Where to put them, formats, length, mono and stereo, making your own</td><td class="p">{{p:10}}</td></tr>
+    <tr><td class="n">11</td><td class="t">Q-Links, MIDI and projects</td><td class="d">Hardware control, automation, what a project remembers</td><td class="p">{{p:11}}</td></tr>
+    <tr><td class="n">12</td><td class="t">Sound design recipes</td><td class="d">Starting points for drums, vocals, guitars, pads and strange things</td><td class="p">{{p:12}}</td></tr>
+    <tr><td class="n">13</td><td class="t">Performance and how it works</td><td class="d">CPU, latency, LONG IR and Gen 2</td><td class="p">{{p:13}}</td></tr>
+    <tr><td class="n">14</td><td class="t">Troubleshooting</td><td class="d">Messages on the page, and what to do about common problems</td><td class="p">{{p:14}}</td></tr>
+    <tr><td class="n">A</td><td class="t">Reference tables</td><td class="d">All parameters, factory preset settings, file locations</td><td class="p">{{p:A}}</td></tr>
+    <tr><td class="n">B</td><td class="t">Glossary</td><td class="d">The terms used in this manual</td><td class="p">{{p:B}}</td></tr>
+  </table>
+</section>
+
+<!-- ============================================================ 1 -->
+<section class="chapter" data-ch="1">
+  <div class="eyebrow">Chapter 1</div>
+  <h1>Welcome</h1>
+  <p class="sub">Real rooms, echoes, impossible spaces and textures, from impulse responses, on the MPC itself.</p>
+  <p>Liminal Hz is a convolution reverb that runs inside your Akai MPC or Force as a native insert effect, with its own touchscreen page. Load the recording of a real room, a hall, a stairwell, a tape echo or something stranger, and your sound plays as if it were inside that space. Then reshape it (Decay, Stretch, Reverse, trim, fades, Feedback), keep it out of the groove with Duck, lock its pre-delay to your tempo with Sync, and keep the result as one of My Presets.</p>
+  <p>It comes with 19 factory IRs in four kinds (Spaces, Echoes, Strange and Textures), browses impulse responses you put on your cards, and downloads more from TONE3000 straight to the MPC, using your phone as the keyboard and screen. It's a companion to Liminal Amp: put Liminal Hz after your amp to place it in a room.</p>
+
+  <h2>What is an impulse response?</h2>
+  <p>Clap once in a big empty hall and listen: the clap is followed by a cloud of reflections that fades away. Record that cloud and you've captured how the hall responds to a short, sharp sound. That recording is an <b>impulse response</b> (IR). It holds everything about the space: how long it rings, which frequencies die first, how early the first walls answer, how wide it sounds.</p>
+  <p><b>Convolution</b> plays any sound through that recording, as if every moment of your sound were its own clap in the hall. It isn't a simulation of a room: it is the room. An IR doesn't have to be a room, either: tape echoes, springs, a struck pipe, a chord or a burst of noise all make useful IRs, which is where the Echoes, Strange and Textures sets come in.</p>
+  <div class="note"><p><b>Not a modelled reverb.</b> An algorithmic reverb builds a space from knobs like "room size". Liminal Hz starts from a real response: you change the space by choosing an IR, then sculpt it.</p></div>
+
+  <h2>New in 1.4</h2>
+  <table>
+    <tr><td class="k">Duck</td><td>The reverb steps back while you play and blooms in the gaps (chapter 6).</td></tr>
+    <tr><td class="k">Sync</td><td>Pre-delay in note values at your project's tempo, from 1/128 to 1/4 (chapter 6).</td></tr>
+    <tr><td class="k">Textures</td><td>Five factory IRs that aren't rooms: Struck Pipe, Grain Cloud, Tuned Chord, Breath and Bouncing Ball, each with a preset.</td></tr>
+    <tr><td class="k">MPC's preset menu</td><td>The presets, grouped by use, and your own IRs, in the menu at the top of MPC's screen (chapter 5).</td></tr>
+    <tr><td class="k">Back to Init</td><td>Picking one of your own IRs starts it from Init's settings (chapter 5).</td></tr>
+    <tr><td class="k">MPC OS 3.10.1</td><td>An official install: copy one folder into <code>VST2 Plugins</code>, no script, no root (chapter 2).</td></tr>
+    <tr><td class="k">Smaller things</td><td>Q-Links in playing order, LONG IR as an on/off switch, one tap is one step on every button, levelled presets, quicker preset changes.</td></tr>
+  </table>
+
+  <h2>Gen 1, Gen 2 and LONG IR</h2>
+  <p>Two builds of the same plugin, with the same page, parameters and presets: a project made on one opens on the other. Gen 1's <b>LONG IR</b> switch gives it Gen 2's IR quality; it's off by default because it costs more CPU and memory. Below, "the limit" means 5 s on Gen 1, or 20 s with LONG IR on and on Gen 2.</p>
+  <table>
+    <tr><th></th><th>Gen 1</th><th>Gen 1, LONG IR on</th><th>Gen 2</th></tr>
+    <tr><td class="k">Devices</td><td colspan="2">Akai Force; MPC Live, Live II, One, X, Key 61 (RK3288, 32 bit)</td><td>MPC Live III and other RK3588 units (64 bit)</td></tr>
+    <tr><td class="k">Longest IR used</td><td>5 seconds</td><td>20 seconds</td><td>20 seconds</td></tr>
+    <tr><td class="k">Decay at 300% on a 5 s room</td><td>Stops at the 5 s limit</td><td>Rings to about 15 s</td><td>Rings to about 15 s</td></tr>
+    <tr><td class="k">IRs at other sample rates, and Stretch</td><td>Cubic interpolation (dulls the top octave slightly; Stretch below 100% can add alias tones)</td><td>Band-limited sinc (flat to the top; no alias tones)</td><td>Band-limited sinc</td></tr>
+    <tr><td class="k">Decay analysis</td><td>21.5 Hz detail</td><td>10.8 Hz detail (better in the bass)</td><td>10.8 Hz detail</td></tr>
+  </table>
+</section>
+
+<!-- ============================================================ 2 -->
+<section class="chapter" data-ch="2">
+  <div class="eyebrow">Chapter 2</div>
+  <h1>Installing</h1>
+  <p class="sub">On MPC OS 3.10.1 and later, copy one folder. Earlier firmware uses the community install routes.</p>
+
+  <h2>Which download?</h2>
+  <table>
+    <tr><th>Your MPC OS</th><th>Download</th><th>Route</th></tr>
+    <tr><td class="k">3.10.1 or later</td><td><code>Liminal-Hz-{{version}}-MPC-OS-3.10.1.zip</code> (Gen 1 and Gen 2 in one folder)</td><td>Option A: the <code>VST2 Plugins</code> folder</td></tr>
+    <tr><td class="k">Earlier 3.x, Gen 1</td><td><code>Liminal-Hz-{{version}}-mpc-armv7.zip</code> or <code>Liminal-Hz-for-MPC-OS-{{version}}.zip</code></td><td>Options B, C or D</td></tr>
+    <tr><td class="k">Earlier 3.x, Gen 2</td><td><code>Liminal-Hz-{{version}}-mpc-aarch64.zip</code></td><td>Options B or C</td></tr>
+  </table>
+  <p>All are on the releases page: <b>github.com/gmorb/mpc-vst-liminal-hz/releases</b>. For TONE3000 and naming presets on your phone you also need a phone or computer on the same Wi-Fi network as the MPC.</p>
+
+  <h2>Option A: MPC OS 3.10.1 and later <span class="new">NEW</span></h2>
+  <p>MPC OS 3.10.1 loads third-party plugins by itself, with no install script and no root access. One download works on every unit, Gen 1 and Gen 2.</p>
+  <ol>
+    <li>On the MPC, open <b>Preferences › Enhancements (Beta)</b> and turn on <b>Enable Enhancements</b> and <b>External Plugin Support</b>. Read the warning: Akai doesn't test or support third-party plugins.</li>
+    <li>Unzip <code>Liminal-Hz-{{version}}-MPC-OS-3.10.1.zip</code> on your computer.</li>
+    <li>At the top level of a USB drive, SD card or the internal drive, make a folder named exactly <code>VST2 Plugins</code> (if it isn't there), and copy the <code>Gm0rb - VST - Liminal Hz</code> folder into it.</li>
+    <li>Put the drive in the MPC. Add an insert effect to a track: Liminal Hz is under <b>External Plugins</b>.</li>
+  </ol>
+  <div class="note warn"><p><b>Coming from an older install?</b> Copy your <code>presets</code> folder from the old plugin folder into the new one, then remove the old install so Liminal Hz isn't listed twice. Your <code>reverbs</code> folders on your drives are found as before. Projects saved with the older install haven't been confirmed to reconnect to the new one: before you switch, save the sound in each project you care about as a My Preset. If a project opens without the plugin, add Liminal Hz again and load that preset.</p></div>
+
+  <h2>Earlier MPC OS 3.x</h2>
+  <p>These routes are unofficial and need access to your unit beyond what stock MPC OS offers: SSH on Gen 1 (for example through MockbaMod firmware), a root shell on Gen 2. Save your project and back up anything you care about first: installing stops and restarts MPC and edits MPC's settings file (the installer backs it up).</p>
+  <h3>Option B: the MPC OS Plugin Catalog</h3>
+  <p>If you use the MPC OS Plugin Catalog (its store command or desktop installer), install Liminal Hz from there. It picks the right build for your unit: armv7 on Gen 1, aarch64 on Gen 2.</p>
+  <h3>Option C: the installer in the release zip</h3>
+  <p>The <code>-mpc-armv7.zip</code> (Gen 1) and <code>-mpc-aarch64.zip</code> (Gen 2) contain the same kind of installer. It checks the unit (and refuses the wrong generation's zip), stops MPC, copies the plugin folder, backs up <code>MPC.settings</code>, registers the plugin and starts MPC again.</p>
+  <pre>scp -r Liminal-Hz-{{version}} root@&lt;unit-ip&gt;:/tmp/
+ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
+  <p>Add <code>-t &lt;folder&gt;</code> to install into another <code>Synths</code> folder, such as one on a card (on some Gen 2 units the default internal location isn't writable: use <code>-t /media/&lt;card&gt;/Synths</code>). <code>-y</code> skips the confirmation. When MPC is back, Liminal Hz is in the plugin browser under <b>Gm0rb</b>.</p>
+  <h3>Option D: Force VST distribution folder (Gen 1)</h3>
+  <p>For Gen 1 units set up with the Force VST plugin distribution and its <code>vstscanner</code>: copy the <code>Gm0rb - VST - Liminal Hz</code> folder from <code>Liminal-Hz-for-MPC-OS-{{version}}.zip</code> into the <code>Synths</code> folder on your card, then run <code>vstscanner</code>. MPC restarts and Liminal Hz appears under Gm0rb.</p>
+
+  <h2>What's in the plugin folder</h2>
+  <table>
+    <tr><th>Item</th><th>What it is</th></tr>
+    <tr><td class="k">The plugin</td><td><code>liminal-hz-arm32.so</code> and <code>liminal-hz-arm64.so</code> in the MPC OS 3.10.1 folder (with <code>plugin.json</code> and <code>version.xml</code>); <code>liminal_hz.so</code> in the other zips</td></tr>
+    <tr><td class="k"><code>Plugin Skins/</code></td><td>The touchscreen page</td></tr>
+    <tr><td class="k"><code>factory/</code></td><td>The 19 factory IRs, in <code>Spaces/</code>, <code>Echoes/</code>, <code>Strange/</code> and <code>Textures/</code></td></tr>
+    <tr><td class="k"><code>reverbs/</code></td><td>Yours: put IRs here (or in any <code>reverbs</code> folder; chapter 10). TONE3000 downloads land in <code>reverbs/TONE3000/</code></td></tr>
+    <tr><td class="k"><code>presets/</code></td><td>Yours: My Presets, one <code>.lhzp</code> file each</td></tr>
+    <tr><td class="k"><code>art/fonts/</code></td><td>The font the phone pages use (Titillium Web, OFL licence)</td></tr>
+  </table>
+
+  <h2>Updating and removing</h2>
+  <p><b>Updating:</b> copy the new folder over the old one (Option A or D), or run the new installer (C), or update from the Catalog (B). Your <code>reverbs</code> and <code>presets</code> folders are kept. Then remove and re-add the plugin on your tracks so MPC picks up the new parameter list, and if the page still looks like the old version, restart MPC: it keeps plugin pages in memory.</p>
+  <p><b>Removing:</b> delete the folder from <code>VST2 Plugins</code> (Option A), run <code>uninstall.sh</code> from the release zip (C), or remove it in the Catalog (B). Files you added yourself are kept. Projects that used the plugin open without it.</p>
+</section>
+
+<!-- ============================================================ 3 -->
+<section class="chapter" data-ch="3">
+  <div class="eyebrow">Chapter 3</div>
+  <h1>Quick start</h1>
+  <p class="sub">Ten steps from an empty insert slot to a sound of your own.</p>
+  <ol>
+    <li><b>Insert it.</b> On a track (or a submix or return), open the insert effects, choose Liminal Hz (under External Plugins on MPC OS 3.10.1, under Gm0rb otherwise) and open its page. It starts as <b>Init</b>: no IR loaded, your sound passes straight through.</li>
+    <li><b>Pick a factory preset.</b> Tap the <span class="btn">PRESET</span> field at the top left. A menu of 19 presets opens in four columns. Try <b>Fluorescent Hall</b>. (MPC's own preset menu, at the top of the screen, has the same presets grouped by use.)</li>
+    <li><b>Play.</b> Hit a pad or play your instrument. Watch the glow drift along the shape display: that's where your sound is in the space right now.</li>
+    <li><b>Set the amount.</b> Turn <b>Mix</b>, the big knob at the bottom left. 20 to 35% sits a sound in a room; 100% is all room (use 100% on a send/return).</li>
+    <li><b>Try other spaces.</b> Tap <span class="btn">◀</span> <span class="btn">▶</span> beside the IR name to step through IRs, or <span class="btn">IR LIST</span> to see six at a time.</li>
+    <li><b>Make it bigger or smaller.</b> Turn <b>Decay</b> (in the time group). Above 100% the room rings longer without changing its pitch or colour.</li>
+    <li><b>Give it room to breathe.</b> Add 20 to 40 ms of <b>Pre-delay</b> so the dry attack lands before the reverb arrives, or switch on <b>Sync</b> and pick a note value.</li>
+    <li><b>Keep the groove clear.</b> Turn up <b>Duck</b> (in the out group): the reverb steps back while you play and blooms in the gaps. Then raise <b>Low Cut</b> to 150 to 300 Hz to keep the low end tight.</li>
+    <li><b>Keep it.</b> Tap <span class="btn">MY PRESETS</span>, then <span class="btn">SAVE</span>. It's saved under the IR's name.</li>
+    <li><b>Name it properly</b> (optional). In the My Presets list tap <span class="btn">NAME ON PHONE</span>, open the address it shows on your phone, and type a name.</li>
+  </ol>
+  <figure><img src="img/page-render.png" alt=""><figcaption>The page with a factory preset loaded. Chapter 4 explains every part of it.</figcaption></figure>
+</section>
+
+<!-- ============================================================ 4 -->
+<section class="chapter" data-ch="4">
+  <div class="eyebrow">Chapter 4</div>
+  <h1>The page, at a glance</h1>
+  <p class="sub">One page, made for the touchscreen. Nothing is hidden on other tabs.</p>
+  <p>The page has three areas. The <b>browser</b> on the left is where you choose what you hear. The <b>shape</b> on the right shows what the IR sounds like and has the knobs that reshape it. The <b>mix controls</b> along the bottom set how the reverb sits with your sound. Behind it all is a doorway at the far end of an empty room.</p>
+  <figure class="callouts" id="overview">
+    <img src="img/page-render.png" alt="">
+    {{callouts}}
+  </figure>
+  <ol class="legend">
+    <li><span class="n">1</span><span><b>Wordmark</b></span></li>
+    <li><span class="n">2</span><span><span class="btn">RESCAN</span> look for new IR files and presets</span></li>
+    <li><span class="n">3</span><span><span class="btn">PRESET</span> Init and the 19 factory presets</span></li>
+    <li><span class="n">4</span><span><span class="btn">MY PRESETS</span> list (ch. 8)</span></li>
+    <li><span class="n">5</span><span><span class="btn">FACTORY</span> / <span class="btn">MY IRS</span> which list you browse</span></li>
+    <li><span class="n">6</span><span><span class="btn">IR LIST</span> six IRs to a page</span></li>
+    <li><span class="n">7</span><span>The IR in use, with ◀ ▶ to step</span></li>
+    <li><span class="n">8</span><span>Pack, what it suits, and details</span></li>
+    <li><span class="n">9</span><span><span class="btn">PREV PACK</span> / <span class="btn">NEXT PACK</span></span></li>
+    <li><span class="n">10</span><span><span class="btn">DELETE</span> one of your IRs (two taps)</span></li>
+    <li><span class="n">11</span><span>TONE3000: <span class="btn">BROWSE</span> and its status line (ch. 9)</span></li>
+    <li><span class="n">12</span><span><b>Sonics line</b>: the IR in words (ch. 7)</span></li>
+    <li><span class="n">13</span><span><b>The painting</b>: level and tone over time</span></li>
+    <li><span class="n">14</span><span><b>The glow</b>: where your last note is</span></li>
+    <li><span class="n">15</span><span><b>trim, fade, time</b>: Start, End, Fade In, Fade Out, Stretch, Decay</span></li>
+    <li><span class="n">16</span><span><b>Reverse</b>: the IR backwards</span></li>
+    <li><span class="n">17</span><span><b>space</b>: Mix, Pre-delay, Feedback</span></li>
+    <li><span class="n">18</span><span><b>Sync</b>: Pre-delay in note values</span></li>
+    <li><span class="n">19</span><span><b>tone</b>: Low Cut, High Cut, Width</span></li>
+    <li><span class="n">20</span><span><b>out</b>: Duck, Output</span></li>
+    <li><span class="n">21</span><span><b>Long IR</b> and its status line (ch. 6)</span></li>
+  </ol>
+  <div class="note"><p><b>Touch, wheel and Q-Links.</b> Tap a knob and turn the data wheel, or drag it on the screen. The 16 Q-Links follow the order you reach for them while playing (chapter 11). Every knob shows its value underneath in real units: %, ms, note values, Hz, kHz or dB. Every button acts once per tap.</p></div>
+</section>
+
+<!-- ============================================================ 5 -->
+<section class="chapter" data-ch="5">
+  <div class="eyebrow">Chapter 5</div>
+  <h1>Choosing a space</h1>
+  <p class="sub">Presets set everything at once. Factory IRs change only the space. Your own IRs start from Init.</p>
+
+  <h2>Factory presets</h2>
+  <p>Tap the <span class="btn">PRESET</span> field (top left) to open the preset menu: four columns, plus <b>Init</b>. Picking a preset loads its factory IR together with settings that suit it: Mix, Pre-delay, cuts, Width, Output, fades and Feedback. Change anything you like afterwards; the preset is only a starting point.</p>
+  <table>
+    <tr><th>Spaces</th><th>Echoes</th><th>Strange</th><th>Textures</th></tr>
+    <tr><td>Empty Mall</td><td>Stairwell Flutter</td><td>Glass Void</td><td>Struck Pipe</td></tr>
+    <tr><td>Pool Rooms</td><td>Tape Corridor</td><td>Reverse Bloom</td><td>Grain Cloud</td></tr>
+    <tr><td>Fluorescent Hall</td><td>Dream Ping-Pong</td><td>Sub Tunnel</td><td>Tuned Chord</td></tr>
+    <tr><td>Backrooms</td><td>Parking Slap</td><td>Shimmer Fog</td><td>Breath</td></tr>
+    <tr><td></td><td>Intercom Echo</td><td>Liminal Hz</td><td>Bouncing Ball</td></tr>
+  </table>
+  <ul>
+    <li><b>Spaces</b> are rooms and halls: from the small, dead Backrooms to the long, bright Fluorescent Hall.</li>
+    <li><b>Echoes</b> are distinct repeats: slapback, flutter between close walls, tape delay, ping-pong across the stereo field, a lo-fi intercom.</li>
+    <li><b>Strange</b> are spaces that couldn't exist: glassy shimmer, a reverse swell, a sub-heavy tunnel, a fog of high partials, and the drone-leaning Liminal Hz itself.</li>
+    <li><b>Textures</b> aren't rooms at all: your sound played through a struck metal pipe, a cloud of grains, a chord, a breath or a bouncing ball.</li>
+  </ul>
+  <p>Under the IR's name, each factory IR says what it suits, for example "Strange · best on chords, pads". <b>Init</b> unloads the IR and sets every knob to its default: your sound passes through unchanged. The factory IRs are synthetic (generated, not recorded), so they're free to use like the rest of the plugin. Appendix A lists every preset's settings.</p>
+
+  <h2>MPC's own preset menu <span class="new">NEW</span></h2>
+  <p>The preset menu at the top of MPC's screen lists the same presets, grouped by what they're for, then your own IRs:</p>
+  <table>
+    <tr><th>Group</th><th>Presets</th></tr>
+    <tr><td class="k">Init</td><td>No IR: your sound passes through</td></tr>
+    <tr><td class="k">Drum</td><td>Empty Mall, Pool Rooms, Stairwell Flutter, Parking Slap, Struck Pipe, Bouncing Ball</td></tr>
+    <tr><td class="k">Vocal</td><td>Tape Corridor, Intercom Echo, Glass Void</td></tr>
+    <tr><td class="k">Keys</td><td>Fluorescent Hall, Dream Ping-Pong, Liminal Hz</td></tr>
+    <tr><td class="k">Pad</td><td>Backrooms, Shimmer Fog</td></tr>
+    <tr><td class="k">FX</td><td>Reverse Bloom, Sub Tunnel, Grain Cloud, Tuned Chord, Breath</td></tr>
+    <tr><td class="k">My IR</td><td>Every IR in your <code>reverbs</code> folders ("My IR: Big Hall"), each with Init's settings</td></tr>
+  </table>
+  <p>Picking a factory preset there is the same as picking it in the plugin. The list of your IRs is read when the plugin loads, so IRs you add or delete show up the next time you load it or reopen a project. Re-selecting the preset in use changes nothing, and a project always reopens with its own sound, whatever the menu lists then.</p>
+
+  <h2>Factory and My IRs</h2>
+  <p>The <span class="btn">FACTORY</span> / <span class="btn">MY IRS</span> switch chooses which list ◀ ▶, the pack buttons and <span class="btn">IR LIST</span> step through. <b>Factory</b> is the 19 built-in IRs. <b>My IRs</b> is every IR in your <code>reverbs</code> folders, including TONE3000 downloads. Switching lists never changes what's playing; it only changes what you browse.</p>
+  <ul>
+    <li><b>A factory IR keeps your knob settings.</b> Step through the factory IRs and only the space changes.</li>
+    <li><b>One of your own IRs starts from Init</b> <span class="new">NEW</span>. Picking one (with the arrows, the packs, the IR List, MPC's menu or a TONE3000 download) puts the knobs back to Init's, whether you came from a factory preset or another of your IRs: a sound's settings belong to its IR. Shape it from there; picking the same IR again keeps your changes. To keep a sound, save it as a My Preset.</li>
+  </ul>
+
+  <h2>Stepping through IRs</h2>
+  <p>◀ ▶ beside the IR name load the previous or next IR in the list. The new IR crossfades in (about 93 ms), so you can step while playing without clicks. <span class="btn">PREV PACK</span> / <span class="btn">NEXT PACK</span> jump to the first IR of the previous or next pack. A pack is a subfolder (for factory IRs: Spaces, Echoes, Strange, Textures; for TONE3000: one downloaded tone). Below the name: the pack and a details line, for example "IR 2 of 5 · Local · Stereo". For TONE3000 IRs the details show the gear type and creator, and the T3K mark appears.</p>
+
+  <div class="side">
+    <figure><img src="img/ir-list.png" alt=""><figcaption>The IR List: six IRs to a page, the one in use outlined.</figcaption></figure>
+    <div>
+      <h2 style="margin-top:0">The IR List</h2>
+      <p>For long lists, tap <span class="btn">IR LIST</span>. The list you're in covers the browser, six to a page, as "pack · name". The one playing is outlined.</p>
+      <ul>
+        <li>Tap a row to load that IR. The list stays open, so you can audition one after another.</li>
+        <li><span class="btn">PREV</span> / <span class="btn">NEXT</span> turn the pages, one page per tap.</li>
+        <li><span class="btn">FACTORY</span> / <span class="btn">MY IRS</span> switch lists without closing.</li>
+        <li><span class="btn">CLOSE</span> puts the browser back. Opening a project closes it too.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>RESCAN</h2>
+  <p>Liminal Hz finds your IRs when it starts. After you add, rename or remove files on a card (or edit preset files from a computer), tap <span class="btn">RESCAN</span>. It also remembers where it found your <code>reverbs</code> folders, so starting up stays fast even on a full card (chapter 10).</p>
+  <h2>DELETE</h2>
+  <p><span class="btn">DELETE</span> removes the IR in use from your card, permanently, and moves on to the next IR. It needs two taps: the first only asks (the line shows a confirmation request); tap again within 4 seconds to delete. The second tap must come at least a third of a second after the first, so one touch can't do both. Factory IRs can't be deleted.</p>
+  <div class="note warn"><p><b>There's no undo.</b> A deleted IR is gone from the card. If it came from TONE3000, you can download it again.</p></div>
+</section>
+
+<!-- ============================================================ 6 -->
+<section class="chapter" data-ch="6">
+  <div class="eyebrow">Chapter 6</div>
+  <h1>The controls</h1>
+  <p class="sub">Two kinds of control: the ones that mix the reverb with your sound, and the ones that reshape the IR itself.</p>
+  <p>The <b>space</b>, <b>tone</b> and <b>out</b> groups act on the sound in real time. The <b>trim</b>, <b>fade</b> and <b>time</b> groups and Reverse reshape the IR: each change is prepared in the background and crossfaded in, so moving them never costs the audio anything, but the result arrives a moment later (longer IRs take longer to prepare, especially with Decay).</p>
+  <figure>{{signal_flow}}<figcaption>The real-time signal path. The IR inside "Convolution" has already been shaped by trim, fade, Stretch, Decay and Reverse.</figcaption></figure>
+
+  <h2>space</h2>
+  <h3>Mix <span style="font-weight:400;color:var(--muted)">0–100% · default 30%</span></h3>
+  <p>How much of the reverb you hear. At 0% only the dry sound; at 100% only the reverb. As Mix rises, the dry signal is turned down by the same amount, so the overall level stays roughly even. Use 100% when Liminal Hz sits on a send/return, and 15 to 40% as an insert. Mix glides to new values, so turning it never zips or clicks.</p>
+  <h3>Pre-delay <span style="font-weight:400;color:var(--muted)">0–250 ms · default 0 ms</span></h3>
+  <p>A gap before the reverb starts. It keeps attacks clear (the dry hit lands, then the room answers) and makes a space feel bigger. 10 to 30 ms for vocals and drums; 60 to 120 ms for a dramatic, separated tail. Pre-delay glides, so it can be moved while playing.</p>
+  <h3>Sync <span style="font-weight:400;color:var(--muted)">Off / On · default Off</span> <span class="new">NEW</span></h3>
+  <p>The switch beside Pre-delay puts it in time with your project. With Sync on, the Pre-delay knob steps through note values at the project tempo:</p>
+  <p><code>0</code> <code>1/128</code> <code>1/64</code> <code>1/32</code> <code>1/16 T</code> <code>1/16</code> <code>1/16 D</code> <code>1/8 T</code> <code>1/8</code> <code>1/8 D</code> <code>1/4</code></p>
+  <p>T is a triplet and D is dotted. The tempo is read from MPC continuously, so the delay follows tempo changes, gliding like a knob move. A synced pre-delay can reach 2 seconds (a 1/4 note at 30 BPM). Try 1/16 on drums for a room that answers on the grid, or 1/8 D with a little Feedback for rhythmic echoes.</p>
+  <h3>Feedback <span style="font-weight:400;color:var(--muted)">0–100% · default 0%</span></h3>
+  <p>Feeds the reverb's output back into itself, so every reflection is reflected again: longer, building tails.</p>
+  <ul>
+    <li><b>Gentle at first:</b> the knob is eased, so the first half builds quickly and the top half is fine control. Around 50% tails last about 2 to 4 times as long.</li>
+    <li><b>From about 70%:</b> a long ring that holds at roughly the level you play at and fades away over 30 to 40 seconds once you stop.</li>
+    <li><b>Each repeat is a little darker</b> (a 4 kHz damping filter in the loop), like a tape echo, so long feedback turns into a warm wash rather than a whistle.</li>
+    <li><b>It can't run away.</b> The loop is scaled to each IR's spectrum and watched by a guard that turns the fed-back signal down whenever the reverb gets louder than your recent input.</li>
+  </ul>
+
+  <h2>tone</h2>
+  <h3>Low Cut <span style="font-weight:400;color:var(--muted)">20–1000 Hz · default 80 Hz</span> and High Cut <span style="font-weight:400;color:var(--muted)">1–20 kHz · default 12 kHz</span></h3>
+  <p>Filters on the reverb only (the dry sound is never filtered). Each turns on a logarithmic scale, so every octave gets the same turn of the knob: the middle of Low Cut is about 141 Hz and the middle of High Cut about 4.5 kHz. Both are 12 dB per octave. Raise Low Cut to keep kick drums, bass and low guitar notes from turning the room to mud (150 to 300 Hz for most mixes); lower High Cut for warmth, distance or an old-recording feel.</p>
+  <h3>Width <span style="font-weight:400;color:var(--muted)">0–200% · default 100%</span></h3>
+  <p>The stereo width of the reverb. 100% is as recorded; 0% is mono (the reverb sits in the centre with your sound); above 100% the sides are pushed out further, up to 200%. Width glides too.</p>
+
+  <h2>out</h2>
+  <h3>Duck <span style="font-weight:400;color:var(--muted)">0–100% · default 0%</span> <span class="new">NEW</span></h3>
+  <p>Turns the reverb down while you play and lets it bloom in the gaps, so big rooms on snares and vocals don't muddy the groove. At 100% the reverb drops by up to 24 dB under a loud input and comes back within about a quarter of a second after it stops. The attack and release are set for you: one knob is all there is.</p>
+  <ul>
+    <li>It only turns down what you hear, after the feedback loop, so Feedback's tails carry on underneath and return when you stop.</li>
+    <li>At 0% the sound is exactly as without it.</li>
+    <li>Try 40 to 70% on a vocal with a long hall: words stay clear and the hall fills the pauses.</li>
+  </ul>
+  <h3>Output <span style="font-weight:400;color:var(--muted)">−24 to +12 dB · default 0 dB</span></h3>
+  <p>The level of everything leaving the plugin, dry and wet together. IRs are levelled to similar loudness when they load, and the factory presets are levelled to sit close to your dry sound, so you rarely need it except to match the bypassed level. It glides to new values.</p>
+
+  <h2>trim</h2>
+  <h3>Start <span style="font-weight:400;color:var(--muted)">0–90% · default 0%</span></h3>
+  <p>Skips the beginning of the IR. Cutting off the first few percent removes the direct sound and early reflections, leaving only the diffuse tail: the room without its walls. Higher values make strange, detached ambiences.</p>
+  <h3>End <span style="font-weight:400;color:var(--muted)">5–100% · default 100%</span></h3>
+  <p>Where the IR stops, as a share of its length. The quickest way to make a long space shorter, and the cheapest: a shorter IR uses less CPU. (In the parameter list this is called Length.) Start and End always keep at least 128 samples of IR, so the space never vanishes entirely.</p>
+
+  <h2>fade</h2>
+  <h3>Fade In <span style="font-weight:400;color:var(--muted)">0–50% · default 0%</span></h3>
+  <p>Fades the kept part of the IR in, as a share of its length. The reverb swells up instead of starting at once: soft, bowed, ghostly. Combine with Pre-delay for a reverb that blooms behind the note.</p>
+  <h3>Fade Out <span style="font-weight:400;color:var(--muted)">0–50% · default 10%</span></h3>
+  <p>Fades the end of the IR out. Even at 0% a tiny fade is applied, so a trimmed IR never ends with a click. Raise it for a smoother, more natural decay on IRs that end abruptly.</p>
+
+  <h2>time</h2>
+  <h3>Stretch <span style="font-weight:400;color:var(--muted)">50–200% · default 100%</span></h3>
+  <p>Resamples the IR like a tape speed change. Above 100% the space gets longer and lower (a 200% room is twice as long and an octave down); below 100% it gets shorter and higher. Great for turning a room into a cave, or a hall into a small, bright box. With LONG IR on and on Gen 2 the resampling is band-limited, so even 50% stays clean.</p>
+  <h3>Decay <span style="font-weight:400;color:var(--muted)">50–300% · default 100%</span></h3>
+  <p>How long the room rings, without changing its pitch or its colour. Decay measures how quickly each band of frequencies (in third-octaves) dies away, then makes each band fade faster or slower by the same factor. When you lengthen a room past the end of its recording, each band is continued "in kind" with matching noise, so the tail goes on naturally rather than stopping.</p>
+  <ul>
+    <li>100% plays the IR exactly as recorded.</li>
+    <li>A small dark room stays small and dark, just longer: Backrooms at 300% rings about 2.5 times as long.</li>
+    <li>Longer decays come out slightly louder, as a bigger room would (about +3 dB at 300%).</li>
+    <li>On Gen 1 the result is capped at 5 seconds, so long IRs gain less there. With LONG IR on, and on Gen 2, the cap is 20 seconds: a 5-second room at 300% rings its full 15 seconds or so.</li>
+  </ul>
+  <div class="note"><p><b>Decay or Stretch?</b> Stretch changes time and pitch together, like tape. Decay changes only how long the tail lasts. To make a room "bigger" naturally, use Decay; to make it alien, use Stretch.</p></div>
+  <h3>Reverse</h3>
+  <p>Plays the IR backwards. The reverb swells up into each note instead of trailing after it: the classic reverse-reverb effect, live. Reverse is applied after the length limit and before Start and End, so Start and End then trim the reversed IR. Try it with a short End (30 to 50%) for a tight pre-swell, or with Pre-delay for a gap between the swell and the note.</p>
+
+  <h2>LONG IR</h2>
+  <p>The on/off switch in the lower right, under Reverse, labelled <b>Long IR</b>. On Gen 1 it switches on Gen 2's IR quality:</p>
+  <ul>
+    <li><b>IRs up to 20 seconds</b> instead of 5, so long halls, drones and long echo IRs play whole, and Decay can stretch a room past 5 seconds.</li>
+    <li><b>Band-limited resampling</b> for IRs recorded at other sample rates and for Stretch: no dulled top octave, no alias tones.</li>
+    <li><b>Finer Decay analysis:</b> twice the frequency detail, so the bass is measured accurately.</li>
+  </ul>
+  <p>One tap turns it on and one turns it off, like Reverse. While it's on, the line under it reads "On · CPU heavy · 20 s"; while it's off, "Off · IRs up to 5 s". Turning it on or off prepares the current IR again and crossfades it in, so you can switch while playing. Long IRs use more of the second core and more memory, and take longer to prepare after each change. If the details line shows <b>Tail late</b>, turn LONG IR off or shorten the IR with End.</p>
+  <p>It's a setting for your unit, not part of a sound: a project remembers it, but presets, Init and My Presets leave it as it is, and it can't be automated. On Gen 2 it's always on and the line reads "Gen 2 · always on".</p>
+
+  <h2>The order things happen in</h2>
+  <p>When the IR is prepared, the steps run in this order: resample to the MPC's rate with Stretch → Decay → cut to the length limit → Reverse → Start and End → Fade In and Fade Out → level matching. Knowing the order explains a few things: Start trims the reversed IR when Reverse is on, and the fades always apply to what's left after trimming.</p>
+</section>
+
+<!-- ============================================================ 7 -->
+<section class="chapter" data-ch="7">
+  <div class="eyebrow">Chapter 7</div>
+  <h1>Reading the shape display</h1>
+  <p class="sub">The right side of the page shows what the IR sounds like, after all your shaping.</p>
+  <figure><img src="img/shape.png" alt=""><figcaption>The painting (level and tone over time), the glow under it, and the sonics line.</figcaption></figure>
+  <h2>The sonics line</h2>
+  <p>A one-line description in words, for example "decay 2.8 s · airy · darkens · wide · diffuse". It updates whenever the IR or its shaping changes.</p>
+  <table>
+    <tr><th>Part</th><th>Values</th><th>Meaning</th></tr>
+    <tr><td class="k">Decay</td><td>decay 2.8 s · decay 4.8 s+ · swells</td><td>How long it takes to fade by 60 dB. "s+" means at least the IR's own length (echo patterns can't be measured past their end). "swells" for a reversed IR or one that peaks late.</td></tr>
+    <tr><td class="k">Colour</td><td>dark · warm · bright · airy</td><td>How much high-frequency energy it has, mostly from its first, loudest part</td></tr>
+    <tr><td class="k">Change</td><td>darkens · brightens</td><td>Whether the tail gets darker or brighter than the start (most real rooms darken)</td></tr>
+    <tr><td class="k">Width</td><td>mono · narrow · stereo · wide</td><td>How different the left and right channels are</td></tr>
+    <tr><td class="k">Texture</td><td>echoes · diffuse</td><td>Whether it has distinct repeats or a smooth wash</td></tr>
+  </table>
+  <h2>The painting</h2>
+  <p>The IR drawn as a misty trace in twelve columns across its length. <b>Height</b> is the level over time, on a decibel scale reaching down to about −66 dB, so a reverb's whole audible decay is visible. <b>Colour</b> is its tone at that moment: <b>pale ice</b> is airy, with lots of high frequencies; <b>bone</b> is balanced and warm; <b>dusky violet</b> is dark, the highs having died away. Most real spaces go from pale to bone to violet as they fade. Move End, Fade Out or Decay and the painting follows.</p>
+  <h2>The glow</h2>
+  <p>After each note, a glow drifts along under the painting, showing where your sound is in the space right now, pre-delay included. It's the playhead of the reverb: when it reaches the right-hand end, the tail of that note has finished. It listens for new notes in the audio you play (hits, plucks, and pads with slow attacks; a held, beating chord or tremolo doesn't keep restarting it), and also follows MIDI note-ons whenever the MPC sends MIDI to the plugin.</p>
+</section>
+
+<!-- ============================================================ 8 -->
+<section class="chapter" data-ch="8">
+  <div class="eyebrow">Chapter 8</div>
+  <h1>My Presets</h1>
+  <p class="sub">Set the plugin the way you like it, then keep it.</p>
+  <div class="side">
+    <figure><img src="img/my-presets.png" alt=""><figcaption>The My Presets list: four presets to a page, with Save, Delete and Name on Phone.</figcaption></figure>
+    <div>
+      <p>Tap <span class="btn">MY PRESETS</span> (beside the Preset field). Your presets cover the browser, four to a page, with <span class="btn">PREV</span> / <span class="btn">NEXT</span> / <span class="btn">CLOSE</span> as in the IR List.</p>
+      <h2>Saving</h2>
+      <p><span class="btn">SAVE</span> keeps the current sound: every knob (Duck and Sync included) and the IR in use, factory or your own. It's named after the IR ("Fluorescent Hall", then "Fluorescent Hall 2" and so on) and becomes the selected preset.</p>
+    </div>
+  </div>
+  <h2>Loading</h2>
+  <p>Tap a row to load that preset: its settings and its IR, exactly as saved. The one in use is outlined, the Preset field shows "My: &lt;name&gt;", and a project saved now remembers which preset it was. Loading a My Preset never goes back to Init, even when its IR is one of yours.</p>
+  <ul>
+    <li>If the preset's IR has moved (another folder, another card), Liminal Hz finds it again by its name.</li>
+    <li>If the IR is gone, the settings still load and the line says the IR wasn't found ("Not found: …").</li>
+  </ul>
+  <h2>Deleting</h2>
+  <p><span class="btn">DELETE</span> removes the selected preset. Like IR delete, it asks first: tap twice, the second tap at least a third of a second after the first and within 4 seconds. The file is deleted permanently.</p>
+  <h2>Naming on your phone</h2>
+  <p>The MPC's screen has no keyboard, so names are typed on your phone. Tap <span class="btn">NAME ON PHONE</span>: the line shows an address such as <code>192.168.1.20:8191/presets</code>. Open it in your phone's browser (same Wi-Fi as the MPC) to save the current sound under a typed name, or to load, rename and delete presets. This page needs no internet connection and no account. Chapter 9 has more on the phone pages.</p>
+  <h2>The files</h2>
+  <p>Each preset is a small text file in the plugin's <code>presets/</code> folder, named <code>&lt;name&gt;.lhzp</code>. They're kept when you update the plugin. You can rename, copy, back up or delete them from a computer; tap <span class="btn">RESCAN</span> afterwards and the list follows. Copy them to another unit (Gen 1 or Gen 2) to take your sounds with you, or into the new folder when you move to the MPC OS 3.10.1 install.</p>
+</section>
+
+<!-- ============================================================ 9 -->
+<section class="chapter" data-ch="9">
+  <div class="eyebrow">Chapter 9</div>
+  <h1>Your phone: TONE3000 and preset names</h1>
+  <p class="sub">The plugin serves two small pages to a phone or computer on the same Wi-Fi. No app to install, no password.</p>
+  <figure><img src="img/phone.png" alt=""><figcaption>Left: the home page, with TONE3000 and My Presets. Right: the My Presets page.</figcaption></figure>
+  <h2>Opening the pages</h2>
+  <ol>
+    <li>Tap <span class="btn">BROWSE</span> in the TONE3000 strip. The status line shows an address, for example <code>Open 192.168.1.20:8191</code>.</li>
+    <li>On a phone on the same Wi-Fi as the MPC, open <code>http://</code> followed by that address.</li>
+  </ol>
+  <p>Each plugin instance uses its own port: the first takes 8191, a second instance the next free one (8192, …), so several can be open at once. The status line always shows the right address. The pages close themselves after 15 idle minutes (the line then says "Page closed"). Tap <span class="btn">BROWSE</span> again to reopen.</p>
+  <h2>Downloading IRs from TONE3000</h2>
+  <p>TONE3000 is a large online library of captures of real spaces and gear, made by a community of musicians. To get an IR from it:</p>
+  <ol>
+    <li>On the phone's home page, tap <b>Continue: Space, Outboard, Pedal and Experimental IRs</b>.</li>
+    <li>Sign in to TONE3000 (on your phone) and pick a tone from the Space, Outboard, Pedal or Experimental categories.</li>
+    <li>It downloads straight to the MPC, into <code>reverbs/TONE3000/&lt;tone&gt;/</code> in the plugin's folder. The status line on the MPC shows the progress ("Downloading 1/3") and the new IR is selected when it's done, starting from Init's settings.</li>
+  </ol>
+  <ul>
+    <li>Only IRs are offered, and only <code>.wav</code> files are downloaded. A tone that isn't an IR is refused.</li>
+    <li>A TONE3000 tone becomes one pack; its variants (different mics, positions or lengths) are separate IRs within it, which ◀ ▶ step through.</li>
+    <li>The MPC itself needs internet access for the download.</li>
+  </ul>
+  <h2>The My Presets page</h2>
+  <p>Reached from <span class="btn">NAME ON PHONE</span> (the address ends in <code>/presets</code>) or the <b>My Presets: name &amp; save</b> button on the home page. It works without internet. Save the current sound under a typed name (tick "replace it if the name exists" to overwrite), or load, rename and delete any preset. The one in use is marked "selected".</p>
+</section>
+
+<!-- ============================================================ 10 -->
+<section class="chapter" data-ch="10">
+  <div class="eyebrow">Chapter 10</div>
+  <h1>Your own IRs</h1>
+  <p class="sub">Any WAV impulse response works: recorded rooms, commercial IR packs, ones you make yourself.</p>
+  <h2>Where to put them</h2>
+  <p>Put <code>.wav</code> files in any folder named <code>reverbs</code> (any capitalisation): inside the plugin's own folder, on any card or drive, or on the internal drive, up to four folders deep. Subfolders become packs. Then tap <span class="btn">RESCAN</span> and switch to <span class="btn">MY IRS</span>. Example: <code>/media/&lt;card&gt;/reverbs/Churches/Nave.wav</code> and <code>…/reverbs/Churches/Crypt.wav</code> form a pack called "Churches". They also appear in MPC's preset menu as "My IR: …" the next time the plugin loads.</p>
+  <p>Liminal Hz remembers where it found your <code>reverbs</code> folders in a small hidden file, <code>.reverbs-index</code>, next to the plugin. At start-up it loads the saved IR at once and searches for changes in the background. If you add a <code>reverbs</code> folder on a new card, tap <span class="btn">RESCAN</span> once and it's found and remembered.</p>
+  <h2>Formats</h2>
+  <table>
+    <tr><th>Property</th><th>Supported</th></tr>
+    <tr><td class="k">Type</td><td>WAV, including the "extensible" WAVs many DAWs write</td></tr>
+    <tr><td class="k">Sample format</td><td>16, 24 and 32-bit integer PCM; 32 and 64-bit float</td></tr>
+    <tr><td class="k">Sample rate</td><td>Any. IRs are converted to the MPC's rate when they load (band-limited sinc with LONG IR on, and on Gen 2)</td></tr>
+    <tr><td class="k">Channels</td><td>Mono or stereo. With more than two channels, the first two are used</td></tr>
+    <tr><td class="k">File size</td><td>Up to 256 MB (TONE3000 downloads: up to 64 MB each)</td></tr>
+    <tr><td class="k">Length used</td><td>Up to 5 s on Gen 1, 20 s with LONG IR on and on Gen 2. Longer IRs are cut to the limit and faded out; End shortens them further</td></tr>
+  </table>
+  <h2>Mono and stereo IRs</h2>
+  <p><b>Stereo IRs</b> (most reverb IRs) take the mono sum of your input and give their own left and right: that's how spaces are recorded, with a source in the room and two microphones. <b>Mono IRs</b> process your left and right channels separately with the same IR, keeping your stereo image. Use Width to spread them. Every IR is levelled to the same energy when it loads, so quiet and loud files come out at similar loudness: you don't need to normalise them.</p>
+  <h2>Making your own</h2>
+  <ul>
+    <li><b>Sine sweep:</b> play a sweep through a space or a piece of gear, record it, and deconvolve it with an IR tool. The cleanest IRs.</li>
+    <li><b>Balloon pop or clap:</b> record one sharp sound in a space. Rougher, but quick and characterful.</li>
+    <li><b>Anything short:</b> a drum hit, a vocal phrase, a chord from your MPC, a reversed cymbal. Your sound takes on its envelope and colour: this is where the Strange and Textures presets come from.</li>
+  </ul>
+  <div class="note tip"><p>Trim any silence before the first sound in an IR file (or use Start), or the reverb arrives late.</p></div>
+</section>
+
+<!-- ============================================================ 11 -->
+<section class="chapter" data-ch="11">
+  <div class="eyebrow">Chapter 11</div>
+  <h1>Q-Links, MIDI and projects</h1>
+  <p class="sub">Hardware control, automation, and what a project keeps.</p>
+  <h2>Q-Links</h2>
+  <p>Liminal Hz assigns 16 controls to the Q-Links, in the order you'll turn them while playing: the first five are the ones you ride, the rest tone and shape. <span class="new">NEW IN 1.4</span></p>
+  <table style="margin-bottom:6pt">
+    <tr><th class="num">#</th><th>Control</th><th class="num">#</th><th>Control</th></tr>
+    <tr><td class="num">1</td><td>Mix</td><td class="num">9</td><td>IR (steps through the list)</td></tr>
+    <tr><td class="num">2</td><td>Decay</td><td class="num">10</td><td>Stretch</td></tr>
+    <tr><td class="num">3</td><td>Feedback</td><td class="num">11</td><td>Start</td></tr>
+    <tr><td class="num">4</td><td>Pre-delay</td><td class="num">12</td><td>End</td></tr>
+    <tr><td class="num">5</td><td>Duck</td><td class="num">13</td><td>Fade In</td></tr>
+    <tr><td class="num">6</td><td>Low Cut</td><td class="num">14</td><td>Fade Out</td></tr>
+    <tr><td class="num">7</td><td>High Cut</td><td class="num">15</td><td>Reverse</td></tr>
+    <tr><td class="num">8</td><td>Width</td><td class="num">16</td><td>Output</td></tr>
+  </table>
+  <p>How they fall on your unit's Q-Link banks depends on the unit. Mix, Pre-delay, Feedback, Duck, the cuts, Width and Output respond instantly and smoothly. The IR-shaping controls (Decay, Stretch, Start, End, the fades, Reverse) prepare a new IR in the background on each change and crossfade it in, so sweeping them quickly gives a stepped, morphing effect rather than a smooth sweep.</p>
+  <h2>Automation</h2>
+  <p>All the sound controls can be recorded as automation. The display parts of the page (the painting, the glow, the sonics line) and LONG IR are marked as not automatable, so MPC never records them.</p>
+  <h2>MIDI</h2>
+  <p>Liminal Hz is an effect, so MIDI only matters for the glow: each note-on the MPC sends restarts the playhead. Sync takes the tempo from the project.</p>
+  <h2>What a project remembers</h2>
+  <ul>
+    <li>Every parameter value, Duck and Sync included.</li>
+    <li>The IR in use, by its path, its path relative to the <code>reverbs</code> folder, and its file name. If you've moved the IR to another folder or card, it's found again.</li>
+    <li>Which My Preset was selected, if any.</li>
+    <li>Whether LONG IR was on.</li>
+  </ul>
+  <p>A project opens on the page itself, with no list left open, and always with its own sound: when MPC re-selects a preset from its menu as the project loads, Liminal Hz keeps the project's settings. If the IR can't be found, the project opens with its settings and the line says "Not found: &lt;file&gt;": put the file back in a <code>reverbs</code> folder and tap <span class="btn">RESCAN</span>. Projects move between Gen 1 and Gen 2.</p>
+  <div class="note"><p><b>Projects from 1.3 and earlier</b> keep their sound. Duck and Sync arrive off.</p></div>
+</section>
+
+<!-- ============================================================ 12 -->
+<section class="chapter" data-ch="12">
+  <div class="eyebrow">Chapter 12</div>
+  <h1>Sound design recipes</h1>
+  <p class="sub">Starting points. Every IR is different, so treat the numbers as a place to begin, then listen.</p>
+  <div class="two">
+    <div>
+      <div class="recipe"><h3>Tight drum room</h3><div class="set">Start from <b>Backrooms</b> · Mix 15–25% · Pre-delay 0–5 ms · Low Cut 200 Hz · High Cut 8 kHz · End 40–60%</div><p>Puts dry samples in a real-sounding room without washing them out. A short End keeps it tight; Low Cut stops the kick from booming.</p></div>
+      <div class="recipe"><h3>Big snare that stays out of the way <span class="new">NEW</span></h3><div class="set">Start from <b>Empty Mall</b> or <b>Fluorescent Hall</b> · Mix 30–45% · Decay 150–200% · Duck 60–80% · Low Cut 250 Hz</div><p>The room blooms after each hit and ducks under the next one, so a huge space doesn't blur the groove.</p></div>
+      <div class="recipe"><h3>Vocal hall with clarity</h3><div class="set">Start from <b>Fluorescent Hall</b> · Mix 20–30% · Pre-delay 30–60 ms · Duck 40–70% · Low Cut 250 Hz · High Cut 9 kHz</div><p>Pre-delay lets every consonant land before the hall answers, and Duck keeps the words clear while the hall fills the pauses.</p></div>
+      <div class="recipe"><h3>Room on the grid <span class="new">NEW</span></h3><div class="set">Start from <b>Parking Slap</b> · Sync on · Pre-delay 1/16 or 1/8 D · Mix 25–35% · Feedback 20–40%</div><p>The room answers in time with the beat. Dotted values give a skipping, swung echo; Feedback turns it into a rhythmic trail.</p></div>
+      <div class="recipe"><h3>Guitar amp in a room (after Liminal Amp)</h3><div class="set">Start from <b>Pool Rooms</b> or <b>Empty Mall</b> · Mix 15–25% · Pre-delay 10–20 ms · Low Cut 150 Hz · Width 130%</div><p>Put Liminal Hz after Liminal Amp on the same track. A little room turns a close-miked amp into a player in a space; Width spreads a mono amp.</p></div>
+      <div class="recipe"><h3>Dub delay trail</h3><div class="set">Start from <b>Tape Corridor</b> or <b>Dream Ping-Pong</b> · Mix 30–45% · Feedback 50–75% · Low Cut 300 Hz · High Cut 4–6 kHz</div><p>Feedback stretches the repeats into a long, darkening trail. Ride Mix or Feedback on a Q-Link for throws: turn it up on the last word of a phrase.</p></div>
+      <div class="recipe"><h3>Reverse swell into a snare</h3><div class="set">Start from <b>Reverse Bloom</b>, or any hall with Reverse on · End 30–50% · Mix 40–60% · Pre-delay 0 ms</div><p>The reverb rises into each hit. Use it on a duplicate of the snare on its own track and mute the dry copy for a pure swell.</p></div>
+    </div>
+    <div>
+      <div class="recipe"><h3>Drums that play a chord <span class="new">NEW</span></h3><div class="set">Start from <b>Tuned Chord</b> · Mix 10–20% · Low Cut 150 Hz · Width 100%</div><p>Every hit rings the chord. Keep Mix low: the chord is resonant and builds quickly. Try it on hats and percussion too.</p></div>
+      <div class="recipe"><h3>Metal and grains <span class="new">NEW</span></h3><div class="set">Start from <b>Struck Pipe</b> or <b>Grain Cloud</b> · Stretch 150–200% · Decay 200–250% · Mix 20–40%</div><p>Stretch drops the pipe into a cavern of metal or slows the grains into a drifting cloud. Great on vocal chops and risers.</p></div>
+      <div class="recipe"><h3>Ambient pad wash</h3><div class="set">Start from <b>Shimmer Fog</b> or <b>Glass Void</b> · Mix 50–100% · Decay 200–300% · Fade In 10–25% · Feedback 30–50% · Width 160–200%</div><p>Fade In makes the reverb bloom behind each chord; long Decay and a little Feedback hold it in the air. With LONG IR on (or on Gen 2), Decay 300% on a long IR can ring for 15 seconds or more.</p></div>
+      <div class="recipe"><h3>Cave, from any room</h3><div class="set">Any <b>Spaces</b> IR · Stretch 160–200% · Decay 150% · High Cut 5 kHz · Pre-delay 60 ms</div><p>Stretch makes a room longer and lower: an octave down at 200%. A low High Cut and a long Pre-delay add distance and damp stone.</p></div>
+      <div class="recipe"><h3>Drone machine</h3><div class="set">Start from the <b>Liminal Hz</b> preset · Feedback 75–90% · Mix 60–100% · Start 10–20%</div><p>Play a short note and the space keeps ringing at about the level you played, then fades over 30 to 40 seconds when you stop. Start removes the attack so only the ringing body is left.</p></div>
+      <div class="recipe"><h3>Lo-fi intercom</h3><div class="set">Start from <b>Intercom Echo</b> · Low Cut 400–600 Hz · High Cut 3–4 kHz · Width 0% · Mix 40–70%</div><p>A narrow band and mono width turn any part into a voice from another room.</p></div>
+      <div class="recipe"><h3>Send/return reverb for a whole beat</h3><div class="set">Insert on a return · Mix 100% · Low Cut 250–400 Hz · Pre-delay 20 ms</div><p>One instance shared by many tracks puts them all in the same space (and costs CPU once). Set each track's send level for how far back it sits.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 13 -->
+<section class="chapter" data-ch="13">
+  <div class="eyebrow">Chapter 13</div>
+  <h1>Performance and how it works</h1>
+  <p class="sub">Zero latency, and long IRs that stay cheap.</p>
+  <h2>Zero latency</h2>
+  <p>Liminal Hz adds no delay to your sound. The first part of every IR runs directly in MPC's own 128-sample audio blocks, so the reverb starts at the same moment as the dry sound.</p>
+  <h2>How long IRs stay cheap</h2>
+  <p>A 5-second stereo IR has 220,500 points per channel. Convolving it the simple way in MPC's tiny audio blocks would cost far more than a whole block of time. Liminal Hz splits each IR into parts:</p>
+  <ul>
+    <li><b>The head</b>, the first 4,096 samples (93 ms): processed on MPC's audio thread in 128-sample blocks, the same small cost every block.</li>
+    <li><b>The tail</b>, the rest: processed in larger blocks on a separate worker thread, on another processor core. Each block is computed a whole block ahead of when it's needed.</li>
+    <li><b>The far tail.</b> For IRs longer than about 0.74 seconds, everything past that point goes to a third stage with much larger blocks (16,384 samples) on its own worker thread. That makes long IRs much cheaper, and keeps a 20-second IR efficient.</li>
+  </ul>
+  <p>The audio thread's cost doesn't grow with IR length on either generation: it always runs the same 93 ms head. The result is exactly the same as direct convolution, to float precision.</p>
+  <h2>CPU use</h2>
+  <p>Measured on an Akai Force with version 1.2.0, a 5-second stereo IR:</p>
+  <table>
+    <tr><th>Gen 1 (Akai Force)</th><th class="num">Measured</th></tr>
+    <tr><td>MPC's audio thread, average</td><td class="num">about 3.4% of a block</td></tr>
+    <tr><td>MPC's audio thread, worst block</td><td class="num">about 7%</td></tr>
+    <tr><td>Worker thread (on another core)</td><td class="num">about 8% of a core</td></tr>
+    <tr><td>Late tail blocks</td><td class="num">0</td></tr>
+  </table>
+  <p>Since 1.3 the far-tail stage and the processor's NEON vector maths are used on every unit, so the worker's load is lower than these figures; the audio thread's cost is unchanged. A mono IR costs about half. Shorter IRs and lower End settings cost less on the worker core. Gen 2 has far more headroom.</p>
+  <div class="note tip"><p><b>Saving CPU:</b> use one instance on a return instead of one per track, trim long IRs with End to what you actually hear, and use a mono IR where width doesn't matter.</p></div>
+  <h2>LONG IR and Gen 2</h2>
+  <p>LONG IR (always on on Gen 2) allows 20-second IRs and full-length Decay, resamples IRs with a band-limited sinc filter (a 48 kHz IR keeps its top octave, and Stretch below 100% no longer makes alias tones), and analyses Decay with twice the frequency detail. Its cost is mostly in preparing the IR, off the audio thread: loading a long IR at another sample rate, Stretch and Decay take longer; Start, End, the fades and Reverse stay quick.</p>
+</section>
+
+<!-- ============================================================ 14 -->
+<section class="chapter" data-ch="14">
+  <div class="eyebrow">Chapter 14</div>
+  <h1>Troubleshooting</h1>
+  <p class="sub">Messages on the page, and what to do about common problems.</p>
+  <h2>Messages on the page</h2>
+  <table>
+    <tr><th>Message</th><th>What it means</th><th>What to do</th></tr>
+    <tr><td class="k">Tail late N× (CPU busy)</td><td>The worker core was too busy; a block of the tail arrived late (a brief gap). Shown for 5 s.</td><td>Turn LONG IR off, or use fewer instances, shorter IRs (End), mono IRs.</td></tr>
+    <tr><td class="k">Not found: &lt;file&gt;</td><td>The IR isn't in any <code>reverbs</code> folder the plugin knows.</td><td>Put the file back and tap RESCAN.</td></tr>
+    <tr><td class="k">Not a WAV file · Unsupported WAV format · Unsupported bit depth · Invalid WAV header</td><td>The file isn't a WAV the plugin can read.</td><td>Re-export it as 24-bit PCM or 32-bit float WAV.</td></tr>
+    <tr><td class="k">File too large · Silent IR</td><td>Over 256 MB · nothing audible left after trimming.</td><td>Trim the file · lower Start or raise End.</td></tr>
+    <tr><td class="k">Page closed</td><td>The phone page closed after 15 idle minutes.</td><td>Tap BROWSE (or NAME ON PHONE) again.</td></tr>
+  </table>
+  <h2>Common problems</h2>
+  <h3>Liminal Hz isn't under External Plugins (MPC OS 3.10.1)</h3>
+  <ul>
+    <li>Check Preferences › Enhancements (Beta): both <b>Enable Enhancements</b> and <b>External Plugin Support</b> must be on.</li>
+    <li>The folder must be named exactly <code>VST2 Plugins</code>, at the top level of the drive, and the plugin's folder must sit directly inside it (not one folder deeper).</li>
+    <li>Make sure you copied the folder from the <code>-MPC-OS-3.10.1.zip</code>: the other zips don't have the files this route needs.</li>
+  </ul>
+  <h3>Liminal Hz is listed twice</h3>
+  <p>An older install (Plugin Catalog, installer or Synths folder) is still there next to the <code>VST2 Plugins</code> copy. Copy your <code>presets</code> folder across, then remove the older install.</p>
+  <h3>Liminal Hz isn't in the plugin list (earlier MPC OS)</h3>
+  <ul>
+    <li>Make sure you installed the right zip for your generation: armv7 for Gen 1, aarch64 for Gen 2. A 32-bit plugin can't load on Gen 2, and the reverse. The installer refuses the wrong one.</li>
+    <li>Look under manufacturer Gm0rb, in insert effects. For a Synths folder install, run <code>vstscanner</code> again.</li>
+  </ul>
+  <h3>After an update, the page looks old or controls are missing</h3>
+  <p>Restart MPC (it keeps plugin pages in memory), then remove and re-insert the plugin on your tracks.</p>
+  <h3>My IRs don't appear</h3>
+  <p>Check they're <code>.wav</code> files in a folder named <code>reverbs</code>, no more than four folders deep on its drive; switch the list to <span class="btn">MY IRS</span> and tap <span class="btn">RESCAN</span>. In MPC's own preset menu, new IRs show up the next time the plugin loads.</p>
+  <h3>My knobs jumped back when I picked an IR</h3>
+  <p>Picking one of your own IRs starts it from Init's settings (chapter 5). Factory IRs keep your knobs. To keep a sound with your own IR, save it as a My Preset.</p>
+  <h3>My phone can't open the page</h3>
+  <ul>
+    <li>The phone must be on the same Wi-Fi network as the MPC (not mobile data, not a guest network that isolates devices).</li>
+    <li>Type <code>http://</code> and the exact address the status line shows, port included.</li>
+    <li>If it says "Page closed", tap BROWSE again. (For TONE3000 downloads, the MPC itself also needs internet access.)</li>
+  </ul>
+  <h3>The reverb is too loud, boomy or harsh</h3>
+  <p>Lower Mix first; then raise Low Cut (boom) or lower High Cut (harshness). High Feedback builds up level by design: lower it, or lower Mix. On drums and vocals, Duck clears space without lowering the tail.</p>
+  <h3>Moving trim, fade or time knobs doesn't change the sound immediately</h3>
+  <p>Expected: the IR is reshaped in the background and crossfaded in. Long IRs with Decay above 100% take longest, especially with LONG IR on.</p>
+  <h3>Reporting a problem</h3>
+  <p>Open an issue at <b>github.com/gmorb/mpc-vst-liminal-hz/issues</b> with your device, MPC OS version and what you did. Akai doesn't support third-party plugins, so please don't contact them about it.</p>
+</section>
+
+<!-- ============================================================ A -->
+<section class="chapter" data-ch="A">
+  <div class="eyebrow">Appendix A</div>
+  <h1>Reference tables</h1>
+  <p class="sub">Every parameter, every factory preset, every file.</p>
+  <h2>All sound parameters</h2>
+  <table>
+    <tr><th>Parameter</th><th>Group</th><th>Range</th><th class="num">Default</th><th>Notes</th></tr>
+    <tr><td class="k">Mix</td><td>space</td><td>0–100%</td><td class="num">30%</td><td>Glides</td></tr>
+    <tr><td class="k">Pre-delay</td><td>space</td><td>0–250 ms, or a note value</td><td class="num">0 ms</td><td>Glides; with Sync up to 2 s</td></tr>
+    <tr><td class="k">Sync</td><td>space</td><td>Off / On</td><td class="num">Off</td><td>Note values at the project tempo</td></tr>
+    <tr><td class="k">Feedback</td><td>space</td><td>0–100%</td><td class="num">0%</td><td>Eased, damped (4 kHz), guarded</td></tr>
+    <tr><td class="k">Low Cut</td><td>tone</td><td>20–1000 Hz</td><td class="num">80 Hz</td><td>Log knob; wet only; 12 dB/oct</td></tr>
+    <tr><td class="k">High Cut</td><td>tone</td><td>1–20 kHz</td><td class="num">12 kHz</td><td>Log knob; wet only; 12 dB/oct</td></tr>
+    <tr><td class="k">Width</td><td>tone</td><td>0–200%</td><td class="num">100%</td><td>Mid/side; glides</td></tr>
+    <tr><td class="k">Duck</td><td>out</td><td>0–100%</td><td class="num">0%</td><td>Up to −24 dB under input; after the feedback loop</td></tr>
+    <tr><td class="k">Output</td><td>out</td><td>−24 to +12 dB</td><td class="num">0 dB</td><td>Glides</td></tr>
+    <tr><td class="k">Start</td><td>trim</td><td>0–90%</td><td class="num">0%</td><td>IR prep</td></tr>
+    <tr><td class="k">End (Length)</td><td>trim</td><td>5–100%</td><td class="num">100%</td><td>IR prep</td></tr>
+    <tr><td class="k">Fade In</td><td>fade</td><td>0–50%</td><td class="num">0%</td><td>IR prep</td></tr>
+    <tr><td class="k">Fade Out</td><td>fade</td><td>0–50%</td><td class="num">10%</td><td>IR prep; always at least 32 samples</td></tr>
+    <tr><td class="k">Stretch</td><td>time</td><td>50–200%</td><td class="num">100%</td><td>IR prep; changes pitch</td></tr>
+    <tr><td class="k">Decay</td><td>time</td><td>50–300%</td><td class="num">100%</td><td>IR prep; keeps pitch and colour</td></tr>
+    <tr><td class="k">Reverse</td><td>time</td><td>Off / On</td><td class="num">Off</td><td>IR prep</td></tr>
+    <tr><td class="k">Long IR</td><td>(device)</td><td>Off / On</td><td class="num">Off</td><td>Saved in projects, not presets; not automatable; Gen 2: always on</td></tr>
+  </table>
+  <h2>Factory preset settings</h2>
+  <p>All presets use Start 0%, End 100%, Stretch 100%, Decay 100%, Reverse off, Duck 0% and Sync off.</p>
+  {{preset_table}}
+  <h2>Files and folders</h2>
+  <table>
+    <tr><th>Path (inside the plugin folder unless shown)</th><th>Contents</th><th>Kept on update</th></tr>
+    <tr><td><code>Gm0rb - VST - Liminal Hz/</code></td><td>The plugin folder: in <code>VST2 Plugins</code> (MPC OS 3.10.1) or a <code>Synths</code> folder</td><td></td></tr>
+    <tr><td><code>factory/&lt;Spaces|Echoes|Strange|Textures&gt;/</code></td><td>Factory IRs</td><td>Replaced</td></tr>
+    <tr><td><code>reverbs/</code></td><td>Your IRs; TONE3000 downloads in <code>reverbs/TONE3000/&lt;tone&gt;/</code></td><td>Yes</td></tr>
+    <tr><td>any <code>reverbs/</code> on cards and drives</td><td>Your IRs (up to four folders deep)</td><td>Yes (not touched)</td></tr>
+    <tr><td><code>presets/&lt;name&gt;.lhzp</code></td><td>My Presets</td><td>Yes (copy them across when you change install route)</td></tr>
+    <tr><td><code>.reverbs-index</code></td><td>Where your <code>reverbs</code> folders were found</td><td>Rebuilt as needed</td></tr>
+  </table>
+  <h2>Network</h2>
+  <table>
+    <tr><th>Item</th><th>Value</th></tr>
+    <tr><td class="k">Phone page port</td><td>8191 for the first instance; the next free port for each additional one</td></tr>
+    <tr><td class="k">Presets page</td><td><code>http://&lt;address&gt;/presets</code></td></tr>
+    <tr><td class="k">Idle timeout</td><td>15 minutes</td></tr>
+    <tr><td class="k">Internet needed</td><td>Only for TONE3000 (on the MPC); not for presets</td></tr>
+  </table>
+</section>
+
+<!-- ============================================================ B -->
+<section class="chapter" data-ch="B">
+  <div class="eyebrow">Appendix B</div>
+  <h1>Glossary</h1>
+  <p class="sub">The terms used in this manual.</p>
+  <table>
+    <tr><td class="k">Convolution</td><td>Playing a sound through an impulse response: every sample of the input triggers a scaled copy of the whole IR, and all the copies are added up.</td></tr>
+    <tr><td class="k">Impulse response (IR)</td><td>A recording of how a space or device responds to a single, instantaneous sound. It captures the space's whole character.</td></tr>
+    <tr><td class="k">Dry / wet</td><td>Dry is your original sound; wet is the reverb. Mix sets the balance.</td></tr>
+    <tr><td class="k">Pre-delay</td><td>The gap between the dry sound and the start of the reverb.</td></tr>
+    <tr><td class="k">Note value</td><td>A length of time in beats at the project tempo: 1/4 is a quarter note, 1/16 a sixteenth. T (triplet) is two thirds of it; D (dotted) is one and a half times it.</td></tr>
+    <tr><td class="k">Ducking</td><td>Turning one signal down while another plays. Duck turns the reverb down while your input plays.</td></tr>
+    <tr><td class="k">Early reflections</td><td>The first distinct echoes from the nearest walls, in the first tens of milliseconds. Start trims them away.</td></tr>
+    <tr><td class="k">Tail</td><td>The diffuse, decaying part of a reverb after the early reflections.</td></tr>
+    <tr><td class="k">RT60 / decay time</td><td>The time a reverb takes to fade by 60 dB. The sonics line's "decay 2.8 s" is this figure.</td></tr>
+    <tr><td class="k">Diffuse</td><td>A smooth wash of reflections with no distinct repeats, as opposed to echoes.</td></tr>
+    <tr><td class="k">Third-octave band</td><td>A slice of the frequency range one third of an octave wide. Decay analyses and reshapes the IR band by band.</td></tr>
+    <tr><td class="k">Resampling</td><td>Converting audio from one sample rate to another. Used when an IR's rate differs from the MPC's, and for Stretch.</td></tr>
+    <tr><td class="k">Alias tone</td><td>An unwanted tone created when high frequencies are resampled without filtering. Band-limited resampling (LONG IR, Gen 2) prevents them.</td></tr>
+    <tr><td class="k">Mid/side</td><td>Splitting stereo into the centre (mid) and the difference (side). Width scales the side.</td></tr>
+    <tr><td class="k">Pack</td><td>A subfolder of IRs: a factory kind, one of your folders, or one TONE3000 tone.</td></tr>
+    <tr><td class="k">Q-Link</td><td>One of the MPC's or Force's assignable hardware knobs.</td></tr>
+    <tr><td class="k">LONG IR</td><td>The Gen 1 switch for 20-second IRs and Gen 2's IR preparation quality.</td></tr>
+    <tr><td class="k">Gen 1 / Gen 2</td><td>The two generations of MPC OS hardware: 32-bit RK3288 (Force, MPC Live, Live II, One, X, Key 61) and 64-bit RK3588 (MPC Live III and others).</td></tr>
+    <tr><td class="k">External Plugins</td><td>MPC OS 3.10.1's place for third-party plugins, loaded from a <code>VST2 Plugins</code> folder once External Plugin Support is on.</td></tr>
+    <tr><td class="k">TONE3000</td><td>An online library of captures and IRs shared by musicians. Liminal Hz downloads its IRs.</td></tr>
+  </table>
+  <h2>Credits and licence</h2>
+  <p>Liminal Hz is made by Gm0rb and released under the MIT licence. The phone pages use Titillium Web (OFL). Thanks to everyone who tested it and reported problems, including ekeppel for issue #5. Source code and releases: <b>github.com/gmorb/mpc-vst-liminal-hz</b>. Companion plugin: <b>Liminal Amp</b>.</p>
+  <p style="color:var(--muted);font-size:8pt">Liminal Hz is not affiliated with or endorsed by Akai Professional, inMusic or TONE3000. MPC and Force are trademarks of their owners.</p>
+</section>
+
+</body>
+</html>
