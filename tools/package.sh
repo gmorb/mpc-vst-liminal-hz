@@ -101,6 +101,8 @@ if [ -f "dist/Liminal-Hz-$VERSION-mpc-armv7.zip" ] && [ -f "dist/Liminal-Hz-$VER
 else
   echo "no armv7 + aarch64 zips: official (MPC OS 3.10.1) zip skipped"
 fi
+# the user manual (tools/make_manual.py) goes with every release
+for m in docs/Liminal-Hz-*-User-Manual.pdf; do [ -f "$m" ] && cp "$m" dist/; done
 (cd dist && sha256sum *.zip > SHA256SUMS)
 awk -v v="$VERSION" '/^## /{on = ($2 == v)} on && !/^## /' CHANGELOG.md > dist/RELEASE_NOTES.md
 ls -la dist

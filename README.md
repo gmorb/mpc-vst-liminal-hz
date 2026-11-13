@@ -14,6 +14,9 @@ rooms at all), browses your own IRs, and
 downloads more from TONE3000 from your phone. A companion to [Liminal Amp](https://github.com/gmorb/mpc-vst-liminal-amp).
 Not affiliated with or endorsed by TONE3000 or Akai.
 
+**User manual:** [Liminal Hz 1.4 User Manual (PDF)](docs/Liminal-Hz-1.4-User-Manual.pdf): installing, every control,
+the presets, your own IRs, recipes and troubleshooting. It's also attached to each release.
+
 ## Hear it
 
 Twelve short demos (sound on): each plays the dry sound first, then the same phrase through Liminal Hz. The audio is

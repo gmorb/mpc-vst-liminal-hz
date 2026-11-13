@@ -12,6 +12,13 @@
 ### Fixed
 - Opening a project closes the IR List or My Presets list if one was open (and disarms DELETE).
 
+### Docs
+- **The 1.4 user manual** (`docs/Liminal-Hz-1.4-User-Manual.pdf`, 30 pages): the 1.3 manual brought up to date with
+  the MPC OS 3.10.1 install, Duck, Sync, Textures, MPC's preset menu, back to Init on your own IRs, the new Q-Link
+  order, LONG IR as a switch, and new recipes. Built from `docs/manual-src/` by `tools/make_manual.py` (the preset
+  table is read from the code, the contents page numbers from a first print). Releases now carry the manual
+  (package.sh copies it into dist/; the workflow uploads dist/*.pdf).
+
 ## 1.4.0
 
 Tested on an MPC Live III (Gen 2) and an Akai Force (Gen 1), both on MPC OS 3.10.
