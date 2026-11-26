@@ -124,7 +124,7 @@ Tone3000::Tone3000(std::function<void(const std::string&, const std::string&)> o
   base_port_ = atoi(env_or("MPCNAM_T3K_PORT", "8191").c_str());
   port_ = base_port_;
   idle_seconds_ = atoi(env_or("MPCNAM_T3K_IDLE", std::to_string(kIdleSeconds)).c_str());   // tests: shorter
-  dest_ = env_or("MPCNAM_T3K_DEST", Library::plugin_dir());
+  dest_ = env_or("MPCNAM_T3K_DEST", Library::data_dir());   // <drive>/Liminal Hz: updates keep your downloads
 }
 
 Tone3000::~Tone3000() { stop(); }
@@ -412,7 +412,7 @@ void Tone3000::fetch(std::string code, std::string tone_id, std::string kind) {
   if (!models.is_array() || models.empty()) return fail("No files in that tone");
 
   // <models|irs>/TONE3000/<tone title>/: the folder names the source, so the plugin's info line credits TONE3000
-  const std::string base = dest_ + "/reverbs";       // the plugin's reverbs/ folder
+  const std::string base = dest_ + "/reverbs";       // your reverbs/ folder (Library::data_dir())
   const std::string dir = base + "/TONE3000/" + safe_name(title);
   mkdir(base.c_str(), 0755);
   mkdir((base + "/TONE3000").c_str(), 0755);

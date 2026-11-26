@@ -9,12 +9,14 @@ strange spaces and echoes, mono or stereo: up to 5 seconds on Gen 1 (Force, MPC 
 with its **LONG IR** button, and always 20 seconds on Gen 2 (MPC Live III and other RK3588 units, 64-bit) (see
 [Gen 2 and LONG IR](#gen-2-rk3588-64-bit)). Make a room bigger or smaller with **Decay**, stretch its tail
 with **Feedback**, let it bloom between your hits with **Duck**, lock the pre-delay to your tempo with **SYNC**, and keep
-your sounds as **My Presets**. It comes with 19 factory IRs (spaces, echoes, strange rooms, and Textures that aren't
+your sounds as **My Presets** (named on the MPC's own screen). Hold the reverb as a pad with **FREEZE**, gate it on
+the grid with **END SYNC**, and with **SCAN** read its last seconds back as a moving pad, or as a **granular reverb**:
+grains of what you play, each ringing in the space, tempo-synced if you like. It comes with 19 factory IRs (spaces, echoes, strange rooms, and Textures that aren't
 rooms at all), browses your own IRs, and
 downloads more from TONE3000 from your phone. A companion to [Liminal Amp](https://github.com/gmorb/mpc-vst-liminal-amp).
 Not affiliated with or endorsed by TONE3000 or Akai.
 
-**User manual:** [Liminal Hz 1.4 User Manual (PDF)](docs/Liminal-Hz-1.4-User-Manual.pdf): installing, every control,
+**User manual:** [Liminal Hz 1.5 User Manual (PDF)](docs/Liminal-Hz-1.5-User-Manual.pdf): installing, every control,
 the presets, your own IRs, recipes and troubleshooting. It's also attached to each release.
 
 ## Hear it
@@ -69,6 +71,20 @@ dry sound, then Liminal Hz.
   </tr>
 </table>
 
+## New in 1.5
+
+- **GRAINS**: a granular reverb. Grains of what you play go into the IR, so every grain rings in the space. Size,
+  Spray, Density, **Air** (detuned, wider, then reversed and octave grains and a building shimmer), **Direct** (grains
+  that skip the reverb, edges and all), **Pitch** that glides (or **Snap**s to semitones) and **Sync** (grains on your
+  project's grid). One amber stripe per grain under the painting shows where each one is reading.
+- **PAD**: the reverb's last seconds read back as a moving pad: smear, shimmer, wind.
+- **FREEZE** holds the reverb as a pad; **END SYNC** gates it on the grid.
+- **ROOM**: **Distance** (near to far) and **Damping** (highs that die away along the tail), **Bend** (the reverb
+  pitched as it plays, gliding: on Q-Link 15), **Shimmer** (an octave up, fed back into the reverb), **Motion** (a
+  chorus: the tail moves and widens) and **Age** (a tape's wear: wow, flutter, saturation, a darker top).
+- **A keyboard on the MPC's screen** to name and rename My Presets.
+- Projects from 1.4 open unchanged; Q-Link 15 is now Bend (it was Reverse). Everything is in the [changelog](CHANGELOG.md) and the manual.
+
 ## New in 1.4
 
 ![Liminal Hz 1.4: Duck, Tempo SYNC, Textures and MPC's preset menu](docs/images/whats-new.png)
@@ -86,9 +102,13 @@ One page, made for the MPC's touchscreen, with nothing hidden on other tabs:
 - **Left, the browser**: the **PRESET** menu with **MY PRESETS** beside it; **FACTORY / MY IRS** with **IR LIST**
   beside it; the IR in use with **◀ ▶** to step through the list, its pack and details; **PREV PACK / NEXT PACK** and
   **DELETE** (for your own IRs: it asks twice); and the TONE3000 strip with **BROWSE** and its status line.
-- **Right, the shape** of the sound, and the shaping knobs: **trim**, **fade** and **time** (Stretch, Decay, Reverse).
+- **Right, the shape** of the sound, and the knob row on three tabs: **SHAPE** (**trim**, **fade** and **time**:
+  Start, End, Fade in, Fade out, Stretch, Decay), **ROOM** (**Distance** and **Damping**) and **SCAN** (PAD's
+  **Position**, **Texture**; GRAINS' **Size**, **Spray**, **Density**, **Air**, **Direct**; both **Pitch** and
+  **Amount**, with the **SCAN / GRAINS / SNAP / SYNC** tiles beside the tabs).
 - **Below**, the mix controls: **space** (with **SYNC** beside Pre-delay), **tone** and **out** (Duck and Output); in
-  the corner, **LONG IR** and its status line (20 s IRs on Gen 1; it says CPU heavy while it's on).
+  the corner, four switches: **FREEZE** and **REVERSE**, **END SYNC** and **LONG IR**, with LONG IR's status line (20 s
+  IRs on Gen 1; it says CPU heavy while it's on).
 
 Behind it all, a doorway at the far end of an empty room.
 
@@ -132,7 +152,63 @@ The shape display shows what the IR sounds like, after your shaping:
 - **SYNC** (beside Pre-delay) puts Pre-delay in time with your project: the knob steps through 0, 1/128, 1/64, 1/32,
   1/16 T, 1/16, 1/16 D, 1/8 T, 1/8, 1/8 D and 1/4 at the project tempo, and follows tempo changes. (T is a triplet, D
   dotted; up to 2 s, so a 1/4 at 30 BPM fits.)
+
+![The ROOM tab](docs/images/room.png)
+
+![The SCAN tab](docs/images/scan.png)
+
+- **SHAPE / ROOM / SCAN** (the tabs at the top right) switch the knob row between the shaping knobs, the room knobs
+  and the scanner. The tab is only a view: it isn't saved, and every knob keeps its Q-Link whichever page shows (the
+  ROOM and SCAN knobs have none: the 16 are taken).
 - **trim**: **Start** and **End**. **fade**: **Fade in** and **Fade out**.
+- **Distance** (ROOM, 0-100%, default 50% = as recorded) moves you nearer to or further from the source. Lower brings
+  the early reflections (the first 80 ms) up to +6 dB and the tail down to -6 dB: close, present. Higher takes the early
+  reflections down to -14 dB and darkens them (the air in between), so the room's tail is what you hear: far away.
+  The level stays matched; it's the balance that moves.
+- **Damping** (ROOM, 0-100%, default 0%) makes the highs die away faster the longer the IR rings, as in a room with
+  soft walls and air: the start keeps its sparkle, the tail goes dark. Turn it up to tame a bright or harsh IR (a
+  TONE3000 download, a metal plate) without dulling the attack. The shape display darkens along the tail to show it.
+- **Bend** (ROOM, -12..+12 semitones, default 0) pitches the reverb as it plays, the tail already ringing included. It
+  glides as you turn it, so on its Q-Link (15) it plays like a pitch wheel for the reverb; the dry sound is never
+  pitched. At 0 it's out of the way: the reverb is exactly as without it. Big bends down add a slight flutter of their own.
+- **Shimmer** (ROOM, 0-100%, default 0%) feeds the reverb back into itself an octave up, so it climbs as it rings: the
+  classic shimmer pad. It's filtered (no low build-up, no fizz) and held by the same guard as Feedback, so even with
+  both at 100% it stays in bounds and dies away when you stop playing.
+- **Motion** (ROOM, 0-100%, default 0%) adds a slow three-voice chorus to the reverb: the tail drifts and widens, an
+  ensemble / dimension effect. **Age** (ROOM, 0-100%, default 0%) wears the reverb like old tape: a little wow and
+  flutter, soft saturation on the peaks, the top end closing from 18 kHz to 4.5 kHz. Both work on the reverb only, cost
+  little CPU, and at 0 are out of the path.
+- **SCAN** (its own tab, switched on with its **SCAN** tile) makes textures from what you play while you play.
+  Drag across the painting to move **Position**: left is just behind now, right as far back as the IR is long; the glow
+  under the painting follows. Two modes (the **GRAINS** tile):
+  - **PAD** reads the reverb's last seconds back as a smooth moving pad (Freeze's method: the spectrum with new
+    phases). **Texture**: up to a third a smear, from a close ghost to a slow held wash; then shimmer, an octave and a
+    fifth above coming in as halos; past two thirds wind, the spectrum blurred and drifting.
+  - **GRAINS** cuts what you play into grains and sends them into the IR, so each grain rings in the space: a granular
+    reverb. **Size** (30-500 ms) is each grain's length; **Spray** how far from Position they land (up to +-1 s);
+    **Density** how many: sparse droplets (low) to a smooth cloud (high). **Air** is the lush part on one knob: grains
+    detuned and spread wider, then some backwards and some an octave up and a brighter top, and above 50% the cloud
+    feeds back into itself and builds into a shimmer. **Direct** sends that much of the grains straight out, past the
+    reverb, so their edges and gaps stay: more granular. With the **SYNC** tile on, grains fire on your project's grid
+    and Density picks the note value (1 bar to 1/32, with triplets), through loops and jumps.
+  - **Pitch** (both modes, -24 to +24 semitones) glides as you turn it, and grains already playing bend with it; the
+    **SNAP** tile puts it on whole semitones. **Amount** is how much of the reverb SCAN takes over.
+  - While GRAINS plays, the strip under the painting draws **one amber stripe per grain**, where it is reading: still
+    at Pitch 0 (it reads at the speed the sound arrives), gliding when pitched, gone when the grain fades.
+  - SCAN is a switch, not a setting (presets leave it alone, projects open with it off); its knobs and the GRAINS,
+    SNAP and SYNC tiles are saved. CPU: roughly double the reverb on its own while it's on, nothing when it's off.
+- Distance and Damping prepare the IR again like the shaping knobs (a moment, crossfaded); both are saved in projects
+  and My Presets, and factory presets and Init put them back to 50% and 0%.
+- **END SYNC** (lower right) puts End in time with your project: the IR is kept for a note value from Start, so the
+  reverb stops on the grid (a gated reverb that follows the tempo). The End knob steps through 1/32, 1/16, 1/8 T,
+  1/16 D, 1/8, 1/4 T, 1/8 D, 1/4, 1/2 T, 1/4 D, 1/2, 1/2 D, 1 bar, 2 bars and 4 bars; a tempo change prepares the IR
+  again. An IR shorter than the note plays whole. Fade out still shapes the end (set it low for a hard gate). Saved in
+  projects and My Presets; factory presets and Init turn it off.
+- **FREEZE** (lower right) holds the reverb as it sounds at that moment as a steady pad, for as long as it's on: the
+  room's colour and the notes that were ringing, without a loop or a seam. While it's on, what you play isn't fed to
+  the reverb (play over the pad dry), and the knobs after the reverb (Low/High Cut, Width, Duck, Mix, Output) still
+  shape the pad. Turn it off and the pad fades away over about 2 seconds while the reverb comes back at once. Frozen
+  in silence, it holds silence. It's a switch, not a setting: presets don't change it and projects open unfrozen.
 - **time**: **Stretch** (50-200%: longer and lower, or shorter and higher), **Decay** (50-300%) and **Reverse** (the IR
   backwards: it swells into the sound).
 - **Decay** changes how long the room rings without changing its pitch or its colour: each frequency band of the IR
@@ -148,7 +224,8 @@ Shaping happens in the background and crossfades in. Mix, Width, Output, Duck an
 moving them never clicks.
 
 **Q-Links** (16), in this order: Mix, Decay, Feedback, Pre-delay, Duck, Low Cut, High Cut, Width, IR, Stretch, Start,
-End, Fade In, Fade Out, Reverse, Output. What you turn while playing comes first.
+End, Fade In, Fade Out, Bend, Output. What you turn while playing comes first. (From 1.5, Q-Link 15 is Bend, which was
+Reverse: Reverse is still on the page.)
 
 ## Factory presets
 
@@ -198,15 +275,32 @@ the rest of the plugin.
 
 Set the plugin the way you like it, then keep it. Tap **MY PRESETS** (beside the PRESET menu); a list opens over the
 browser, four presets to a page, with **PREV / NEXT / CLOSE** as in the IR List:
-- **SAVE** keeps the current sound: all the knobs and the IR in use (factory or one of yours). It is named after its
-  IR ("Fluorescent Hall", "Fluorescent Hall 2"...) and selected.
+- **SAVE** keeps the current sound: all the knobs and the IR in use (factory or one of yours). The keyboard opens with
+  a name from its IR ("Fluorescent Hall", "Fluorescent Hall 2"...): keep it or type your own, then tap the keyboard's
+  **SAVE**. The new preset is selected.
 - Tap a row to load that preset (settings and IR; if its IR has moved it is found again, and if it is gone the
   settings still apply and the line says so). The one in use is outlined, the PRESET field shows "My: <name>", and a
   project remembers which one.
 - **DELETE** removes the selected preset: it asks twice, like the IR browser, and deletes the file permanently.
-- **NAME ON PHONE**: the MPC's screen has no keyboard, so names are typed on your phone (see below).
-- Each preset is a small text file in the plugin's `presets/` folder (`<name>.lhzp`), kept across upgrades. You can
+- **RENAME** opens the keyboard on the selected preset's name.
+- **NAME ON PHONE**: or type names on your phone (see below).
+- Each preset is a small text file in **`Liminal Hz/presets/`**, a folder of your own at the top of the drive the
+  plugin is on (`<name>.lhzp`). Updates only replace the plugin's folder, so they never touch it. You can
   also rename or delete the files from a computer; press **RESCAN** and the list follows.
+
+### The keyboard
+
+![The keyboard](docs/images/keyboard.png)
+
+SAVE and RENAME open a keyboard over the right-hand side of the page, in the plugin's own colours. A key lights amber
+as you tap it.
+- Letters, digits, `-` and `'` (with SHIFT: `_` and `&`). Names start with a capital, and so does each word after a
+  space; **SHIFT** cycles `abc` → `Abc` (the next letter a capital; lit) → `ABC` (caps; lit) → `abc`.
+- **DEL** removes the last character, **CLEAR** the whole name, **SPACE** adds one space between words.
+- **SAVE** (or **RENAME**) keeps it and closes the keyboard; **CANCEL** closes it without saving. Up to 32
+  characters. If the name is already used, SAVE says so: tap SAVE again within 4 seconds to replace that preset.
+  RENAME never replaces another preset.
+- While the keyboard is open the list only shows (rows, SAVE, RENAME and DELETE wait); its CLOSE closes both.
 
 ## Your phone: TONE3000 and preset names
 
@@ -216,8 +310,8 @@ The plugin serves two small pages to a phone (or computer) on the same Wi-Fi as 
 No app to install, and no password (each closes by itself after 15 idle minutes).
 - Tap **BROWSE** and the TONE3000 strip shows an address such as `192.168.1.20:8191`: open it on your phone. Sign in
   to TONE3000 and pick a tone from the **Space, Outboard, Pedal or Experimental** categories; only IRs are offered,
-  and only `.wav` IRs are ever downloaded. The tone downloads straight to the MPC, into the plugin's
-  `reverbs/TONE3000/<tone>/` folder, and is selected when it's done.
+  and only `.wav` IRs are ever downloaded. The tone downloads straight to the MPC, into
+  `Liminal Hz/reverbs/TONE3000/<tone>/` (your folder, kept by updates), and is selected when it's done.
 - The same page has a **My Presets: name & save** button: type a name and **Save current sound**, or **Load**,
   **Rename** and **Delete** any preset. **NAME ON PHONE** in the My Presets list opens this page directly (the
   address then ends in `/presets`). The presets page needs no internet.
@@ -263,8 +357,15 @@ MPC OS 3.10.1 loads third-party plugins by itself: no install script, no root, o
    SD card or the MPC's internal drive (make it if it isn't there).
 4. Liminal Hz is under **External Plugins**. This one folder holds the Gen 1 and Gen 2 builds.
 
-Coming from an older install? Copy your `presets` folder from the old plugin folder into the new one, then remove the
-old install, so Liminal Hz isn't listed twice. Your `reverbs` folders anywhere on your drives are found as before.
+**MPC Sample** (firmware 1.4.0 or later, not tried yet): the same folder loads as a **Knob FX**. Turn on **MIDI Config →
+Dev Enhancements (Beta) → Custom Plug-In Support**, then copy the folder into `VST2 Plugins` on its microSD card through
+**SD Card Access** mode. There is no page there; the knobs are **Preset**, **Length** and **Mix**, and with SHIFT
+**Pre-delay**, **Low Cut** and **High Cut**.
+
+Your presets and TONE3000 downloads are kept in a **`Liminal Hz`** folder at the top of the same drive, which updates
+never touch (from 1.5; it moves them there by itself from the plugin's folder the first time it starts). Coming from
+1.4 or older and replacing its folder? Copy the old folder's `presets` and `reverbs` somewhere first and put them into
+`Liminal Hz` afterwards. Remove any older install, so Liminal Hz isn't listed twice. Your `reverbs` folders anywhere on your drives are found as before.
 Akai doesn't test or support third-party plugins; save your work often.
 
 ### Earlier MPC OS (3.x)

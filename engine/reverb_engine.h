@@ -18,6 +18,11 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "freeze.h"
+#include "scan.h"
+#include "grains.h"
+#include "shifter.h"
+#include "color.h"
 #include "long_convolver.h"
 #include "onset.h"
 #include "platform.h"
@@ -33,6 +38,23 @@ struct ReverbParams {
   std::atomic<float> output_db{0.0f};     // -24..12
   std::atomic<float> feedback{0.0f};      // 0..1: the wet output fed back into the convolution (eased, guarded)
   std::atomic<float> duck{0.0f};          // 0..1: the reverb turned down while the input plays (up to kDuckDb at 1)
+  std::atomic<bool> scan{false};          // SCAN (scan.h): the reverb's last seconds as a moving spectral pad, from scan_pos
+  std::atomic<float> scan_pos{0.0f};      // 0..1: how far back (1 = the IR's length)
+  std::atomic<float> scan_tex{0.0f};      // 0..1: smear -> shimmer -> wind
+  std::atomic<float> scan_mix{1.0f};      // 0..1: how much of the reverb the scan takes over
+  std::atomic<int> scan_mode{0};          // 0 = PAD (scan.h), 1 = GRAINS (grains.h)
+  std::atomic<float> scan_pitch{0.0f};    // semitones, -24..+24 (both modes)
+  std::atomic<float> grain_size{0.5f};    // 0..1: 30..500 ms
+  std::atomic<float> grain_spray{0.2f};   // 0..1: how far grains land from the position
+  std::atomic<float> grain_density{0.6f}; // 0..1: sparse droplets .. a thick cloud
+  std::atomic<float> grain_air{0.0f};     // 0..1: GRAINS' AIR (detune, width, reverse, octaves, brightness, feedback)
+  std::atomic<float> grain_beats{0.0f};   // GRAINS' SYNC: a grain every this many quarter notes (0 = free: Density)
+  std::atomic<float> grain_direct{0.0f};  // 0..1: how much of the grains skips the IR (straight to the wet: their edges)
+  std::atomic<bool> freeze{false};        // FREEZE: the wet signal as it is held as a pad; the input stops reaching the reverb
+  std::atomic<float> bend{0.0f};          // BEND: semitones, -12..+12: the wet signal pitched as it plays (glides)
+  std::atomic<float> shimmer{0.0f};       // SHIMMER: 0..1: the wet signal an octave up, fed back into the IR
+  std::atomic<float> motion{0.0f};        // MOTION: 0..1: a three-voice chorus on the wet (color.h)
+  std::atomic<float> age{0.0f};           // AGE: 0..1: wow, flutter, saturation and a closing top on the wet (color.h)
 };
 
 // how the IR is shaped before use (all off the audio thread; Kilohearts-Convolver-style controls)
@@ -44,9 +66,14 @@ struct IRShape {
   double stretch = 1.0;    // 0.5..2: longer and lower (2) or shorter and higher (0.5)
   bool reverse = false;    // played backwards (after the 5 s cap: it swells into the IR's start)
   double decay = 1.0;      // 0.5..3: the tail's decay time, band by band (longer: the tail is continued in kind)
+  double damping = 0.0;    // 0..1 DAMPING: the highs die away faster the longer the IR rings (air, soft walls)
+  double distance = 0.5;   // 0..1 DISTANCE: 0 near (the early reflections up, the tail down), 0.5 as recorded, 1 far
+  double length_s = 0.0;   // END SYNC: when > 0, the kept part is this many seconds from Start (a note at the tempo),
+                           // in place of `length` (an IR shorter than that is kept whole)
   bool operator==(const IRShape& o) const {
     return start == o.start && length == o.length && fade_in == o.fade_in && fade_out == o.fade_out &&
-           stretch == o.stretch && reverse == o.reverse && decay == o.decay;
+           stretch == o.stretch && reverse == o.reverse && decay == o.decay && length_s == o.length_s &&
+           damping == o.damping && distance == o.distance;
   }
   bool operator!=(const IRShape& o) const { return !(*this == o); }
 };
@@ -92,16 +119,35 @@ class ReverbEngine {
   // the loop and the tails are as without it; only what is heard is ducked.
   static constexpr float kDuckDb = 24.0f, kDuckLoDb = -50.0f, kDuckHiDb = -20.0f;
   static constexpr float kDuckFollow = 0.02f, kDuckAttack = 0.005f, kDuckRelease = 0.08f;
+  // FREEZE (freeze.h): the pad comes in over kFreezeIn s as the reverb goes out; let go, the pad fades over kFreezeOut s
+  // and the reverb is back in kLiveBack s. The input stops reaching the convolution within kInMute s of the press.
+  static constexpr float kFreezeIn = 0.25f, kFreezeOut = 2.0f, kLiveBack = 0.03f, kInMute = 0.02f;
+  bool frozen() const { return fz_pad_ > 0.5f; }   // (tests, display: the pad is what's heard)
+  static constexpr float kScanFade = 0.06f;        // SCAN comes in and goes out over this (s)
+  static constexpr float kDirectGain = 1.12f;      // GRAINS DIRECT: grains skipping the IR, matched to their level through it (+1 dB: factory IRs, noise)
+  bool scanning() const { return sc_on_ > 0.0f || gc_on_ > 0.0f; }
   explicit ReverbEngine(double host_rate);
   ~ReverbEngine();
   ReverbParams params;
   void set_ir(std::unique_ptr<ReverbIR> ir);   // any thread but the audio thread; nullptr: no IR (fades out to dry)
   void collect();                              // not the audio thread: frees what the audio thread let go of
   void process(const float* in_l, const float* in_r, float* out_l, float* out_r, int n);   // the audio thread
+ private:
+  void process_blocks(const float* in_l, const float* in_r, float* out_l, float* out_r, int n);
+ public:
   long misses() const { return misses_.load(); }   // tail blocks that came late (each a brief gap in the tail)
   // the playhead: 0 hidden, 1..kPlay its position along the IR (pre-delay + length) since the last note
   static constexpr int kPlay = 24;        // the playhead's positions (finer than the display's columns: smooth)
   int playhead() const { return playhead_.load(std::memory_order_relaxed); }
+  // the host's transport at the next process() call's first sample (audio thread, before process): GRAINS' SYNC
+  void set_transport(double ppq, double bpm, bool playing) { tr_ppq_ = ppq; tr_bpm_ = bpm > 0 ? bpm : 120.0; tr_play_ = playing; }
+  long grains_spawned() const { return gc_ ? gc_->spawned() : 0; }   // (tests)
+  // GRAINS, for the display: per column (kSparkCols, as the painting's), 0 = no grain heard there, 1..kSparkLevels - 1
+  // = one stripe for the loudest grain reading there, at its place across the column (GrainCloud::stripes). Updated
+  // every block; 0 when GRAINS is off. (Position shows as the playhead, as before.)
+  static constexpr int kSparkLevels = 8;
+  static constexpr int kSparkCols = 12;
+  int spark(int c) const { return spark_[c].load(std::memory_order_relaxed); }
   void note_on() { note_.store(true, std::memory_order_relaxed); }   // a MIDI note-on (any thread): restarts the playhead
   long notes() const { return notes_.load(std::memory_order_relaxed); }   // playhead restarts so far (tests)
 
@@ -143,6 +189,25 @@ class ReverbEngine {
   // scratch
   float wl_[128], wr_[128], ol_[128], or_[128], xl_[128], xr_[128];
   float fbl_[128] = {}, fbr_[128] = {};   // feedback: the last block's wet output, soft-limited
+  std::unique_ptr<SpectralFreeze> fz_;    // FREEZE (audio thread)
+  bool fz_was_ = false;                   // the last block's freeze
+  float fz_pad_ = 0.0f, fz_live_ = 1.0f, fz_in_ = 1.0f;   // the pad's share, the reverb's, the input's (ramped)
+  float fz_g_[128];
+  std::unique_ptr<SpectralScan> sc_;         // SCAN (audio thread)
+  std::unique_ptr<GrainCloud> gc_;           // SCAN's GRAINS mode (audio thread)
+  // BEND (shifter.h on the wet, after SCAN): the ratio glides over kBendGlide s; at 0 it fades out over kBendFade s and
+  // the wet passes untouched. SHIMMER: the wet an octave up (filtered: no mud, no fizz), fed into the next block's input.
+  static constexpr float kBendGlide = 0.06f, kBendFade = 0.03f, kShimmerMax = 1.0f, kShimmerLowHz = 350.0f, kShimmerHighHz = 9000.0f;
+  std::unique_ptr<PitchShifter> bs_[2], ss_[2];
+  std::unique_ptr<ColorStage> color_;          // MOTION and AGE, after BEND
+  double bend_r_ = 1.0;
+  float bend_g_ = 0.0f, sh_l_[128] = {}, sh_r_[128] = {}, sh_hp_[2] = {}, sh_hx_[2] = {}, sh_lp_[2] = {};
+  float sc_on_ = 0.0f, sc_g_[128], gc_on_ = 0.0f, gd_l_[128], gd_r_[128];
+  bool gd_ = false;
+  double tr_ppq_ = 0.0, tr_bpm_ = 120.0;
+  bool tr_play_ = false;
+  std::atomic<int> spark_[kSparkCols] = {};
+  void update_sparks(bool grains);                              // gd_l_ / gd_r_ hold this block's direct grains
 };
 
 }  // namespace irrev

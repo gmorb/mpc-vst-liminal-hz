@@ -31,8 +31,8 @@ static std::string lower(std::string s) {
 std::string Presets::dir() {
   const char* e = std::getenv("MPCNAM_PRESETS");
   if (e && *e) return e;
-  const std::string own = Library::plugin_dir();
-  return own.empty() ? std::string() : own + "/presets";
+  const std::string data = Library::data_dir();            // outside the plugin's folder: updates keep them
+  return data.empty() ? std::string() : data + "/presets";
 }
 
 static bool has_ext(const std::string& f) {

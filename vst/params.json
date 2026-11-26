@@ -839,11 +839,1085 @@
       "default": 0
     },
     {
-      "key": "predelay_sync", "name": "Sync",
+      "key": "predelay_sync",
+      "name": "Sync",
       "options": [
         "Off",
         "On"
       ],
+      "default": 0
+    },
+    {
+      "key": "preset__open",
+      "name": "Preset List",
+      "type": "enum",
+      "options": [
+        "Closed",
+        "Open"
+      ],
+      "default": 0,
+      "popup_of": "preset"
+    },
+    {
+      "key": "mp_rename",
+      "name": "Rename",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "momentary": true
+    },
+    {
+      "key": "kb",
+      "name": "Keyboard",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "kb_title",
+      "name": "Keyboard Title",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string",
+      "type": "readout"
+    },
+    {
+      "key": "kb_name",
+      "name": "Keyboard Name",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string",
+      "type": "readout"
+    },
+    {
+      "key": "kb_info",
+      "name": "Keyboard Info",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string",
+      "type": "readout"
+    },
+    {
+      "key": "kb_1",
+      "name": "Key 1",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_2",
+      "name": "Key 2",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_3",
+      "name": "Key 3",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_4",
+      "name": "Key 4",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_5",
+      "name": "Key 5",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_6",
+      "name": "Key 6",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_7",
+      "name": "Key 7",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_8",
+      "name": "Key 8",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_9",
+      "name": "Key 9",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_10",
+      "name": "Key 10",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_11",
+      "name": "Key 11",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_12",
+      "name": "Key 12",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_13",
+      "name": "Key 13",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_14",
+      "name": "Key 14",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_15",
+      "name": "Key 15",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_16",
+      "name": "Key 16",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_17",
+      "name": "Key 17",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_18",
+      "name": "Key 18",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_19",
+      "name": "Key 19",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_20",
+      "name": "Key 20",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_21",
+      "name": "Key 21",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_22",
+      "name": "Key 22",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_23",
+      "name": "Key 23",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_24",
+      "name": "Key 24",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_25",
+      "name": "Key 25",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_26",
+      "name": "Key 26",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_27",
+      "name": "Key 27",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_28",
+      "name": "Key 28",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_29",
+      "name": "Key 29",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_30",
+      "name": "Key 30",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_31",
+      "name": "Key 31",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_32",
+      "name": "Key 32",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_33",
+      "name": "Key 33",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_34",
+      "name": "Key 34",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_35",
+      "name": "Key 35",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_36",
+      "name": "Key 36",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_37",
+      "name": "Key 37",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_38",
+      "name": "Key 38",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_39",
+      "name": "Key 39",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kb_40",
+      "name": "Key 40",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kbc_1",
+      "name": "Key Clear",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kbs_1",
+      "name": "Key Space",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kbx_1",
+      "name": "Key Cancel",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "kbok_1",
+      "name": "Key Save",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "length_sync",
+      "name": "End Sync",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "freeze",
+      "name": "Freeze",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "damping",
+      "name": "Damping",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 0
+    },
+    {
+      "key": "distance",
+      "name": "Distance",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 50
+    },
+    {
+      "key": "tab",
+      "name": "Tab",
+      "options": [
+        "Shape",
+        "Room",
+        "Scan"
+      ],
+      "default": 0
+    },
+    {
+      "key": "pg_shape",
+      "name": "Shape Page",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 1
+    },
+    {
+      "key": "pg_room",
+      "name": "Room Page",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "pg_scan",
+      "name": "Scan Page",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "tabs_1",
+      "name": "Tab Shape",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "tabs_2",
+      "name": "Tab Room",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "tabs_3",
+      "name": "Tab Scan",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "scan",
+      "name": "Scan",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "scan_pos",
+      "name": "Position",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 0
+    },
+    {
+      "key": "scan_tex",
+      "name": "Texture",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 0
+    },
+    {
+      "key": "scan_mix",
+      "name": "Amount",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 100
+    },
+    {
+      "key": "scan_mode",
+      "name": "Grains",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "scan_pitch",
+      "name": "Pitch",
+      "min": -24,
+      "max": 24,
+      "unit": "st",
+      "default": 0
+    },
+    {
+      "key": "grain_size",
+      "name": "Grain Size",
+      "min": 30,
+      "max": 500,
+      "unit": "ms",
+      "default": 150
+    },
+    {
+      "key": "grain_spray",
+      "name": "Spray",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 20
+    },
+    {
+      "key": "grain_density",
+      "name": "Density",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 60
+    },
+    {
+      "key": "pg_scan_pad",
+      "name": "Scan Pad Page",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "pg_scan_grains",
+      "name": "Scan Grains Page",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "grain_direct",
+      "name": "Direct",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 0
+    },
+    {
+      "key": "grain_air",
+      "name": "Air",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 0
+    },
+    {
+      "key": "pitch_snap",
+      "name": "Snap",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "sw_1",
+      "name": "Switch Scan",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "sw_2",
+      "name": "Switch Grains",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "sw_3",
+      "name": "Switch Snap",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "sw_4",
+      "name": "Switch Sync",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "display": "string"
+    },
+    {
+      "key": "spark_0",
+      "name": "Spark 1",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "spark_1",
+      "name": "Spark 2",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "spark_2",
+      "name": "Spark 3",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "spark_3",
+      "name": "Spark 4",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "spark_4",
+      "name": "Spark 5",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "spark_5",
+      "name": "Spark 6",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "spark_6",
+      "name": "Spark 7",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "spark_7",
+      "name": "Spark 8",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "spark_8",
+      "name": "Spark 9",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "spark_9",
+      "name": "Spark 10",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "spark_10",
+      "name": "Spark 11",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "spark_11",
+      "name": "Spark 12",
+      "options": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "l0",
+        "l1",
+        "l2",
+        "l3",
+        "l4",
+        "l5",
+        "l6",
+        "l7",
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "r6",
+        "r7"
+      ],
+      "default": 0
+    },
+    {
+      "key": "pg_info",
+      "name": "Info Page",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "grain_sync",
+      "name": "Grain Sync",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": 0
+    },
+    {
+      "key": "bend",
+      "name": "Bend",
+      "min": -12,
+      "max": 12,
+      "unit": "st",
+      "default": 0
+    },
+    {
+      "key": "shimmer",
+      "name": "Shimmer",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 0
+    },
+    {
+      "key": "motion",
+      "name": "Motion",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "default": 0
+    },
+    {
+      "key": "age",
+      "name": "Age",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
       "default": 0
     }
   ]

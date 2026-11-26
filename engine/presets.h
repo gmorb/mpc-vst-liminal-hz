@@ -2,7 +2,9 @@
 // Copyright (c) 2026 the mpc-vst-liminal-hz contributors
 /* presets.h -- "My Presets": the settings (and the IR) you save, one small text file each.
  *
- * Where: <plugin folder>/presets/<name>.lhzp (MPCNAM_PRESETS overrides the folder, for tests). The preset's name is
+ * Where: <drive>/Liminal Hz/presets/<name>.lhzp (Library::data_dir(): outside the plugin's folder, so an update that
+ * replaces that folder keeps them; before 1.5 they were in <plugin folder>/presets, moved by migrate_user_files).
+ * MPCNAM_PRESETS overrides the folder, for tests. The preset's name is
  * its file name, so a preset can also be renamed or deleted from a computer or the MPC's file browser, and
  * RESCAN picks that up. A file is plain "key=value" lines: the parameters by their real values, and the IR as
  * ir_src (0 factory, 1 My IRs), ir_path, ir_display and ir_file (found again the way a project finds its IR, even

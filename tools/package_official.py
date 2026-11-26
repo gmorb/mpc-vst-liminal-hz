@@ -25,7 +25,7 @@ import sys
 import zipfile
 
 FOLDER = "Gm0rb - VST - Liminal Hz"
-SKIP = {"plugin-meta.xml", "mpc-plugin.json", "version.xml", "liminal_hz.so"}
+SKIP = {"plugin-meta.xml", "mpc-plugin.json", "version.xml", "plugin.json", "liminal_hz.so"}   # (newer kits put a per-CPU plugin.json in each zip: this folder writes its own)
 STAMP = (2026, 1, 1, 0, 0, 0)
 
 INSTALL = """Liminal Hz {v} for MPC OS 3.10.1 and later
@@ -105,6 +105,13 @@ def main():
         "category": "Effect",
         "numInputs": 2,
         "numOutputs": 2,
+        # MPC Sample (Knob FX): its 3 knobs and 3 SHIFT knobs are the whole UI there. As permanent as the parameter
+        # order: PRESET (the room: each factory preset brings its IR), LENGTH and MIX; SHIFT: pre-delay and the cuts
+        "shortName": "Liminal Hz",
+        "knobs": [{"parameter": 39, "label": "Preset"}, {"parameter": 5, "label": "Length"},
+                  {"parameter": 0, "label": "Mix"}],
+        "shiftKnobs": [{"parameter": 1, "label": "Pre-dly"}, {"parameter": 2, "label": "Low Cut"},
+                       {"parameter": 3, "label": "High Cut"}],
         "file32": "liminal-hz-arm32.so",
         "file64": "liminal-hz-arm64.so",
         "description": "Convolution reverb: rooms, echoes, strange spaces and textures from impulse responses, "
