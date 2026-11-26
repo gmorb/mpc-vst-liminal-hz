@@ -22,14 +22,14 @@
   <h1>Inside this manual</h1>
   <p class="sub">Read chapters 1 to 4 to get playing. The rest is reference: come back to it when you want to go deeper.</p>
   <table class="toc">
-    <tr><td class="n">1</td><td class="t">Welcome</td><td class="d">What Liminal Hz is, what an impulse response is, what's new in 1.4</td><td class="p">{{p:1}}</td></tr>
+    <tr><td class="n">1</td><td class="t">Welcome</td><td class="d">What Liminal Hz is, what an impulse response is, what's new in 1.5 and 1.4</td><td class="p">{{p:1}}</td></tr>
     <tr><td class="n">2</td><td class="t">Installing</td><td class="d">MPC OS 3.10.1 and later, earlier firmware, updating, removing</td><td class="p">{{p:2}}</td></tr>
     <tr><td class="n">3</td><td class="t">Quick start</td><td class="d">From an empty insert slot to your first saved sound in ten steps</td><td class="p">{{p:3}}</td></tr>
     <tr><td class="n">4</td><td class="t">The page, at a glance</td><td class="d">Every area of the screen, numbered</td><td class="p">{{p:4}}</td></tr>
     <tr><td class="n">5</td><td class="t">Choosing a space</td><td class="d">Factory presets, MPC's preset menu, factory IRs, your IRs, the IR List, RESCAN, DELETE</td><td class="p">{{p:5}}</td></tr>
     <tr><td class="n">6</td><td class="t">The controls</td><td class="d">Every knob and switch: space, tone, out, trim, fade, time</td><td class="p">{{p:6}}</td></tr>
     <tr><td class="n">7</td><td class="t">Reading the shape display</td><td class="d">The sonics line, the painting, the glow</td><td class="p">{{p:7}}</td></tr>
-    <tr><td class="n">8</td><td class="t">My Presets</td><td class="d">Saving, loading, naming on your phone, the files</td><td class="p">{{p:8}}</td></tr>
+    <tr><td class="n">8</td><td class="t">My Presets</td><td class="d">Saving, naming on the keyboard, loading, the files</td><td class="p">{{p:8}}</td></tr>
     <tr><td class="n">9</td><td class="t">Your phone: TONE3000 and preset names</td><td class="d">The two phone pages, downloading IRs</td><td class="p">{{p:9}}</td></tr>
     <tr><td class="n">10</td><td class="t">Your own IRs</td><td class="d">Where to put them, formats, length, mono and stereo, making your own</td><td class="p">{{p:10}}</td></tr>
     <tr><td class="n">11</td><td class="t">Q-Links, MIDI and projects</td><td class="d">Hardware control, automation, what a project remembers</td><td class="p">{{p:11}}</td></tr>
@@ -46,13 +46,27 @@
   <div class="eyebrow">Chapter 1</div>
   <h1>Welcome</h1>
   <p class="sub">Real rooms, echoes, impossible spaces and textures, from impulse responses, on the MPC itself.</p>
-  <p>Liminal Hz is a convolution reverb that runs inside your Akai MPC or Force as a native insert effect, with its own touchscreen page. Load the recording of a real room, a hall, a stairwell, a tape echo or something stranger, and your sound plays as if it were inside that space. Then reshape it (Decay, Stretch, Reverse, trim, fades, Feedback), keep it out of the groove with Duck, lock its pre-delay to your tempo with Sync, and keep the result as one of My Presets.</p>
+  <p>Liminal Hz is a convolution reverb that runs inside your Akai MPC or Force as a native insert effect, with its own touchscreen page. Load the recording of a real room, a hall, a stairwell, a tape echo or something stranger, and your sound plays as if it were inside that space. Then reshape it (Decay, Stretch, Reverse, trim, fades, Feedback), keep it out of the groove with Duck, lock its pre-delay and its length to your tempo with Sync and End Sync, hold it as a pad with Freeze, turn it into a moving pad or a granular reverb with Scan, and keep the result as one of My Presets.</p>
   <p>It comes with 19 factory IRs in four kinds (Spaces, Echoes, Strange and Textures), browses impulse responses you put on your cards, and downloads more from TONE3000 straight to the MPC, using your phone as the keyboard and screen. It's a companion to Liminal Amp: put Liminal Hz after your amp to place it in a room.</p>
 
   <h2>What is an impulse response?</h2>
   <p>Clap once in a big empty hall and listen: the clap is followed by a cloud of reflections that fades away. Record that cloud and you've captured how the hall responds to a short, sharp sound. That recording is an <b>impulse response</b> (IR). It holds everything about the space: how long it rings, which frequencies die first, how early the first walls answer, how wide it sounds.</p>
   <p><b>Convolution</b> plays any sound through that recording, as if every moment of your sound were its own clap in the hall. It isn't a simulation of a room: it is the room. An IR doesn't have to be a room, either: tape echoes, springs, a struck pipe, a chord or a burst of noise all make useful IRs, which is where the Echoes, Strange and Textures sets come in.</p>
   <div class="note"><p><b>Not a modelled reverb.</b> An algorithmic reverb builds a space from knobs like "room size". Liminal Hz starts from a real response: you change the space by choosing an IR, then sculpt it.</p></div>
+
+  <h2>New in 1.5</h2>
+  <table>
+    <tr><td class="k">Grains</td><td>A granular reverb: grains of what you play, sent into the IR so each one rings in the space. Size, Spray, Density, Air, Direct, Pitch that glides (or snaps), and Sync to your project's grid. One amber stripe per grain shows where it reads (chapter 6).</td></tr>
+    <tr><td class="k">Pad</td><td>The reverb's last few seconds read back from a point you drag across the painting, as a moving pad: smear, shimmer, wind (chapter 6).</td></tr>
+    <tr><td class="k">Freeze</td><td>Holds the reverb as it sounds as a steady pad until you let go; new playing passes dry over it (chapter 6).</td></tr>
+    <tr><td class="k">End Sync</td><td>End in note values at the project tempo: gated reverbs on the grid (chapter 6).</td></tr>
+    <tr><td class="k">SHAPE / ROOM / SCAN</td><td>Tabs at the top right switch the knob row between the shaping knobs, the room knobs and the scanner (chapter 6).</td></tr>
+    <tr><td class="k">Distance and Damping</td><td>Nearer or further from the source; highs that die away along the tail (chapter 6).</td></tr>
+    <tr><td class="k">Bend and Shimmer</td><td>The reverb pitched as it plays, gliding, on Q-Link 15; an octave up fed back for a shimmer pad (chapter 6).</td></tr>
+    <tr><td class="k">Motion and Age</td><td>A chorus that makes the tail drift and widen; a tape's wear: wow, flutter, saturation, a darker top (chapter 6).</td></tr>
+    <tr><td class="k">The keyboard</td><td>Name and rename My Presets on the MPC's own screen: SAVE and RENAME open a keyboard in the plugin's colours, and each key lights as you tap it (chapter 8). The phone page still works too.</td></tr>
+    <tr><td class="k">Your projects</td><td>Everything new comes after the existing controls: projects from 1.4 open unchanged. Q-Link 15 is now Bend (it was Reverse).</td></tr>
+  </table>
 
   <h2>New in 1.4</h2>
   <table>
@@ -100,7 +114,7 @@
     <li>At the top level of a USB drive, SD card or the internal drive, make a folder named exactly <code>VST2 Plugins</code> (if it isn't there), and copy the <code>Gm0rb - VST - Liminal Hz</code> folder into it.</li>
     <li>Put the drive in the MPC. Add an insert effect to a track: Liminal Hz is under <b>External Plugins</b>.</li>
   </ol>
-  <div class="note warn"><p><b>Coming from an older install?</b> Copy your <code>presets</code> folder from the old plugin folder into the new one, then remove the old install so Liminal Hz isn't listed twice. Your <code>reverbs</code> folders on your drives are found as before. Projects saved with the older install haven't been confirmed to reconnect to the new one: before you switch, save the sound in each project you care about as a My Preset. If a project opens without the plugin, add Liminal Hz again and load that preset.</p></div>
+  <div class="note warn"><p><b>Coming from an older install?</b> From 1.5 your presets and downloads live in their own <b>Liminal Hz</b> folder at the top of the drive (see below), and 1.5 moves them there by itself from the plugin folder it finds them in. If you replace the old plugin folder before starting 1.5, copy its <code>presets</code> and <code>reverbs</code> folders somewhere first and put them into <code>Liminal Hz</code>. Then remove the old install so Liminal Hz isn't listed twice. Your <code>reverbs</code> folders on your drives are found as before. Projects saved with the older install haven't been confirmed to reconnect to the new one: before you switch, save the sound in each project you care about as a My Preset. If a project opens without the plugin, add Liminal Hz again and load that preset.</p></div>
 
   <h2>Earlier MPC OS 3.x</h2>
   <p>These routes are unofficial and need access to your unit beyond what stock MPC OS offers: SSH on Gen 1 (for example through MockbaMod firmware), a root shell on Gen 2. Save your project and back up anything you care about first: installing stops and restarts MPC and edits MPC's settings file (the installer backs it up).</p>
@@ -120,13 +134,18 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
     <tr><td class="k">The plugin</td><td><code>liminal-hz-arm32.so</code> and <code>liminal-hz-arm64.so</code> in the MPC OS 3.10.1 folder (with <code>plugin.json</code> and <code>version.xml</code>); <code>liminal_hz.so</code> in the other zips</td></tr>
     <tr><td class="k"><code>Plugin Skins/</code></td><td>The touchscreen page</td></tr>
     <tr><td class="k"><code>factory/</code></td><td>The 19 factory IRs, in <code>Spaces/</code>, <code>Echoes/</code>, <code>Strange/</code> and <code>Textures/</code></td></tr>
-    <tr><td class="k"><code>reverbs/</code></td><td>Yours: put IRs here (or in any <code>reverbs</code> folder; chapter 10). TONE3000 downloads land in <code>reverbs/TONE3000/</code></td></tr>
-    <tr><td class="k"><code>presets/</code></td><td>Yours: My Presets, one <code>.lhzp</code> file each</td></tr>
+    <tr><td class="k"><code>reverbs/</code>, <code>presets/</code></td><td>Each holds only a README: your own files are kept outside the plugin folder (below)</td></tr>
+  </table>
+  <h3>Your files: the Liminal Hz folder <span class="new">NEW IN 1.5</span></h3>
+  <p>Your presets and TONE3000 downloads are kept in a folder of their own, <b>Liminal Hz</b>, at the top of the drive or card the plugin is installed on (for example <code>Liminal Hz/presets</code> and <code>Liminal Hz/reverbs</code> on the internal drive). Liminal Hz makes it the first time it starts. Updates only replace the plugin folder, so this one is never touched: your presets survive every update.</p>
+  <table>
+    <tr><td class="k"><code>Liminal Hz/presets/</code></td><td>My Presets, one <code>.lhzp</code> file each</td></tr>
+    <tr><td class="k"><code>Liminal Hz/reverbs/</code></td><td>Your IRs (put them here, or in any <code>reverbs</code> folder; chapter 10). TONE3000 downloads land in <code>reverbs/TONE3000/</code></td></tr>
     <tr><td class="k"><code>art/fonts/</code></td><td>The font the phone pages use (Titillium Web, OFL licence)</td></tr>
   </table>
 
   <h2>Updating and removing</h2>
-  <p><b>Updating:</b> copy the new folder over the old one (Option A or D), or run the new installer (C), or update from the Catalog (B). Your <code>reverbs</code> and <code>presets</code> folders are kept. Then remove and re-add the plugin on your tracks so MPC picks up the new parameter list, and if the page still looks like the old version, restart MPC: it keeps plugin pages in memory.</p>
+  <p><b>Updating:</b> copy the new folder over the old one (Option A or D), or run the new installer (C), or update from the Catalog (B). Your presets and downloads are in the <b>Liminal Hz</b> folder, which updates never touch, and any <code>reverbs</code> folders on your drives are found as before. Then remove and re-add the plugin on your tracks so MPC picks up the new parameter list, and if the page still looks like the old version, restart MPC: it keeps plugin pages in memory.</p>
   <p><b>Removing:</b> delete the folder from <code>VST2 Plugins</code> (Option A), run <code>uninstall.sh</code> from the release zip (C), or remove it in the Catalog (B). Files you added yourself are kept. Projects that used the plugin open without it.</p>
 </section>
 
@@ -144,8 +163,7 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
     <li><b>Make it bigger or smaller.</b> Turn <b>Decay</b> (in the time group). Above 100% the room rings longer without changing its pitch or colour.</li>
     <li><b>Give it room to breathe.</b> Add 20 to 40 ms of <b>Pre-delay</b> so the dry attack lands before the reverb arrives, or switch on <b>Sync</b> and pick a note value.</li>
     <li><b>Keep the groove clear.</b> Turn up <b>Duck</b> (in the out group): the reverb steps back while you play and blooms in the gaps. Then raise <b>Low Cut</b> to 150 to 300 Hz to keep the low end tight.</li>
-    <li><b>Keep it.</b> Tap <span class="btn">MY PRESETS</span>, then <span class="btn">SAVE</span>. It's saved under the IR's name.</li>
-    <li><b>Name it properly</b> (optional). In the My Presets list tap <span class="btn">NAME ON PHONE</span>, open the address it shows on your phone, and type a name.</li>
+    <li><b>Keep it.</b> Tap <span class="btn">MY PRESETS</span>, then <span class="btn">SAVE</span>. A keyboard opens with the IR's name: type your own if you like, then tap its <span class="btn">SAVE</span>.</li>
   </ol>
   <figure><img src="img/page-render.png" alt=""><figcaption>The page with a factory preset loaded. Chapter 4 explains every part of it.</figcaption></figure>
 </section>
@@ -154,7 +172,7 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
 <section class="chapter" data-ch="4">
   <div class="eyebrow">Chapter 4</div>
   <h1>The page, at a glance</h1>
-  <p class="sub">One page, made for the touchscreen. Nothing is hidden on other tabs.</p>
+  <p class="sub">One page, made for the touchscreen. Only the knob row has other pages (ROOM, SCAN).</p>
   <p>The page has three areas. The <b>browser</b> on the left is where you choose what you hear. The <b>shape</b> on the right shows what the IR sounds like and has the knobs that reshape it. The <b>mix controls</b> along the bottom set how the reverb sits with your sound. Behind it all is a doorway at the far end of an empty room.</p>
   <figure class="callouts" id="overview">
     <img src="img/page-render.png" alt="">
@@ -175,13 +193,16 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
     <li><span class="n">12</span><span><b>Sonics line</b>: the IR in words (ch. 7)</span></li>
     <li><span class="n">13</span><span><b>The painting</b>: level and tone over time</span></li>
     <li><span class="n">14</span><span><b>The glow</b>: where your last note is</span></li>
-    <li><span class="n">15</span><span><b>trim, fade, time</b>: Start, End, Fade In, Fade Out, Stretch, Decay</span></li>
+    <li><span class="n">15</span><span><b>trim, fade, time</b> (SHAPE): Start, End, Fade In, Fade Out, Stretch, Decay</span></li>
     <li><span class="n">16</span><span><b>Reverse</b>: the IR backwards</span></li>
     <li><span class="n">17</span><span><b>space</b>: Mix, Pre-delay, Feedback</span></li>
     <li><span class="n">18</span><span><b>Sync</b>: Pre-delay in note values</span></li>
     <li><span class="n">19</span><span><b>tone</b>: Low Cut, High Cut, Width</span></li>
     <li><span class="n">20</span><span><b>out</b>: Duck, Output</span></li>
     <li><span class="n">21</span><span><b>Long IR</b> and its status line (ch. 6)</span></li>
+    <li><span class="n">22</span><span><b>Freeze</b>: hold the reverb as a pad</span></li>
+    <li><span class="n">23</span><span><b>End Sync</b>: End in note values</span></li>
+    <li><span class="n">24</span><span><b>SHAPE / ROOM / SCAN</b>: the knob row's three pages</span></li>
   </ol>
   <div class="note"><p><b>Touch, wheel and Q-Links.</b> Tap a knob and turn the data wheel, or drag it on the screen. The 16 Q-Links follow the order you reach for them while playing (chapter 11). Every knob shows its value underneath in real units: %, ms, note values, Hz, kHz or dB. Every button acts once per tap.</p></div>
 </section>
@@ -260,7 +281,7 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
   <div class="eyebrow">Chapter 6</div>
   <h1>The controls</h1>
   <p class="sub">Two kinds of control: the ones that mix the reverb with your sound, and the ones that reshape the IR itself.</p>
-  <p>The <b>space</b>, <b>tone</b> and <b>out</b> groups act on the sound in real time. The <b>trim</b>, <b>fade</b> and <b>time</b> groups and Reverse reshape the IR: each change is prepared in the background and crossfaded in, so moving them never costs the audio anything, but the result arrives a moment later (longer IRs take longer to prepare, especially with Decay).</p>
+  <p>The <b>space</b>, <b>tone</b> and <b>out</b> groups act on the sound in real time. The <b>trim</b>, <b>fade</b> and <b>time</b> groups, Reverse and the <b>room</b> knobs reshape the IR: each change is prepared in the background and crossfaded in, so moving them never costs the audio anything, but the result arrives a moment later (longer IRs take longer to prepare, especially with Decay).</p>
   <figure>{{signal_flow}}<figcaption>The real-time signal path. The IR inside "Convolution" has already been shaped by trim, fade, Stretch, Decay and Reverse.</figcaption></figure>
 
   <h2>space</h2>
@@ -324,6 +345,90 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
   <div class="note"><p><b>Decay or Stretch?</b> Stretch changes time and pitch together, like tape. Decay changes only how long the tail lasts. To make a room "bigger" naturally, use Decay; to make it alien, use Stretch.</p></div>
   <h3>Reverse</h3>
   <p>Plays the IR backwards. The reverb swells up into each note instead of trailing after it: the classic reverse-reverb effect, live. Reverse is applied after the length limit and before Start and End, so Start and End then trim the reversed IR. Try it with a short End (30 to 50%) for a tight pre-swell, or with Pre-delay for a gap between the swell and the note.</p>
+  <h3>End Sync <span style="font-weight:400;color:var(--muted)">Off / On · default Off</span> <span class="new">NEW IN 1.5</span></h3>
+  <p>The switch under Freeze, in the lower right. It puts End in time with your project: the IR is kept for a note value from Start, so the reverb stops on the grid, a gated reverb that follows the tempo. The End knob then steps through 1/32, 1/16, 1/8 T, 1/16 D, 1/8, 1/4 T, 1/8 D, 1/4, 1/2 T, 1/4 D, 1/2, 1/2 D, 1 bar, 2 bars and 4 bars (T is a triplet, D dotted), and its value shows the note.</p>
+  <ul>
+    <li>A tempo change prepares the IR again for the new length (a moment later, crossfaded).</li>
+    <li>An IR shorter than the note plays whole: at 4 bars most IRs are untouched.</li>
+    <li>Fade Out still shapes the end. Set it low (around 5%) for a hard 80s gate, higher for a softer cut.</li>
+    <li>It's saved in projects and My Presets. Factory presets, Init and presets saved before 1.5 turn it off.</li>
+  </ul>
+  <div class="note tip"><p><b>Try:</b> a big hall on a snare, End Sync on, End at 1/8, Fade Out 5%: the classic gated drum sound, locked to the beat.</p></div>
+  <h3>Freeze <span style="font-weight:400;color:var(--muted)">Off / On</span> <span class="new">NEW IN 1.5</span></h3>
+  <p>The switch left of Reverse. Freeze holds the reverb as it sounds at that moment as a steady pad, for as long as it's on: the room's colour and the notes that were ringing, at the level they had. It's made from the reverb's spectrum over the last half second or so, played with fresh random phases, so it has no loop and no seam.</p>
+  <ul>
+    <li>While it's on, what you play isn't fed to the reverb: play over the pad dry. Low Cut, High Cut, Width, Duck, Mix and Output still shape the pad.</li>
+    <li>Turn it off and the pad fades away over about 2 seconds while the reverb comes straight back for what you play next.</li>
+    <li>Frozen in silence, it holds silence: press it while the tail is still ringing.</li>
+    <li>It's a switch, not a setting: presets don't change it, and a project always opens unfrozen.</li>
+  </ul>
+  <div class="note tip"><p><b>Try:</b> play a chord into Liminal Hz or Backrooms, Freeze it, then play a melody over the frozen chord. Lower Mix to sit the pad back, or raise Duck so it breathes around your playing.</p></div>
+
+  <h2>room <span class="new">NEW IN 1.5</span></h2>
+  <p>Tap <span class="btn">ROOM</span> at the top right to swap the knob row for the room knobs; <span class="btn">SHAPE</span> brings the shaping knobs back. The tab is only a view: it isn't saved, and every knob keeps its Q-Link whichever page shows. Bend has Q-Link 15; the other ROOM knobs have none.</p>
+  <figure style="width:72%;margin-left:auto;margin-right:auto"><img src="img/room.png" alt=""><figcaption>The ROOM tab: Distance 62%, Damping 30%, Bend +3 st, Shimmer 40%, Motion 50%, Age 25%.</figcaption></figure>
+  <h3>Distance <span style="font-weight:400;color:var(--muted)">0–100% · default 50%</span></h3>
+  <p>Where you stand in the room. 50% is the IR as it was recorded. Lower brings you close: the early reflections (the first 80 ms after the sound) come up to +6 dB and the tail goes down to -6 dB, so the reverb sounds present and defined. Higher takes you away: the early reflections drop to -14 dB and lose their top (the air in between), so mostly the room's tail reaches you. The overall level stays matched; it's the balance that moves.</p>
+  <h3>Damping <span style="font-weight:400;color:var(--muted)">0–100% · default 0%</span></h3>
+  <p>How quickly the highs die away. At 0% the IR is untouched. Turning it up makes the treble fade faster the longer the IR rings, the way soft walls, curtains and air soak up high frequencies: the attack keeps its sparkle and the tail goes dark. Up to about 50% it's gentle; at 100% the top end has gone within a second. The shape display shows it as the painting's colour fading toward violet along the tail.</p>
+  <ul>
+    <li>Both reshape the IR in the background like the shaping knobs, so they cost nothing while you play.</li>
+    <li>Both are saved in projects and My Presets. Factory presets and Init put them back to 50% and 0%.</li>
+  </ul>
+  <h3>Bend <span style="font-weight:400;color:var(--muted)">-12 to +12 semitones · default 0 · Q-Link 15</span></h3>
+  <p>Pitches the reverb as it plays, including the tail that's already ringing; the dry sound is never pitched. It glides as you turn it (about 60 ms), so riding it on Q-Link 15 works like a pitch wheel for the reverb: dip it a semitone or two at the end of a phrase, or dive a whole octave. At 0 it steps out of the way and the reverb is exactly as without it. Big bends down add a slight flutter of their own, part of the sound of a pitched tail.</p>
+  <h3>Shimmer <span style="font-weight:400;color:var(--muted)">0–100% · default 0%</span></h3>
+  <p>Feeds the reverb back into itself an octave up, so every pass climbs higher: the shimmer pad. It's filtered on the way round (no low build-up, no fizz at the top) and held by the same guard as Feedback, so even with Shimmer and Feedback both at 100% it stays in bounds and dies away once you stop playing. Long, smooth IRs (Spaces, Shimmer Fog) shimmer best; with Freeze on, the held pad isn't fed back.</p>
+  <h3>Motion <span style="font-weight:400;color:var(--muted)">0–100% · default 0%</span></h3>
+  <p>A slow three-voice chorus on the reverb: each side hears three copies of the tail a few milliseconds apart, each swaying at its own slow rate, the right side out of step with the left. The tail drifts and widens, like an ensemble or dimension effect. A little (20–40%) makes a static IR feel alive; at 100% it's a lush, seasick wash.</p>
+  <h3>Age <span style="font-weight:400;color:var(--muted)">0–100% · default 0%</span></h3>
+  <p>The reverb worn like old tape: a little wow (a slow pitch sway) and flutter (a fast one), a soft saturation that leaves quiet parts as they are and rounds the peaks, and the top end closing from 18 kHz down to 4.5 kHz as you turn it up. With Damping it makes a dusty, distant room; with Shimmer, a shimmer from an old record.</p>
+  <ul>
+    <li>Bend, Shimmer, Motion and Age work on the reverb as it plays (no IR is prepared), and cost little CPU.</li>
+    <li>All four are saved in projects and My Presets; factory presets and Init put them back to 0. At 0 each is out of the path.</li>
+  </ul>
+  <div class="note tip"><p><b>Try:</b> Shimmer Fog with Shimmer at 60% and Mix at 50% under slow chords; then ride Bend down to -2 on the last chord.</p></div>
+  <div class="note tip"><p><b>Try:</b> a bright TONE3000 plate with Damping at 40%: the shimmer of the attack stays, the fizz in the tail goes. For a vocal that should sit back in the mix, Distance at 75% with a little Pre-delay.</p></div>
+
+  <h2>scan <span class="new">NEW IN 1.5</span></h2>
+  <figure style="width:72%;margin-left:auto;margin-right:auto"><img src="img/scan.png" alt=""><figcaption>The SCAN tab in GRAINS mode: SCAN, GRAINS and SNAP lit; the amber stripes under the painting are grains, around Position (the glow).</figcaption></figure>
+  <p>SCAN makes textures from what you play, while you play. It has two modes: <b>PAD</b> reads the reverb's last few seconds back as a smooth moving pad; <b>GRAINS</b> cuts what you play into grains and sends them into the IR, so every grain rings in the space: a granular reverb. On the SCAN tab the whole painting is a touch strip for Position, and four tiles sit beside the tabs.</p>
+  <h3>The tiles: SCAN, GRAINS, SNAP, SYNC</h3>
+  <p>Each tile is a switch: tap it, and it lights amber while it's on.</p>
+  <ul>
+    <li><b>SCAN</b> turns it on: SCAN takes over the reverb (as much as Amount says). Off, the reverb is back within a few hundredths of a second. It's a switch, not a setting: presets don't change it and a project opens with it off.</li>
+    <li><b>GRAINS</b> picks the mode: off is PAD, on is GRAINS. The knob row shows that mode's knobs; Pitch and Amount stay at the right in both.</li>
+    <li><b>SNAP</b> puts Pitch on whole semitones.</li>
+    <li><b>SYNC</b> (GRAINS) puts the grains on your project's grid: see Density.</li>
+  </ul>
+  <h3>Position <span style="font-weight:400;color:var(--muted)">0–100% · default 0% · drag across the painting</span></h3>
+  <p>Where SCAN reads: at the left of the painting just behind what you hear now, at the right as far back as the IR is long. The glow under the painting shows it. In PAD it's also a knob; in GRAINS you set it by dragging.</p>
+
+  <h3>PAD</h3>
+  <p>The same method as Freeze (the sound's spectrum, played with new phases), so it stays smooth.</p>
+  <ul>
+    <li><b>Texture</b> (0–100%, default 0%). Up to about 33%: <b>smear</b>, from a close ghost of the reverb to a slow wash that holds each chord longer and longer. 33 to 66%: <b>shimmer</b>, an octave and a fifth above (and a little below) coming in as halos. Over 66%: <b>wind</b>, the sound blurred across frequency, its bands drifting louder and softer.</li>
+    <li>PAD works on what you hear, so it also scans a frozen pad (Freeze, then Scan).</li>
+  </ul>
+
+  <h3>GRAINS</h3>
+  <table>
+    <tr><td class="k">Size</td><td>30–500 ms · default 150 ms. Each grain's length. Short: buzzy, textured. Long: chunks of what you played.</td></tr>
+    <tr><td class="k">Spray</td><td>0–100% · default 20%. How far from Position each grain lands, up to a second either way. Low: a stutter around one moment. High: scattered across the last seconds.</td></tr>
+    <tr><td class="k">Density</td><td>0–100% · default 60%. How many grains: below about 30% they have gaps between them (droplets you hear one by one); above, they overlap into a smooth cloud. With <b>SYNC</b> on it becomes a note value instead (1 bar, 1/2, 1/4, 1/8, 1/8 T, 1/16, 1/16 T, 1/32): while your transport plays, every grain starts on that grid, through loops; stopped, at that rate.</td></tr>
+    <tr><td class="k">Air</td><td>0–100% · default 0%. The lush part, on one knob. Low: each grain detuned a little and spread wider, like a chorus. From 25% some grains play backwards, from 40% some an octave up, and the top gets brighter. Above 50% the cloud feeds back into itself and builds into a shimmer.</td></tr>
+    <tr><td class="k">Direct</td><td>0–100% · default 0%. How much of the grains skips the reverb and goes straight out. 0%: every grain rings in the space (smooth). Higher: the grains keep their edges and gaps: more granular, more rhythmic.</td></tr>
+  </table>
+  <p>While GRAINS plays, the strip under the painting draws <b>one amber stripe per grain</b>, where it is reading. At Pitch 0 a grain reads at the speed the sound arrives, so its stripe stands still; pitched up or down, grains drift through the sound and their stripes glide. A stripe goes when its grain fades. (One stripe per twelfth of the strip: if two grains read in the same place you see the louder.)</p>
+
+  <h3>Both modes</h3>
+  <ul>
+    <li><b>Pitch</b> (−24 to +24 semitones, default 0): glides as you turn it, and grains already playing bend with it; values in tenths (+7.4 st), or whole semitones with SNAP. In PAD the whole spectrum moves; in GRAINS every grain plays at that interval.</li>
+    <li><b>Amount</b> (0–100%, default 100%): how much of the reverb SCAN replaces. At 100% you hear only SCAN (and your dry sound, by Mix).</li>
+    <li>SCAN's knobs and the GRAINS, SNAP and SYNC tiles are saved in projects and My Presets; factory presets and Init put them back (PAD, Pitch 0, Size 150 ms, Spray 20%, Density 60%, Air and Direct 0%).</li>
+    <li>CPU: on a PC SCAN roughly doubles what the reverb uses while it's on; off, it costs nothing. On a Force, GRAINS' heaviest setting is the smallest Size with the highest Density.</li>
+  </ul>
+  <div class="note tip"><p><b>Try:</b> PAD on a pad sound: Backrooms, Texture 20%, drag slowly left to right and the room breathes back at you. GRAINS on a chord: Size 150 ms, Spray 40%, Density 60%, Air 50%: a shimmering cloud of your own playing. For a stutter on the beat: SYNC on, Density 1/16, Size 60 ms, Spray 0, Direct 60%.</p></div>
 
   <h2>LONG IR</h2>
   <p>The on/off switch in the lower right, under Reverse, labelled <b>Long IR</b>. On Gen 1 it switches on Gen 2's IR quality:</p>
@@ -336,7 +441,7 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
   <p>It's a setting for your unit, not part of a sound: a project remembers it, but presets, Init and My Presets leave it as it is, and it can't be automated. On Gen 2 it's always on and the line reads "Gen 2 · always on".</p>
 
   <h2>The order things happen in</h2>
-  <p>When the IR is prepared, the steps run in this order: resample to the MPC's rate with Stretch → Decay → cut to the length limit → Reverse → Start and End → Fade In and Fade Out → level matching. Knowing the order explains a few things: Start trims the reversed IR when Reverse is on, and the fades always apply to what's left after trimming.</p>
+  <p>When the IR is prepared, the steps run in this order: resample to the MPC's rate with Stretch → Decay → cut to the length limit → Damping → Distance → Reverse → Start and End → Fade In and Fade Out → level matching. Knowing the order explains a few things: Start trims the reversed IR when Reverse is on, and the fades always apply to what's left after trimming.</p>
 </section>
 
 <!-- ============================================================ 7 -->
@@ -367,11 +472,11 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
   <h1>My Presets</h1>
   <p class="sub">Set the plugin the way you like it, then keep it.</p>
   <div class="side">
-    <figure><img src="img/my-presets.png" alt=""><figcaption>The My Presets list: four presets to a page, with Save, Delete and Name on Phone.</figcaption></figure>
+    <figure><img src="img/my-presets.png" alt=""><figcaption>The My Presets list: four presets to a page, with Save, Rename, Delete and Name on Phone.</figcaption></figure>
     <div>
       <p>Tap <span class="btn">MY PRESETS</span> (beside the Preset field). Your presets cover the browser, four to a page, with <span class="btn">PREV</span> / <span class="btn">NEXT</span> / <span class="btn">CLOSE</span> as in the IR List.</p>
       <h2>Saving</h2>
-      <p><span class="btn">SAVE</span> keeps the current sound: every knob (Duck and Sync included) and the IR in use, factory or your own. It's named after the IR ("Fluorescent Hall", then "Fluorescent Hall 2" and so on) and becomes the selected preset.</p>
+      <p><span class="btn">SAVE</span> keeps the current sound: every knob (Duck and Sync included) and the IR in use, factory or your own. The keyboard opens with a name taken from the IR ("Fluorescent Hall", then "Fluorescent Hall 2" and so on): keep it or type your own, and tap the keyboard's <span class="btn">SAVE</span>. The sound is saved as it is at that moment and becomes the selected preset.</p>
     </div>
   </div>
   <h2>Loading</h2>
@@ -382,10 +487,22 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
   </ul>
   <h2>Deleting</h2>
   <p><span class="btn">DELETE</span> removes the selected preset. Like IR delete, it asks first: tap twice, the second tap at least a third of a second after the first and within 4 seconds. The file is deleted permanently.</p>
+  <h2>The keyboard <span class="new">NEW IN 1.5</span></h2>
+  <figure style="width:72%;margin-left:auto;margin-right:auto"><img src="img/keyboard.png" alt=""><figcaption>The keyboard, open over the right-hand side of the page. A key lights amber as you tap it.</figcaption></figure>
+  <p><span class="btn">SAVE</span> and <span class="btn">RENAME</span> open a keyboard over the right-hand side of the page. The name you're typing is at the top, with the keys below it.</p>
+  <ul>
+    <li><b>Letters and digits</b>, plus <code>-</code> and <code>'</code> (with Shift, <code>_</code> and <code>&amp;</code>). A name starts with a capital, and so does each word after a space.</li>
+    <li><span class="btn">abc</span> is Shift. Each tap moves it on: <b>Abc</b> (the next letter is a capital, and the key stays lit), <b>ABC</b> (capitals until you tap again, still lit), then back to <b>abc</b>.</li>
+    <li><span class="btn">DEL</span> removes the last character, <span class="btn">CLEAR</span> the whole name, and <span class="btn">SPACE</span> adds one space between words.</li>
+    <li><span class="btn">SAVE</span> (<span class="btn">RENAME</span> when renaming) keeps the name and closes the keyboard. <span class="btn">CANCEL</span> closes it and changes nothing.</li>
+  </ul>
+  <p>A name can be up to 32 characters; the line under the keys counts them. If the name is already used, SAVE says so: tap SAVE again within 4 seconds to replace that preset. RENAME never replaces another preset. While the keyboard is open the list only shows (its rows, SAVE, RENAME and DELETE wait), and the list's CLOSE closes both.</p>
+  <h2>Renaming</h2>
+  <p>Select a preset, then tap <span class="btn">RENAME</span>. The keyboard opens on its name; change it and tap the keyboard's <span class="btn">RENAME</span>. The file is renamed and the preset stays the one in use.</p>
   <h2>Naming on your phone</h2>
-  <p>The MPC's screen has no keyboard, so names are typed on your phone. Tap <span class="btn">NAME ON PHONE</span>: the line shows an address such as <code>192.168.1.20:8191/presets</code>. Open it in your phone's browser (same Wi-Fi as the MPC) to save the current sound under a typed name, or to load, rename and delete presets. This page needs no internet connection and no account. Chapter 9 has more on the phone pages.</p>
+  <p>You can also type names on your phone. Tap <span class="btn">NAME ON PHONE</span>: the line shows an address such as <code>192.168.1.20:8191/presets</code>. Open it in your phone's browser (same Wi-Fi as the MPC) to save the current sound under a typed name, or to load, rename and delete presets. This page needs no internet connection and no account. Chapter 9 has more on the phone pages.</p>
   <h2>The files</h2>
-  <p>Each preset is a small text file in the plugin's <code>presets/</code> folder, named <code>&lt;name&gt;.lhzp</code>. They're kept when you update the plugin. You can rename, copy, back up or delete them from a computer; tap <span class="btn">RESCAN</span> afterwards and the list follows. Copy them to another unit (Gen 1 or Gen 2) to take your sounds with you, or into the new folder when you move to the MPC OS 3.10.1 install.</p>
+  <p>Each preset is a small text file in <code>Liminal Hz/presets/</code> (the Liminal Hz folder at the top of the drive the plugin is on; chapter 2), named <code>&lt;name&gt;.lhzp</code>. Updates never touch that folder. You can rename, copy, back up or delete them from a computer; tap <span class="btn">RESCAN</span> afterwards and the list follows. Copy them to another unit (Gen 1 or Gen 2) to take your sounds with you.</p>
 </section>
 
 <!-- ============================================================ 9 -->
@@ -405,7 +522,7 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
   <ol>
     <li>On the phone's home page, tap <b>Continue: Space, Outboard, Pedal and Experimental IRs</b>.</li>
     <li>Sign in to TONE3000 (on your phone) and pick a tone from the Space, Outboard, Pedal or Experimental categories.</li>
-    <li>It downloads straight to the MPC, into <code>reverbs/TONE3000/&lt;tone&gt;/</code> in the plugin's folder. The status line on the MPC shows the progress ("Downloading 1/3") and the new IR is selected when it's done, starting from Init's settings.</li>
+    <li>It downloads straight to the MPC, into <code>Liminal Hz/reverbs/TONE3000/&lt;tone&gt;/</code> (your folder, kept by updates). The status line on the MPC shows the progress ("Downloading 1/3") and the new IR is selected when it's done, starting from Init's settings.</li>
   </ol>
   <ul>
     <li>Only IRs are offered, and only <code>.wav</code> files are downloaded. A tone that isn't an IR is refused.</li>
@@ -460,10 +577,10 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
     <tr><td class="num">4</td><td>Pre-delay</td><td class="num">12</td><td>End</td></tr>
     <tr><td class="num">5</td><td>Duck</td><td class="num">13</td><td>Fade In</td></tr>
     <tr><td class="num">6</td><td>Low Cut</td><td class="num">14</td><td>Fade Out</td></tr>
-    <tr><td class="num">7</td><td>High Cut</td><td class="num">15</td><td>Reverse</td></tr>
+    <tr><td class="num">7</td><td>High Cut</td><td class="num">15</td><td>Bend <span class="new">NEW IN 1.5</span></td></tr>
     <tr><td class="num">8</td><td>Width</td><td class="num">16</td><td>Output</td></tr>
   </table>
-  <p>How they fall on your unit's Q-Link banks depends on the unit. Mix, Pre-delay, Feedback, Duck, the cuts, Width and Output respond instantly and smoothly. The IR-shaping controls (Decay, Stretch, Start, End, the fades, Reverse) prepare a new IR in the background on each change and crossfade it in, so sweeping them quickly gives a stepped, morphing effect rather than a smooth sweep.</p>
+  <p>How they fall on your unit's Q-Link banks depends on the unit. Mix, Pre-delay, Feedback, Duck, the cuts, Width and Output respond instantly and smoothly. Bend glides. (Q-Link 15 was Reverse before 1.5; Reverse is still on the page.) The IR-shaping controls (Decay, Stretch, Start, End, the fades) prepare a new IR in the background on each change and crossfade it in, so sweeping them quickly gives a stepped, morphing effect rather than a smooth sweep.</p>
   <h2>Automation</h2>
   <p>All the sound controls can be recorded as automation. The display parts of the page (the painting, the glow, the sonics line) and LONG IR are marked as not automatable, so MPC never records them.</p>
   <h2>MIDI</h2>
@@ -495,6 +612,9 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
       <div class="recipe"><h3>Reverse swell into a snare</h3><div class="set">Start from <b>Reverse Bloom</b>, or any hall with Reverse on · End 30–50% · Mix 40–60% · Pre-delay 0 ms</div><p>The reverb rises into each hit. Use it on a duplicate of the snare on its own track and mute the dry copy for a pure swell.</p></div>
     </div>
     <div>
+      <div class="recipe"><h3>Granular shimmer cloud <span class="new">NEW</span></h3><div class="set">Any <b>Spaces</b> IR · Scan on, GRAINS · Size 120–200 ms · Spray 40–60% · Density 60–75% · Air 60–80% · Pitch +12</div><p>Your chords dissolve into a glittering cloud an octave up that keeps building on itself. Lower Amount to keep some of the room under it.</p></div>
+      <div class="recipe"><h3>Beat-locked stutter <span class="new">NEW</span></h3><div class="set">Scan on, GRAINS, SYNC · Density 1/16 or 1/8 T · Size 40–80 ms · Spray 0–10% · Direct 50–80% · Mix 40–60%</div><p>Grains fire on the grid and repeat what you just played: glitchy, rhythmic and always in time. Raise Spray for a scrambled version.</p></div>
+      <div class="recipe"><h3>Dark granular drone <span class="new">NEW</span></h3><div class="set">Start from <b>Backrooms</b> · Scan on, GRAINS · Size 300–500 ms · Spray 20% · Density 70% · Pitch −12 · Air 30%</div><p>A slow, deep bed made from whatever you play. Add Feedback 50% for a longer tail behind it.</p></div>
       <div class="recipe"><h3>Drums that play a chord <span class="new">NEW</span></h3><div class="set">Start from <b>Tuned Chord</b> · Mix 10–20% · Low Cut 150 Hz · Width 100%</div><p>Every hit rings the chord. Keep Mix low: the chord is resonant and builds quickly. Try it on hats and percussion too.</p></div>
       <div class="recipe"><h3>Metal and grains <span class="new">NEW</span></h3><div class="set">Start from <b>Struck Pipe</b> or <b>Grain Cloud</b> · Stretch 150–200% · Decay 200–250% · Mix 20–40%</div><p>Stretch drops the pipe into a cavern of metal or slows the grains into a drifting cloud. Great on vocal chops and risers.</p></div>
       <div class="recipe"><h3>Ambient pad wash</h3><div class="set">Start from <b>Shimmer Fog</b> or <b>Glass Void</b> · Mix 50–100% · Decay 200–300% · Fade In 10–25% · Feedback 30–50% · Width 160–200%</div><p>Fade In makes the reverb bloom behind each chord; long Decay and a little Feedback hold it in the air. With LONG IR on (or on Gen 2), Decay 300% on a long IR can ring for 15 seconds or more.</p></div>
@@ -549,6 +669,8 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
     <tr><td class="k">Not a WAV file · Unsupported WAV format · Unsupported bit depth · Invalid WAV header</td><td>The file isn't a WAV the plugin can read.</td><td>Re-export it as 24-bit PCM or 32-bit float WAV.</td></tr>
     <tr><td class="k">File too large · Silent IR</td><td>Over 256 MB · nothing audible left after trimming.</td><td>Trim the file · lower Start or raise End.</td></tr>
     <tr><td class="k">Page closed</td><td>The phone page closed after 15 idle minutes.</td><td>Tap BROWSE (or NAME ON PHONE) again.</td></tr>
+    <tr><td class="k">That name is used: tap SAVE again to replace it</td><td>The keyboard: a preset already has that name.</td><td>Tap SAVE within 4 s to replace it, or change the name.</td></tr>
+    <tr><td class="k">That name is already used</td><td>RENAME onto another preset's name.</td><td>Pick another name (RENAME never replaces a preset).</td></tr>
   </table>
   <h2>Common problems</h2>
   <h3>Liminal Hz isn't under External Plugins (MPC OS 3.10.1)</h3>
@@ -558,7 +680,7 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
     <li>Make sure you copied the folder from the <code>-MPC-OS-3.10.1.zip</code>: the other zips don't have the files this route needs.</li>
   </ul>
   <h3>Liminal Hz is listed twice</h3>
-  <p>An older install (Plugin Catalog, installer or Synths folder) is still there next to the <code>VST2 Plugins</code> copy. Copy your <code>presets</code> folder across, then remove the older install.</p>
+  <p>An older install (Plugin Catalog, installer or Synths folder) is still there next to the <code>VST2 Plugins</code> copy. Start the new one once (it moves the presets and downloads it finds in its own folder into <code>Liminal Hz</code>; copy the old install's <code>presets</code> folder into <code>Liminal Hz/presets</code> yourself), then remove the older install.</p>
   <h3>Liminal Hz isn't in the plugin list (earlier MPC OS)</h3>
   <ul>
     <li>Make sure you installed the right zip for your generation: armv7 for Gen 1, aarch64 for Gen 2. A 32-bit plugin can't load on Gen 2, and the reverse. The installer refuses the wrong one.</li>
@@ -618,9 +740,9 @@ ssh root@&lt;unit-ip&gt; sh /tmp/Liminal-Hz-{{version}}/install.sh</pre>
     <tr><th>Path (inside the plugin folder unless shown)</th><th>Contents</th><th>Kept on update</th></tr>
     <tr><td><code>Gm0rb - VST - Liminal Hz/</code></td><td>The plugin folder: in <code>VST2 Plugins</code> (MPC OS 3.10.1) or a <code>Synths</code> folder</td><td></td></tr>
     <tr><td><code>factory/&lt;Spaces|Echoes|Strange|Textures&gt;/</code></td><td>Factory IRs</td><td>Replaced</td></tr>
-    <tr><td><code>reverbs/</code></td><td>Your IRs; TONE3000 downloads in <code>reverbs/TONE3000/&lt;tone&gt;/</code></td><td>Yes</td></tr>
+    <tr><td><code>Liminal Hz/reverbs/</code> (top of the drive)</td><td>Your IRs; TONE3000 downloads in <code>reverbs/TONE3000/&lt;tone&gt;/</code></td><td>Yes (outside the plugin folder)</td></tr>
     <tr><td>any <code>reverbs/</code> on cards and drives</td><td>Your IRs (up to four folders deep)</td><td>Yes (not touched)</td></tr>
-    <tr><td><code>presets/&lt;name&gt;.lhzp</code></td><td>My Presets</td><td>Yes (copy them across when you change install route)</td></tr>
+    <tr><td><code>Liminal Hz/presets/&lt;name&gt;.lhzp</code> (top of the drive)</td><td>My Presets</td><td>Yes (outside the plugin folder)</td></tr>
     <tr><td><code>.reverbs-index</code></td><td>Where your <code>reverbs</code> folders were found</td><td>Rebuilt as needed</td></tr>
   </table>
   <h2>Network</h2>

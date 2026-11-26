@@ -54,20 +54,29 @@ wordmark(d, 64, 104, 54)
 d.text((66,146),'Convolution reverb, echoes and strange spaces for Akai Force & MPC',font=fR(24),fill=GR,anchor='ls')
 vignette(im.convert('RGB'),0.35).save(os.path.join(OUTD,'page.png'))
 
-# 2. Threshold: the room, the doorway, the name
-im=vignette(bg(1.55),0.5); d=ImageDraw.Draw(im)
-wordmark(d, 84, 300, 96, by=False)
-d.text((88,350),'by Gm0rb',font=fR(30),fill=GR,anchor='ls')
-d.text((88,440),'Real rooms, halls and echoes from impulse responses.',font=fR(30),fill=(196,190,178),anchor='ls')
-d.text((88,482),'The space for your NAM amp  \u00b7  Akai Force & MPC  \u00b7  TONE3000 IRs',font=fR(22),fill=DIM,anchor='ls')
-# what's new: an amber "NEW IN 1.4" pill and the four features (this is also the repo's social preview: keep it current)
-x=88; y=548; pill='NEW IN 1.4'; fp=fS(19); tw=d.textlength(pill,font=fp)
+# 2. Threshold: the name and what's new on the left, the 1.5 page (the ROOM tab) leaning out of the dark on the right.
+#    This is also the repo's social preview (1280x640): keep it current.
+im=vignette(bg(1.35),0.5).convert('RGBA')
+room=Image.open(os.path.join(ROOT,'docs','images','room.png')).convert('RGB').crop((548,0,1280,628))
+rw=600; rh=int(room.height*rw/room.width); room=room.resize((rw,rh),Image.LANCZOS)
+rx,ry=W-rw-40,(H-rh)//2+6
+sh=Image.new('RGBA',(W,H),(0,0,0,0)); ImageDraw.Draw(sh).rounded_rectangle([rx-8,ry+12,rx+rw+8,ry+rh+26],radius=16,fill=(0,0,0,210))
+im=Image.alpha_composite(im,sh.filter(ImageFilter.GaussianBlur(20)))
+fadeL=Image.new('L',(rw,rh),255); fa=np.asarray(fadeL,float); fa[:, :120]*=np.linspace(0.15,1,120)[None,:]   # its left edge melts into the room
+im.paste(room,(rx,ry),Image.fromarray(fa.astype(np.uint8)))
+d=ImageDraw.Draw(im)
+wordmark(d, 72, 214, 74, by=False)
+d.text((76,256),'by Gm0rb',font=fR(26),fill=GR,anchor='ls')
+d.text((76,330),'Convolution reverb for Akai MPC & Force.',font=fR(28),fill=(206,199,186),anchor='ls')
+d.text((76,366),'Real spaces, echoes and strange rooms from IRs.',font=fR(22),fill=DIM,anchor='ls')
+x=76; y=446; pill='NEW IN 1.5'; fp=fS(19); tw=d.textlength(pill,font=fp)
 d.rounded_rectangle([x,y-24,x+tw+28,y+8],radius=16,outline=AMB,width=2); d.text((x+14,y),pill,font=fp,fill=AMB,anchor='ls')
-x+=tw+48
-for k,word in enumerate(['Duck','Tempo SYNC','Textures',"MPC's preset menu"]):
-    if k: d.text((x,y),'\u00b7',font=fR(22),fill=DIM,anchor='ls'); x+=d.textlength('\u00b7',font=fR(22))+14
-    d.text((x,y),word,font=fS(22),fill=(222,214,198),anchor='ls'); x+=d.textlength(word,font=fS(22))+14
-im.save(os.path.join(OUTD,'banner.png'))
+for row,words in enumerate((['Grains','Freeze','Bend','Shimmer'],['Motion','Age','Room','Presets that survive updates'])):
+    x=76; y=500+row*40
+    for k,word in enumerate(words):
+        if k: d.text((x,y),'\u00b7',font=fR(22),fill=DIM,anchor='ls'); x+=d.textlength('\u00b7',font=fR(22))+12
+        d.text((x,y),word,font=fS(22),fill=(222,214,198),anchor='ls'); x+=d.textlength(word,font=fS(22))+12
+im.convert('RGB').save(os.path.join(OUTD,'banner.png'))
 
 # 3. Impulse: the IR painting, large, with the glow
 im=vignette(bg(0.75),0.5).convert('RGBA')

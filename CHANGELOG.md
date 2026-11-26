@@ -1,5 +1,80 @@
 # Changelog
 
+## 1.5.0
+
+The biggest update yet: an on-screen keyboard, FREEZE and END SYNC, a ROOM page, and SCAN, which reads the reverb's
+last seconds back as a moving pad (PAD) or turns Liminal Hz into a granular reverb (GRAINS). All new parameters come
+after the existing ones: projects from 1.4 open unchanged (Q-Link 15 is now Bend; it was Reverse).
+
+### New
+- **A keyboard on the MPC's screen** for My Presets. **SAVE** opens it with a name from the IR (keep it or type your
+  own); the new **RENAME** button opens it on the selected preset's name. Graphite and amber, each key lights as you
+  tap it. Letters, digits, `-` and `'` (SHIFT: `_` and `&`), automatic capitals, SHIFT for abc / Abc / ABC, DEL, CLEAR,
+  SPACE, CANCEL; up to 32 characters. A name already used: SAVE asks, a second SAVE within 4 s replaces it. The phone
+  page (NAME ON PHONE) still works.
+- **FREEZE** (lower right): holds the reverb as it sounds as a steady pad until you let go: its spectrum from the last
+  ~0.4 s, played with fresh random phases (no loop, no seam). While frozen, new playing isn't fed to the reverb; the
+  tone, width, Duck, Mix and Output still shape the pad. Let go: it fades over ~2 s. Not saved in presets or projects.
+- **END SYNC** (lower right): End in note values at the project tempo (1/32 to 4 bars, dotted and triplets): a gated
+  reverb on the grid. A tempo change prepares the IR again. The lower-right corner is now FREEZE, REVERSE, END SYNC,
+  LONG IR.
+- **SHAPE / ROOM / SCAN tabs** at the top right switch the knob row. The tab is only a view (not saved).
+- **ROOM: Distance and Damping.** Distance (50% = as recorded): nearer brings the early reflections up and the tail
+  down, further the reverse, darker; the level stays matched. Damping: the highs die away faster the longer the IR
+  rings. Both reshape the IR off the audio thread (no CPU while playing).
+- **ROOM: Bend and Shimmer.** Bend (-12..+12 semitones) pitches the reverb as it plays, the ringing tail included,
+  gliding as you turn it (a delay-line pitch shifter on the wet; the dry is never pitched; at 0 it's out of the path):
+  a pitch wheel for the reverb on Q-Link 15. Shimmer (0-100%) feeds the reverb back into itself an octave up, filtered
+  and held by Feedback's guard, so it climbs and still dies away when the playing stops.
+- **ROOM: Motion and Age.** Motion (0-100%): a slow three-voice chorus on the reverb, the tail drifts and widens.
+  Age (0-100%): a tape's wear on the reverb: wow and flutter, soft saturation, the top closing from 18 kHz to 4.5 kHz.
+  At 0 both are out of the path.
+- **SCAN** (the third tab), switched on with its **SCAN** tile. Drag across the painting to move **Position** (the glow
+  under it shows where SCAN reads, from just behind now to the IR's length back). Two modes:
+  - **PAD**: the reverb's last seconds read back as a smooth moving pad (Freeze's spectral method). **Texture**:
+    smear -> shimmer (an octave and a fifth above) -> wind (blurred, drifting bands).
+  - **GRAINS** (its tile): grains of what you play, sent into the IR, so every grain rings in the space: a granular
+    reverb. **Size** (30-500 ms), **Spray** (how far grains land from Position, up to +-1 s), **Density** (sparse
+    droplets to a smooth cloud), **Direct** (how much of the grains skips the reverb: their edges and gaps stay),
+    **Air** (the lush part: detuned, wider grains; then some backwards and an octave up, a brighter top; above 50% the
+    cloud feeds back into itself and builds into a shimmer).
+  - Switching **GRAINS** on while SCAN is off turns SCAN on with it; switched off again, it takes SCAN with it
+    (unless you've tapped SCAN since).
+  - **Sync** (its tile): grains on the project's tempo; Density becomes a note value (1 bar .. 1/32, with triplets),
+    and while the transport plays every grain starts on that grid, from MPC's song position, through loops and jumps.
+  - **Pitch** (both modes, -24..+24 semitones): glides as you turn it, grains already playing bend with it; the
+    **Snap** tile puts it on whole semitones. **Amount**: how much of the reverb SCAN takes over.
+  - While GRAINS plays, the strip under the painting draws **one amber stripe per grain**, where it is reading: still
+    at Pitch 0, gliding when pitched, gone when the grain fades.
+  - SCAN's knobs are saved in presets and projects; SCAN itself is a switch (a project opens with it off). Off, the
+    reverb is bit-identical to 1.4.
+- 97 new parameters, all after the existing ones (161 in all).
+- **Q-Link 15 is Bend** (it was Reverse, an on/off switch that did little on a knob; Reverse stays on the page).
+
+### Changed
+- **Your presets and downloads survive updates.** My Presets and TONE3000 downloads are kept in a folder of their own,
+  `Liminal Hz` at the top of the drive the plugin is on (`Liminal Hz/presets`, `Liminal Hz/reverbs`), no longer inside
+  the plugin's folder, which an update replaces. On its first start 1.5 moves the presets and IRs it finds in its own
+  folder there (a name already there stays where it was, still found).
+- The sonics line ("decay 1.4 s · warm ...") sits beside the tabs on SHAPE and ROOM; SCAN's tiles take its place on the
+  SCAN tab.
+- The skin's largest picture is gone (a 32 MB transparent strip, now 2 small frames), and the build checks that no
+  page's art is drawn over the painting.
+- **MPC Sample (Knob FX)**: the 3.10.1 folder's `plugin.json` now maps the MPC Sample's knobs, as Akai's SDK asks of
+  every effect: **Preset**, **Length**, **Mix**; with SHIFT **Pre-delay**, **Low Cut**, **High Cut**. Not tried on an
+  MPC Sample yet.
+- Akai's SDK checks pass again (`validate.py`: no errors or warnings; `host_sim test`: all checks): a SCAN / GRAINS /
+  SNAP / SYNC tile written twice at once flips once (the simulator's repeat write flipped it back); a project closes the
+  PRESET list's flag with the list; a tail that has died away comes out as exact zeros.
+
+### Docs
+- The 1.5 user manual (`docs/Liminal-Hz-1.5-User-Manual.pdf`) covers all of the above; the 1.4 manual is replaced.
+
+### Tested
+- On a Force (Gen 1) and an MPC Live III (Gen 2), MPC OS 3.10.1, over seven test builds. Offline: engine and plugin
+  tests (also under ASan, TSan and on armv7 / aarch64 under qemu), including grain timing on the host's grid, level
+  matching, the keyboard, tabs, presets and projects.
+
 ## 1.4.1
 
 ### New

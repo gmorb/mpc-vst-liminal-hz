@@ -125,6 +125,34 @@ int main() {
     CHECK(lib.size() == 1 && lib[0].display == "Fender/Deluxe", "after: %zu model(s)", lib.size());
     fs::remove_all(t);
   }
+  // Your files outside the plugin's folder (1.5): data_dir() is "<drive>/Liminal Hz", and the files earlier versions
+  // kept in the plugin's own presets/ and reverbs/ move there once. (The plugin's folder is this test's own: vst/.test;
+  // with the media root two levels up, its "drive" is vst/.)
+  {
+    const fs::path own = Library::plugin_dir(), drive = own.parent_path(), data = drive / "Liminal Hz";
+    fs::remove_all(data); fs::remove_all(own / "presets"); fs::remove_all(own / "reverbs");
+    setenv("MPCNAM_MEDIA", drive.parent_path().c_str(), 1);
+    CHECK(Library::data_dir() == data.string() && fs::is_directory(data), "data_dir: [%s], made", Library::data_dir().c_str());
+    touch(own / "presets/Hall.lhzp"); touch(own / "presets/Room.lhzp"); touch(own / "presets/README.txt");
+    touch(own / "reverbs/TONE3000/Plate/plate.wav"); touch(own / "reverbs/Mine.wav");
+    touch(data / "presets/Room.lhzp");                                       // one already there: left where it was
+    const int moved = Library::migrate_user_files();
+    CHECK(moved == 3 && fs::exists(data / "presets/Hall.lhzp") && fs::exists(data / "reverbs/TONE3000/Plate/plate.wav") &&
+          fs::exists(data / "reverbs/Mine.wav") && !fs::exists(own / "presets/Hall.lhzp") && fs::exists(own / "presets/Room.lhzp") &&
+          fs::exists(own / "presets/README.txt") && !fs::exists(data / "presets/README.txt"),
+          "the old presets and IRs move to it (%d), a name already there and the READMEs stay", moved);
+    CHECK(Library::migrate_user_files() == 0, "a second start moves nothing");
+    auto lib = Library::scan("reverbs", ".wav");
+    bool found = false; for (auto& e : lib) found = found || e.file == "plate.wav";
+    CHECK(found, "the moved TONE3000 download is still found (%zu IRs)", lib.size());
+    setenv("MPCNAM_DATA", "/tmp/elsewhere", 1);
+    CHECK(Library::data_dir() == "/tmp/elsewhere", "MPCNAM_DATA overrides it");
+    unsetenv("MPCNAM_DATA");
+    setenv("MPCNAM_MEDIA", "/nonexistent-media", 1);
+    CHECK(Library::data_dir() == own.string(), "not under the media root: the plugin's own folder, as before");
+    fs::remove_all(data); fs::remove_all(own / "presets"); fs::remove_all(own / "reverbs");
+    fs::remove(own / ".reverbs-index");
+  }
   fs::remove_all(m);
   printf("%s (%d failure%s)\n", fails ? "FAILED" : "PASSED", fails, fails == 1 ? "" : "s");
   return fails ? 1 : 0;

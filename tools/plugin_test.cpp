@@ -9,6 +9,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <random>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -36,20 +37,24 @@ enum { P_MIX, P_PREDELAY, P_LOWCUT, P_HIGHCUT, P_WIDTH, P_LENGTH, P_OUTPUT, P_IR
        P_WAVE0, P_PLAYHEAD = P_WAVE0 + kCols, P_SOURCE, P_PRESET, P_SONICS,
        P_MP_INFO, P_MP_SAVE, P_MP_DELETE, P_MP_PHONE, P_MENU, P_IR_LIST, P_MP_LIST, P_MENU_CLOSE, P_MENU_PREV, P_MENU_NEXT,
        P_MENU_TITLE, P_ROW1, P_ROW6 = P_ROW1 + 5, P_DECAY, P_LONG_IR, P_LONG_IR_TAP, P_LONG_IR_INFO, P_DUCK, P_PREDELAY_SYNC,
-       P_PRESET_OPEN, P_TOTAL };
+       P_PRESET_OPEN, P_MP_RENAME, P_KB, P_KB_TITLE, P_KB_NAME, P_KB_INFO, P_KB_KEY1, P_KB_CLEAR = P_KB_KEY1 + 40, P_KB_SPACE,
+       P_KB_CANCEL, P_KB_OK, P_LENGTH_SYNC, P_FREEZE, P_DAMPING, P_DISTANCE, P_TAB, P_PG_SHAPE, P_PG_ROOM, P_PG_SCAN, P_TABS1, P_SCAN = P_TABS1 + 3, P_SCAN_POS, P_SCAN_TEX, P_SCAN_MIX,
+       P_SCAN_MODE, P_SCAN_PITCH, P_GRAIN_SIZE, P_GRAIN_SPRAY, P_GRAIN_DENSITY, P_PG_SCAN_PAD, P_PG_SCAN_GRAINS, P_GRAIN_DIRECT,
+       P_GRAIN_AIR, P_PITCH_SNAP, P_SW1, P_SPARK0 = P_SW1 + 4, P_PG_INFO = P_SPARK0 + 12, P_GRAIN_SYNC, P_BEND, P_SHIMMER, P_MOTION, P_AGE, P_TOTAL };
 static const int kPresets = 19;                 // factory presets after Init (PRESET's options: Init + 19)
 static int fails = 0;
 #define CHECK(c, ...) do { printf("%s ", (c) ? "ok  " : "FAIL"); printf(__VA_ARGS__); printf("\n"); if (!(c)) fails++; } while (0)
 static AEffect* (*entry)(hostcb);
 static std::atomic<int> n_update{0}, n_automate{0};   // the host calls a plugin makes (UpdateDisplay, Automate)
+static std::atomic<bool> echo_automate{false};         // as MPC: an Automate is written back with setParameter at once
 struct VstTimeInfo {
   double samplePos, sampleRate, nanoSeconds, ppqPos, tempo, barStartPos, cycleStartPos, cycleEndPos;
   int32_t timeSigNumerator, timeSigDenominator, smpteOffset, smpteFrameRate, samplesToNextClock, flags;
 };
 static std::atomic<double> host_tempo{0};              // the project tempo the host gives (0: none, as no tempo valid)
-static intptr_t host(AEffect*, int32_t op, int32_t, intptr_t, void*, float) {
+static intptr_t host(AEffect* e, int32_t op, int32_t idx, intptr_t, void*, float opt) {
   if (op == 42) n_update++;
-  if (op == 0) n_automate++;
+  if (op == 0) { n_automate++; if (echo_automate && e) e->setP(e, idx, opt); }
   if (op == 7) {                                       // audioMasterGetTime
     static thread_local VstTimeInfo ti;
     ti = VstTimeInfo(); ti.sampleRate = 44100; ti.tempo = host_tempo; ti.flags = host_tempo > 0 ? (1 << 10) : 0;
@@ -264,7 +269,7 @@ int main(int argc, char** argv) {
       ui.join();
       // one redraw when the IR is ready within the hold (600 ms; a factory IR: ~30 ms on a PC, ~400 under qemu-arm)
       const int want = ready_ms >= 0 && ready_ms < 500 ? 1 : 2;
-      CHECK(set_ms < 5 && n_update >= 1 && n_update <= want && n_automate <= 32 && disp(pz, P_IR) == "Tape Corridor",
+      CHECK(set_ms < 5 && n_update >= 1 && n_update <= want && n_automate <= 40 && disp(pz, P_IR) == "Tape Corridor",
             "a preset pick: setParameter %.2f ms, %d UpdateDisplay (IR ready in %.0f ms), %d Automate, [%s]", set_ms, n_update.load(),
             ready_ms.load(), n_automate.load(), disp(pz, P_IR).c_str());
       n_update = 0;
@@ -359,6 +364,13 @@ int main(int argc, char** argv) {
     auto menu = [&](AEffect* x) { return (int)lroundf(x->getP(x, P_MENU) * 2); };
     auto title = [&](AEffect* x) { return disp(x, P_MENU_TITLE); };
     auto tap = [&](AEffect* x, int r) { x->setP(x, P_ROW1 + r, 1.0f); };
+    auto kb_on = [&] { return mp->getP(mp, P_KB) > 0.5f; };
+    auto kb_save = [&] {                       // SAVE opens the keyboard with a name from the IR; its SAVE keeps it
+      press(mp, P_MP_SAVE);
+      CHECK(kb_on() && disp(mp, P_KB_TITLE) == "Name the new preset", "SAVE opens the keyboard: [%s] [%s]", disp(mp, P_KB_TITLE).c_str(), disp(mp, P_KB_NAME).c_str());
+      press(mp, P_KB_OK);
+      wait_for([&] { return !kb_on(); }, 10);
+    };
     wait_for([&] { return info() != "Searching..."; }, 20);
     CHECK(menu(mp) == 0 && title(mp) == "" && row(mp, 0) == "" && disp(mp, P_PRESET) == "Init", "the list starts closed and empty: [%s]", title(mp).c_str());
     tap(mp, 0); mp->setP(mp, P_MENU, 1.0f); mp->setP(mp, P_MENU_NEXT, 1.0f);
@@ -371,12 +383,12 @@ int main(int argc, char** argv) {
     mp->setP(mp, P_PRESET, 3.0f / kPresets);                                  // Fluorescent Hall: mix 40%, pre-delay 30 ms
     wait_for([&] { return idle(mp) && disp(mp, P_IR) == "Fluorescent Hall"; }, 60);
     mp->setP(mp, P_MIX, 0.7f);
-    press(mp, P_MP_SAVE);
+    kb_save();
     wait_for([&] { return row(mp, 0) == "Fluorescent Hall"; }, 10);
     CHECK(row(mp, 0) == "Fluorescent Hall" && on(mp, 0) && info() == "Saved: Fluorescent Hall" && title(mp) == "Presets 1-1 of 1" &&
           disp(mp, P_PRESET) == "My: Fluorescent Hall" && fs::exists(pdir / "Fluorescent Hall.lhzp"),
           "SAVE: named from the IR, listed, the one in use, shown as the preset: [%s] [%s] [%s] [%s]", row(mp, 0).c_str(), info().c_str(), title(mp).c_str(), disp(mp, P_PRESET).c_str());
-    press(mp, P_MP_SAVE);
+    kb_save();
     wait_for([&] { return row(mp, 1) == "Fluorescent Hall 2"; }, 10);
     CHECK(row(mp, 1) == "Fluorescent Hall 2" && on(mp, 1) && !on(mp, 0) && fs::exists(pdir / "Fluorescent Hall 2.lhzp") && title(mp) == "Presets 1-2 of 2",
           "a second SAVE gets a free name: [%s] [%s]", row(mp, 1).c_str(), title(mp).c_str());
@@ -443,7 +455,7 @@ int main(int argc, char** argv) {
     press(mp, P_MENU_CLOSE);
     CHECK(menu(mp) == 0 && title(mp) == "" && row(mp, 0) == "", "CLOSE");
     press(mp, P_MP_LIST);
-    press(mp, P_MP_SAVE);
+    kb_save();
     wait_for([&] { return row(mp, 0) == "Big Hall" && on(mp, 0); }, 10);
     CHECK(row(mp, 0) == "Big Hall" && row(mp, 1) == "Fluorescent Hall" && row(mp, 2) == "Fluorescent Hall 2" && on(mp, 0) && fs::exists(pdir / "Big Hall.lhzp"),
           "a preset on a My IRs file, listed by name: [%s] [%s] [%s]", row(mp, 0).c_str(), row(mp, 1).c_str(), row(mp, 2).c_str());
@@ -533,6 +545,107 @@ int main(int argc, char** argv) {
     curl("--data-urlencode 'name=Phone Preset' " + base + "/presets/delete");
     wait_for([&] { return !fs::exists(pdir / "Phone Preset.lhzp"); }, 10);
     CHECK(!fs::exists(pdir / "Phone Preset.lhzp"), "Delete on the phone");
+    { // the keyboard: SAVE and RENAME name a preset on the MPC's screen
+      const char* K = "1234567890qwertyuiopasdfghjkl-?zxcvbnm'?";
+      auto key = [&](char c) { return c == ' ' ? (int)P_KB_SPACE : P_KB_KEY1 + (int)(strchr(K, tolower(c)) - K); };
+      const int SHIFT = P_KB_KEY1 + 30, DEL = P_KB_KEY1 + 39;
+      auto tapk = [&](int i) { mp->setP(mp, i, 1.0f); play_paced(mp, 0.2); };   // a tap, then its flash runs out
+      auto type = [&](const std::string& t) { for (char c : t) tapk(key(c)); };
+      auto name = [&] { return disp(mp, P_KB_NAME); };
+      auto kinfo = [&] { return disp(mp, P_KB_INFO); };
+      press(mp, P_MP_LIST);
+      const std::string before = disp(mp, P_PRESET);
+      press(mp, P_MP_SAVE);
+      CHECK(kb_on() && disp(mp, P_KB_TITLE) == "Name the new preset" && name() == "Big Hall|" && disp(mp, P_KB_OK) == "SAVE" &&
+            disp(mp, key('q')) == "q" && disp(mp, SHIFT) == "abc" && disp(mp, DEL) == "DEL" && disp(mp, P_KB_SPACE) == "space",
+            "SAVE: the keyboard, the IR's name to start from: [%s] [%s] [%s]", disp(mp, P_KB_TITLE).c_str(), name().c_str(), disp(mp, SHIFT).c_str());
+      CHECK(disp(mp, P_PG_SHAPE) == "Off" && disp(mp, P_PG_ROOM) == "Off" && disp(mp, P_PG_SCAN) == "Off", "the keyboard covers the knob row too (no page on)");
+      tap(mp, 0);
+      CHECK(disp(mp, P_PRESET) == before && kb_on(), "while it's open, a list row loads nothing: [%s]", disp(mp, P_PRESET).c_str());
+      press(mp, P_MP_DELETE); press(mp, P_MP_RENAME);
+      CHECK(kb_on() && info() != "Tap DELETE again to delete it permanently" && disp(mp, P_KB_TITLE) == "Name the new preset", "nor do DELETE and RENAME");
+      tapk(P_KB_CLEAR);
+      CHECK(name() == "|" && disp(mp, SHIFT) == "Abc" && disp(mp, key('a')) == "A", "CLEAR: empty, and the first letter a capital: [%s] [%s]", name().c_str(), disp(mp, SHIFT).c_str());
+      type("night bus");
+      CHECK(name() == "Night Bus|" && kinfo() == "9 of 32 characters \xC2\xB7 SAVE keeps it", "typed, each word a capital: [%s] [%s]", name().c_str(), kinfo().c_str());
+      // a tap lights its key; the plugin turns it off again and tells the host
+      const int x = key('2'), a0 = n_automate;
+      mp->setP(mp, x, 1.0f);
+      const bool lit = mp->getP(mp, x) > 0.5f;
+      play_paced(mp, 0.25);
+      CHECK(lit && mp->getP(mp, x) < 0.5f && n_automate > a0 && name() == "Night Bus2|", "a tapped key lights, then goes dark (reported): %d %d", lit, n_automate - a0);
+      mp->setP(mp, x, 1.0f); mp->setP(mp, x, 0.0f);       // one touch arriving twice: on, then off while lit
+      play_paced(mp, 0.2);
+      mp->setP(mp, x, 1.0f); mp->setP(mp, x, 1.0f);       // ...or twice at once
+      play_paced(mp, 0.2);
+      CHECK(name() == "Night Bus222|", "a touch MPC delivers twice types once: [%s]", name().c_str());
+      echo_automate = true;                               // MPC writes back what the plugin reports: never a tap
+      tapk(x); play_paced(mp, 0.2);
+      echo_automate = false;
+      CHECK(name() == "Night Bus2222|", "MPC writing back the key's state types nothing more: [%s]", name().c_str());
+      for (int k = 0; k < 4; k++) tapk(DEL);
+      CHECK(name() == "Night Bus|", "DEL: [%s]", name().c_str());
+      tapk(SHIFT);
+      CHECK(disp(mp, SHIFT) == "Abc" && mp->getP(mp, SHIFT) > 0.5f && disp(mp, key('a')) == "A", "SHIFT: the next letter a capital, and it stays lit");
+      tapk(SHIFT);
+      CHECK(disp(mp, SHIFT) == "ABC" && mp->getP(mp, SHIFT) > 0.5f && disp(mp, key('-')) == "_", "again: CAPS (and the symbols' others)");
+      tapk(SHIFT);
+      CHECK(disp(mp, SHIFT) == "abc" && mp->getP(mp, SHIFT) < 0.5f && disp(mp, key('a')) == "a", "again: lower case, dark");
+      tapk(P_KB_SPACE); tapk(P_KB_SPACE);
+      CHECK(name() == "Night Bus |" && disp(mp, SHIFT) == "Abc", "SPACE: one between words: [%s]", name().c_str());
+      tapk(DEL);
+      tapk(P_KB_CLEAR);
+      for (char c : std::string("qwertyuiopasdfghjklzxcvbnm1234567")) mp->setP(mp, key(c), 1.0f);   // 33 different keys, quickly
+      CHECK(disp(mp, P_KB_NAME).size() >= 2 && kinfo() == "A name can have up to 32 characters", "32 characters at most: [%s] [%s]", name().c_str(), kinfo().c_str());
+      play_paced(mp, 0.2);
+      tapk(P_KB_CLEAR);
+      tapk(P_KB_OK);
+      CHECK(kb_on() && kinfo() == "Type a name first", "SAVE with no name: [%s]", kinfo().c_str());
+      type("night bus");
+      mp->setP(mp, P_MIX, 0.42f);
+      tapk(P_KB_OK);
+      wait_for([&] { return !kb_on(); }, 10);
+      wait_for([&] { return disp(mp, P_PRESET) == "My: Night Bus"; }, 10);
+      CHECK(!kb_on() && fs::exists(pdir / "Night Bus.lhzp") && disp(mp, P_PRESET) == "My: Night Bus" && info() == "Saved: Night Bus" && menu(mp) == 2,
+            "its SAVE keeps the sound under the name, and closes: [%s] [%s]", disp(mp, P_PRESET).c_str(), info().c_str());
+      press(mp, P_MP_SAVE);
+      tapk(P_KB_CLEAR); type("night bus");
+      mp->setP(mp, P_MIX, 0.61f);
+      tapk(P_KB_OK);
+      wait_for([&] { return kinfo() != "Saving..."; }, 10);
+      CHECK(kb_on() && kinfo() == "That name is used: tap SAVE again to replace it", "a name in use: it asks: [%s]", kinfo().c_str());
+      tapk(P_KB_OK);
+      wait_for([&] { return !kb_on(); }, 10);
+      { std::ifstream f(pdir / "Night Bus.lhzp"); std::string t((std::istreambuf_iterator<char>(f)), {});
+        CHECK(!kb_on() && t.find("mix=61") != std::string::npos, "SAVE again replaces it"); }
+      press(mp, P_MP_RENAME);
+      CHECK(kb_on() && disp(mp, P_KB_TITLE) == "Rename Night Bus" && name() == "Night Bus|" && disp(mp, P_KB_OK) == "RENAME",
+            "RENAME: the selected preset's name: [%s] [%s]", disp(mp, P_KB_TITLE).c_str(), name().c_str());
+      for (int k = 0; k < 3; k++) tapk(DEL);
+      type("train");
+      tapk(P_KB_OK);
+      wait_for([&] { return !kb_on() && disp(mp, P_PRESET) == "My: Night Train"; }, 10);
+      CHECK(!kb_on() && fs::exists(pdir / "Night Train.lhzp") && !fs::exists(pdir / "Night Bus.lhzp") && disp(mp, P_PRESET) == "My: Night Train" &&
+            info() == "Renamed: Night Train", "its RENAME renames the file; still the one in use: [%s] [%s]", disp(mp, P_PRESET).c_str(), info().c_str());
+      press(mp, P_MP_RENAME);
+      tapk(P_KB_CLEAR); type("lost ir");
+      tapk(P_KB_OK);
+      wait_for([&] { return kinfo() != "Renaming..."; }, 10);
+      CHECK(kb_on() && kinfo() == "That name is already used" && fs::exists(pdir / "Night Train.lhzp"), "not onto another preset: [%s]", kinfo().c_str());
+      tapk(P_KB_CANCEL);
+      CHECK(!kb_on() && info() == "Not renamed" && fs::exists(pdir / "Night Train.lhzp"), "CANCEL: [%s]", info().c_str());
+      CHECK(disp(mp, P_PG_SHAPE) == "On" && mp->getP(mp, P_TABS1) == 1.0f, "closed: the tab's page is back");
+      mp->setP(mp, key('a'), 1.0f);
+      CHECK(!kb_on() && name() == "", "a key does nothing while the keyboard is closed");
+      press(mp, P_MP_SAVE);
+      press(mp, P_MENU_CLOSE);
+      CHECK(!kb_on() && menu(mp) == 0, "the list's CLOSE closes the keyboard too");
+      press(mp, P_MP_LIST); press(mp, P_MP_SAVE);
+      const std::string ch = chunk_of(mp);
+      CHECK(kb_on() && ch.find("kb") == std::string::npos, "the project keeps none of it");
+      mp->d(mp, 24, 0, (intptr_t)ch.size() + 1, (void*)ch.c_str(), 0);
+      CHECK(!kb_on(), "and a project opens with it closed");
+    }
     mp->d(mp, 1, 0, 0, nullptr, 0);
     fs::remove_all(pdir, ec);
   }
@@ -722,6 +835,228 @@ int main(int argc, char** argv) {
 #endif
     d->setP(d, P_MIX, 0.3f);
     wait_for([&] { return idle(d); }, 30);
+  }
+  {   // SHAPE / ROOM, Distance and Damping
+    AEffect* q = open_plugin();
+    wait_for([&] { return idle(q); });
+    q->setP(q, P_PRESET, 3.0f / kPresets);                      // Fluorescent Hall
+    wait_for([&] { return idle(q) && disp(q, P_IR) == "Fluorescent Hall"; }, 30);
+    auto pages = [&] { std::string r; for (int k = 0; k < 3; k++) r += q->getP(q, P_PG_SHAPE + k) > 0.5f ? '1' : '0';
+                       r += '/'; for (int k = 0; k < 3; k++) r += q->getP(q, P_TABS1 + k) > 0.5f ? '1' : '0'; return r; };
+    CHECK(disp(q, P_TAB) == "Shape" && pages() == "100/100" && disp(q, P_TABS1 + 1) == "ROOM" && disp(q, P_DISTANCE) == "50%" && disp(q, P_DAMPING) == "0%",
+          "opens on SHAPE (page and lit tab: %s); Distance 50%%, Damping 0%%", pages().c_str());
+    q->setP(q, P_TABS1 + 2, 1.0f);
+    CHECK(disp(q, P_TAB) == "Scan" && pages() == "001/001", "the SCAN tab: its page, and its tile lit (%s)", pages().c_str());
+    q->setP(q, P_TABS1 + 2, 0.0f);                              // tapped again (MPC switches the lit tile off): still SCAN
+    play_paced(q, 0.1);
+    CHECK(pages() == "001/001", "tapped again: still SCAN, lit (%s)", pages().c_str());
+    q->setP(q, P_TABS1 + 1, 1.0f); q->setP(q, P_TABS1 + 0, 0.0f); q->setP(q, P_TABS1 + 1, 0.0f);   // quick taps: the last one counts
+    play_paced(q, 0.1);
+    CHECK(disp(q, P_TAB) == "Room" && pages() == "010/010", "quick taps: the last tab (%s)", pages().c_str());
+    echo_automate = true;                                       // MPC writing back the plugin's lights changes nothing
+    q->setP(q, P_TABS1 + 2, 1.0f); play_paced(q, 0.2); q->setP(q, P_TABS1 + 1, 1.0f); play_paced(q, 0.2);
+    echo_automate = false;
+    CHECK(pages() == "010/010", "MPC's write-back of the tabs' lights: still ROOM (%s)", pages().c_str());
+    const std::string son0 = disp(q, P_SONICS);
+    q->setP(q, P_DAMPING, 1.0f);
+    wait_for([&] { return idle(q) && disp(q, P_SONICS) != son0; }, 30);
+    const std::string son1 = disp(q, P_SONICS);
+    CHECK(son1 != son0 && son1.find("airy") == std::string::npos, "DAMPING prepares the IR again, darker: [%s] -> [%s]", son0.c_str(), son1.c_str());
+    q->setP(q, P_DISTANCE, 0.0f);
+    wait_for([&] { return idle(q) && disp(q, P_SONICS) != son1; }, 30);
+    CHECK(disp(q, P_DISTANCE) == "0%" && disp(q, P_SONICS) != son1, "DISTANCE too: [%s]", disp(q, P_SONICS).c_str());
+    q->setP(q, P_SCAN, 1.0f); q->setP(q, P_SCAN_POS, 0.25f); q->setP(q, P_SCAN_TEX, 0.6f); q->setP(q, P_SCAN_MIX, 0.8f);
+    play_paced(q, 0.3);
+    CHECK(disp(q, P_SCAN) == "On" && disp(q, P_SCAN_POS) == "25%" && disp(q, P_SCAN_TEX) == "60%" && disp(q, P_SCAN_MIX) == "80%" &&
+          disp(q, P_PLAYHEAD) == std::to_string(1 + (int)std::lround(0.25 * 23)), "SCAN on: Position, Texture, Amount; the glow at the position [%s]", disp(q, P_PLAYHEAD).c_str());
+    const std::string st = chunk_of(q);
+    CHECK(st.find("\nscan_pos=25\n") != std::string::npos && st.find("\nscan_tex=60\n") != std::string::npos &&
+          st.find("\nscan_mix=80\n") != std::string::npos && st.find("\nscan=") == std::string::npos,
+          "the project keeps SCAN's knobs, not the switch");
+    CHECK(st.find("\ndamping=100\n") != std::string::npos && st.find("\ndistance=0\n") != std::string::npos && st.find("tab=") == std::string::npos &&
+          st.find("rpage") == std::string::npos, "the project keeps Distance and Damping, not the tab");
+    AEffect* r = open_plugin();
+    r->d(r, 24, 0, (intptr_t)st.size() + 1, (void*)st.c_str(), 0);
+    wait_for([&] { return idle(r); }, 30);
+    CHECK(disp(r, P_DAMPING) == "100%" && disp(r, P_DISTANCE) == "0%" && disp(r, P_TAB) == "Shape" && disp(r, P_SCAN_TEX) == "60%" &&
+          disp(r, P_SCAN) == "Off", "...and gives them back (on SHAPE, not scanning)");
+    r->d(r, 1, 0, 0, nullptr, 0);
+    q->setP(q, P_PRESET, 2.0f / kPresets);
+    wait_for([&] { return idle(q); }, 30);
+    CHECK(disp(q, P_DAMPING) == "0%" && disp(q, P_DISTANCE) == "50%" && disp(q, P_TAB) == "Room" && disp(q, P_SCAN_TEX) == "0%" &&
+          disp(q, P_SCAN_MIX) == "100%" && disp(q, P_SCAN) == "On", "a factory preset: as recorded (the tab and the SCAN switch stay)");
+    {                                                           // SCAN's modes: PAD's knobs or GRAINS', PITCH in both
+      auto modes = [&] { return std::string(q->getP(q, P_PG_SCAN_PAD) > 0.5f ? "P" : "-") + (q->getP(q, P_PG_SCAN_GRAINS) > 0.5f ? "G" : "-"); };
+      CHECK(modes() == "--", "on ROOM: neither of SCAN's mode pages (%s)", modes().c_str());
+      q->setP(q, P_TABS1 + 2, 1.0f); play_paced(q, 0.1);
+      CHECK(modes() == "P-" && disp(q, P_SCAN_MODE) == "Off", "the SCAN tab: PAD's knobs (%s)", modes().c_str());
+      q->setP(q, P_SCAN_MODE, 1.0f); play_paced(q, 0.1);
+      CHECK(modes() == "-G" && disp(q, P_SCAN_MODE) == "On", "GRAINS: its knobs instead (%s)", modes().c_str());
+      q->setP(q, P_SCAN_PITCH, 31.4f / 48.0f); q->setP(q, P_GRAIN_SIZE, 0.0f); q->setP(q, P_GRAIN_SPRAY, 0.5f); q->setP(q, P_GRAIN_DENSITY, 0.9f); q->setP(q, P_GRAIN_DIRECT, 0.4f);
+      play_paced(q, 0.3);
+      CHECK(disp(q, P_SCAN_PITCH) == "+7.4 st" && disp(q, P_GRAIN_SIZE) == "30 ms" && disp(q, P_GRAIN_SPRAY) == "50%" && disp(q, P_GRAIN_DENSITY) == "90%",
+            "PITCH: any value (tenths shown) [%s], SIZE in ms [%s]", disp(q, P_SCAN_PITCH).c_str(), disp(q, P_GRAIN_SIZE).c_str());
+      auto lit = [&](int t) { return q->getP(q, P_SW1 + t) > 0.5f; };
+      CHECK(q->getP(q, P_PG_INFO) < 0.5f, "the SCAN tab: the sonics line hidden (its tiles are there)");
+      q->setP(q, P_TABS1, 1.0f); play_paced(q, 0.1);
+      CHECK(q->getP(q, P_PG_INFO) > 0.5f, "SHAPE: the sonics line back");
+      q->setP(q, P_TABS1 + 2, 1.0f); play_paced(q, 0.1);
+      CHECK(disp(q, P_SW1) == "SCAN" && disp(q, P_SW1 + 1) == "GRAINS" && disp(q, P_SW1 + 2) == "SNAP" && disp(q, P_SW1 + 3) == "SYNC" &&
+            lit(1) && !lit(2) && !lit(3), "the switch tiles: SCAN / GRAINS / SNAP / SYNC, GRAINS lit, SNAP and SYNC not");
+      q->setP(q, P_SW1 + 3, 1.0f); play_paced(q, 0.1);
+      const std::string n90 = disp(q, P_GRAIN_DENSITY);
+      q->setP(q, P_GRAIN_DENSITY, 0.4f); play_paced(q, 0.1);
+      const std::string n40 = disp(q, P_GRAIN_DENSITY);
+      CHECK(lit(3) && n90 == "1/32" && n40 == "1/8", "SYNC's tile: DENSITY becomes a note value [%s at 90%%, %s at 40%%]", n90.c_str(), n40.c_str());
+      q->setP(q, P_SW1 + 3, 1.0f); play_paced(q, 0.1);
+      CHECK(!lit(3) && disp(q, P_GRAIN_DENSITY) == "40%", "SYNC off: DENSITY in %% again [%s]", disp(q, P_GRAIN_DENSITY).c_str());
+      q->setP(q, P_GRAIN_DENSITY, 0.9f); play_paced(q, 0.05);
+      q->setP(q, P_SW1 + 2, 1.0f); play_paced(q, 0.1);
+      CHECK(lit(2) && disp(q, P_PITCH_SNAP) == "On" && disp(q, P_SCAN_PITCH) == "+7 st", "SNAP's tile: on, PITCH in whole semitones [%s]", disp(q, P_SCAN_PITCH).c_str());
+      q->setP(q, P_SW1 + 2, 1.0f); play_paced(q, 0.1);
+      CHECK(!lit(2) && disp(q, P_SCAN_PITCH) == "+7.4 st", "a second tap: SNAP off again [%s]", disp(q, P_SCAN_PITCH).c_str());
+      q->setP(q, P_SW1 + 2, 1.0f); q->setP(q, P_SW1 + 2, 1.0f); const bool twice = lit(2); play_paced(q, 0.1);
+      CHECK(twice && lit(2), "one tap written twice at once (a host's repeat): one flip, SNAP on");   // (SDK host_sim's sweep)
+      q->setP(q, P_SW1 + 2, 0.0f); play_paced(q, 0.1);
+      CHECK(!lit(2), "the next tap (any value): SNAP off");
+      {                                                        // GRAINS on while SCAN is off: SCAN comes on with it
+        const bool scan0 = lit(0);
+        auto tap = [&](int t) { q->setP(q, P_SW1 + t, 1.0f); play_paced(q, 0.1); };
+        if (scan0) tap(0);
+        tap(1);                                                  // GRAINS off (SCAN stays off)
+        CHECK(!lit(0) && !lit(1), "GRAINS off, SCAN off");
+        tap(1);
+        CHECK(lit(1) && lit(0) && q->getP(q, P_SCAN) > 0.5f, "GRAINS on with SCAN off: SCAN comes on too");
+        tap(1);
+        CHECK(!lit(1) && !lit(0), "GRAINS off again: the SCAN it brought goes off too (not over to PAD)");
+        tap(1); tap(0); tap(0);                                  // GRAINS brings SCAN; SCAN tapped off and on: it's yours
+        tap(1);
+        CHECK(!lit(1) && lit(0), "SCAN tapped since: GRAINS off leaves SCAN on (PAD)");
+        tap(1);
+        CHECK(lit(1) && lit(0), "GRAINS on again, SCAN on");
+        if (!scan0) tap(0);
+        CHECK(lit(0) == scan0 && lit(1), "back as it was");
+      }
+      auto sparks = [&] { int g = 0; for (int c = 0; c < 12; c++) g += (int)lroundf(q->getP(q, P_SPARK0 + c) * 23) % 8 ? 1 : 0; return g; };
+      const bool was = q->getP(q, P_SCAN) > 0.5f;
+      if (!was) { q->setP(q, P_SW1, 1.0f); }
+      auto play_tone = [&](double secs) {                      // a 220 Hz tone, at MPC's pace
+        std::vector<float> l(128), r(128), ol(128), orr(128); static long t = 0;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (long b = 0; b < (long)(secs * 44100 / 128); b++) {
+          std::this_thread::sleep_until(t0 + std::chrono::microseconds((long long)(b * 128 * 1e6 / 44100)));
+          for (int i = 0; i < 128; i++, t++) l[i] = r[i] = 0.2f * (float)std::sin(2 * M_PI * 220 * t / 44100.0);
+          float* in[2] = {l.data(), r.data()}; float* out[2] = {ol.data(), orr.data()};
+          q->pr(q, in, out, 128);
+        }
+      };
+      play_tone(0.8);
+      const int on_cols = sparks();
+      CHECK(q->getP(q, P_SCAN) > 0.5f && lit(0) && on_cols > 0, "SCAN's tile on, GRAINS playing a tone: streaks under the painting (%d columns)", on_cols);
+      play_paced(q, 6.5);                                       // silence: the grains read silence after the ring's 6 s
+      CHECK(sparks() == 0, "the sound stopped: the streaks go too (%d columns)", sparks());
+      play_tone(0.8);
+      q->setP(q, P_SW1, 1.0f); play_paced(q, 0.4);
+      CHECK(q->getP(q, P_SCAN) < 0.5f && !lit(0) && sparks() == 0, "SCAN's tile again: off, no streaks (%d)", sparks());
+      if (was) { q->setP(q, P_SW1, 1.0f); play_paced(q, 0.1); }
+      q->setP(q, P_GRAIN_AIR, 0.35f); play_paced(q, 0.1);
+      q->setP(q, P_SCAN_PITCH, 0.5f); q->setP(q, P_GRAIN_SIZE, 1.0f); play_paced(q, 0.1);
+      CHECK(disp(q, P_SCAN_PITCH) == "0 st" && disp(q, P_GRAIN_SIZE) == "500 ms", "PITCH centre [%s], SIZE full [%s]", disp(q, P_SCAN_PITCH).c_str(), disp(q, P_GRAIN_SIZE).c_str());
+      q->setP(q, P_SCAN_PITCH, 0.0f); play_paced(q, 0.1);
+      const std::string gs = chunk_of(q);
+      CHECK(gs.find("\nscan_mode=1\n") != std::string::npos && gs.find("\nscan_pitch=-24\n") != std::string::npos &&
+            gs.find("\ngrain_size=500\n") != std::string::npos && gs.find("\ngrain_density=90\n") != std::string::npos && gs.find("\ngrain_direct=40\n") != std::string::npos &&
+            gs.find("\ngrain_air=35\n") != std::string::npos && gs.find("\npitch_snap=0\n") != std::string::npos && gs.find("\ngrain_sync=0\n") != std::string::npos &&
+            gs.find("pg_scan") == std::string::npos && gs.find("sw_") == std::string::npos && gs.find("spark_") == std::string::npos, "the project keeps the mode and its knobs, not the pages");
+      q->setP(q, P_MP_SAVE, 1.0f); play_paced(q, 0.2);
+      const std::string under = modes();
+      q->setP(q, P_KB_CANCEL, 1.0f); play_paced(q, 0.2);
+      CHECK(under == "--" && modes() == "-G", "the keyboard covers both mode pages (%s), CANCEL brings GRAINS back (%s)", under.c_str(), modes().c_str());
+      q->setP(q, P_PRESET, 2.0f / kPresets);
+      wait_for([&] { return idle(q); }, 30);
+      CHECK(disp(q, P_SCAN_MODE) == "Off" && disp(q, P_SCAN_PITCH) == "0 st" && disp(q, P_GRAIN_SIZE) == "150 ms" && disp(q, P_GRAIN_DIRECT) == "0%" && disp(q, P_GRAIN_AIR) == "0%" && modes() == "P-",
+            "a factory preset: PAD, PITCH 0, the grain knobs at their defaults (%s)", modes().c_str());
+    }
+    q->setP(q, P_DAMPING, 0.4f); q->setP(q, P_PRESET, 0.0f);   // Init
+    wait_for([&] { return idle(q); }, 30);
+    CHECK(disp(q, P_DAMPING) == "0%" && disp(q, P_DISTANCE) == "50%", "Init: as recorded");
+    q->d(q, 1, 0, 0, nullptr, 0);
+  }
+  {   // END SYNC and FREEZE
+    AEffect* q = open_plugin();
+    wait_for([&] { return idle(q); });
+    q->setP(q, P_PRESET, 1.0f / kPresets);                      // Empty Mall
+    wait_for([&] { return idle(q) && disp(q, P_IR) == "Empty Mall"; }, 30);
+    q->setP(q, P_MIX, 1.0f); q->setP(q, P_PREDELAY, 0.0f);
+    std::vector<float> l(128), ol(128), orr(128);
+    auto block = [&](float level, std::mt19937* g) {            // one block at MPC's pace; returns its output's rms
+      std::normal_distribution<float> nd(0, 1);
+      for (int i = 0; i < 128; i++) l[i] = g ? level * nd(*g) : 0.0f;
+      float* in[2] = {l.data(), l.data()}; float* out[2] = {ol.data(), orr.data()};
+      q->pr(q, in, out, 128);
+      std::this_thread::sleep_for(std::chrono::microseconds(2900));
+      double e = 0; for (int i = 0; i < 128; i++) e += (double)ol[i] * ol[i] + (double)orr[i] * orr[i];
+      return std::sqrt(e / 256);
+    };
+    auto tail_end = [&] {                                       // a click: how long until its reverb is over (samples)
+      for (int b = 0; b < 2400; b++) block(0, nullptr);
+      long last = -1;
+      for (long b = 0; b < (long)(3.0 * 44100 / 128); b++) {
+        std::fill(l.begin(), l.end(), 0.0f); if (b == 0) l[0] = 1.0f;
+        float* in[2] = {l.data(), l.data()}; float* out[2] = {ol.data(), orr.data()};
+        q->pr(q, in, out, 128);
+        std::this_thread::sleep_for(std::chrono::microseconds(2900));
+        for (int i = 0; i < 128; i++) if (std::fabs(ol[i]) > 1e-6f || std::fabs(orr[i]) > 1e-6f) last = b * 128 + i;
+      }
+      return last;
+    };
+    const long whole = tail_end();
+    host_tempo = 120;
+    q->setP(q, P_LENGTH_SYNC, 1.0f);
+    q->setP(q, P_LENGTH, 4.0f / 14);                            // 1/8
+    play_paced(q, 0.6); wait_for([&] { return idle(q); }, 10);
+    const long e120 = tail_end();
+    const std::string n8 = disp(q, P_LENGTH);
+    host_tempo = 60;
+    play_paced(q, 0.6); wait_for([&] { return idle(q); }, 10);
+    const long e60 = tail_end();
+    CHECK(n8 == "1/8" && whole > 44100 && e120 > 9000 && e120 <= 11025 + 700 && e60 > 2 * 9000 && e60 <= 22050 + 700,
+          "END SYNC [%s]: the reverb ends after %ld samples at 120 BPM (250 ms, and the filters ring out), %ld at 60 (500 ms); unsynced %ld",
+          n8.c_str(), e120, e60, whole);
+    q->setP(q, P_LENGTH, 1.0f);
+    CHECK(disp(q, P_LENGTH) == "4 bars", "END's top: [%s]", disp(q, P_LENGTH).c_str());
+    std::string st = chunk_of(q);
+    CHECK(st.find("\nlength_sync=1\n") != std::string::npos, "END SYNC is saved in the project");
+    q->setP(q, P_PRESET, 2.0f / kPresets);
+    wait_for([&] { return idle(q); }, 30);
+    CHECK(disp(q, P_LENGTH_SYNC) == "Off" && disp(q, P_LENGTH).find('%') != std::string::npos, "a factory preset: END SYNC off [%s]", disp(q, P_LENGTH).c_str());
+    host_tempo = 0;
+    q->setP(q, P_PRESET, 1.0f / kPresets);
+    wait_for([&] { return idle(q) && disp(q, P_IR) == "Empty Mall"; }, 30);
+    q->setP(q, P_MIX, 1.0f);
+    // FREEZE: noise, frozen, then silence: the reverb stays
+    std::mt19937 g(5);
+    for (int b = 0; b < 344; b++) block(0.2f, &g);              // 1 s of noise
+    double before = 0; for (int b = 0; b < 8; b++) before += block(0.2f, &g) / 8;
+    q->setP(q, P_FREEZE, 1.0f);
+    for (int b = 0; b < 344; b++) block(0, nullptr);
+    double held = 0; for (int b = 0; b < 344; b++) held += block(0, nullptr) / 344;
+    for (int b = 0; b < 344 * 3; b++) block(0, nullptr);
+    double later = 0; for (int b = 0; b < 344; b++) later += block(0, nullptr) / 344;
+    CHECK(disp(q, P_FREEZE) == "On" && held > 0.5 * before && held < 2 * before && std::fabs(20 * std::log10(later / held)) < 1.0,
+          "FREEZE: the reverb held (%.1f dB of it before; %+.2f dB 3 s later)", 20 * std::log10(held / before), 20 * std::log10(later / held));
+    q->setP(q, P_PRESET, 2.0f / kPresets);
+    wait_for([&] { return idle(q); }, 30);
+    CHECK(disp(q, P_FREEZE) == "On", "a preset doesn't let go of FREEZE (it's a switch, not a setting)");
+    st = chunk_of(q);
+    CHECK(st.find("freeze") == std::string::npos, "FREEZE isn't saved in the project");
+    q->d(q, 24, 0, (intptr_t)st.size() + 1, (void*)st.c_str(), 0);
+    CHECK(disp(q, P_FREEZE) == "Off", "a project opens unfrozen");
+    q->setP(q, P_FREEZE, 0.0f);
+    for (int b = 0; b < 344 * 3; b++) block(0, nullptr);
+    double gone = 0; for (int b = 0; b < 100; b++) gone += block(0, nullptr) / 100;
+    CHECK(gone < 1e-3 * held, "let go: the pad fades away (%.0f dB)", 20 * std::log10(std::max(1e-12, gone) / held));
+    q->d(q, 1, 0, 0, nullptr, 0);
   }
   {   // Duck and SYNC: in projects and My Presets, off after Init or a factory preset; SYNC follows the host's tempo
     AEffect* q = open_plugin();
