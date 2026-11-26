@@ -10,7 +10,7 @@ on:
 
 env:
   MPC_VST_REPO: sd88me/mpc-vst-plugins          # page generator, plugin-list entry, catalog tools
-  MPC_VST_REF: 7c4bf25dd9947eba3f1bf2d8b176bafdcd6a2ae0   # Gen 2 (aarch64) packaging and catalog checks
+  MPC_VST_REF: 20df019b2ce537edec2b6f0ccef44274e9bf5b99   # its release.py writes plugin.json into each zip (3.10.1 lists catalog installs)
 
 jobs:
   build:

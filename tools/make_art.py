@@ -290,7 +290,7 @@ for k in range(STEPS3 + 1):                                                    #
             if 0 < x0 < GW3 and 2 < y0 < CH3 - 2: d.ellipse([x0 - 1.1, y0 - 1.1, x0 + 1.1, y0 + 1.1], fill=(244, 214, 160, int(g.uniform(70, 170))))
     im.save(os.path.join(OUT, "glow3_%d.png" % k))
 f_cap2 = _IFont.truetype(MONO, 19)                                             # captions, bigger
-for word in ("shape", "trim", "fade", "time", "space", "tone", "out"):
+for word in ("shape", "trim", "fade", "time", "space", "tone", "out", "room", "scan", "pitch", "color"):
     tw = int(ImageDraw.Draw(Image.new("RGBA", (4, 4))).textlength(word, font=f_cap2)) + 4
     cap = Image.new("RGBA", (tw, 26), (0, 0, 0, 0)); dc = ImageDraw.Draw(cap)
     dc.text((1, 2), word, font=f_cap2, fill=(128, 122, 112, 255))
@@ -372,3 +372,31 @@ for name, pts in (("arrow_prev", [(40, 17), (40, 49), (21, 33)]), ("arrow_next",
     da.polygon(pts, fill=(184, 137, 74, 255))
     ar.save(os.path.join(OUT, name + ".png"))
 print("stepper arrows written")
+
+# ---- the strip under the painting, v8: 12 pictures, one under each column (the kit's pictures are opaque and can't
+# switch with a page, so one set draws both): the playhead as the glow's orb in the left or right half of its column
+# (24 steps, as glow5), and, while GRAINS plays, ONE stripe: the loudest grain reading under that column, at its place
+# across it (7 steps of ~7 px), as granulators draw each grain as its own line (the user, on v7's bunched streaks).
+# State = stripe (0 none, 1..7 place) + 8 x (0 no orb, 1 left half, 2 right half): 24 states (the Force shows 25).
+SW, SH = 52, 30
+for st in range(24):
+    im = Image.new("RGBA", (SW, SH), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
+    d.line([(0, SH // 2), (SW, SH // 2)], fill=(110, 104, 95, 70), width=1)
+    pos, half = st % 8, st // 8
+    if pos:                                    # the grain: a soft amber haze and a bright core line
+        x = (pos - 0.5) / 7 * SW
+        haze = Image.new("RGBA", (SW, SH), (0, 0, 0, 0))
+        ImageDraw.Draw(haze).line([(x, 2), (x, SH - 2)], fill=(226, 140, 70, 150), width=7)
+        im = Image.alpha_composite(im, haze.filter(ImageFilter.GaussianBlur(2.6)))
+        core = Image.new("RGBA", (SW, SH), (0, 0, 0, 0))
+        ImageDraw.Draw(core).line([(x, 3), (x, SH - 3)], fill=(250, 196, 130, 240), width=2)
+        im = Image.alpha_composite(im, core.filter(ImageFilter.GaussianBlur(0.5)))
+    if half:                                   # the orb, its trail kept inside the picture (they can't overlap)
+        cx = SW * (0.3 if half == 1 else 0.72)
+        glow = Image.new("RGBA", (SW, SH), (0, 0, 0, 0)); dg = ImageDraw.Draw(glow)
+        for dx, a, rx in ((0, 170, 10), (-9, 80, 9), (-17, 35, 8)):
+            dg.ellipse([cx + dx - rx, SH / 2 - 8, cx + dx + rx, SH / 2 + 8], fill=(226, 172, 98, a))
+        im = Image.alpha_composite(im, glow.filter(ImageFilter.GaussianBlur(4)))
+        ImageDraw.Draw(im).ellipse([cx - 4, SH / 2 - 4, cx + 4, SH / 2 + 4], fill=(250, 226, 178, 235))
+    im.save(os.path.join(OUT, "spark_%d.png" % st))
+print("strip v8 written")

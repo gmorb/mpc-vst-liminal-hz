@@ -39,6 +39,50 @@ std::string Library::plugin_dir() {
   return "";
 }
 
+static std::string canonical(const std::string& p);
+
+std::string Library::data_dir() {
+  const char* e = std::getenv("MPCNAM_DATA");
+  if (e && *e) return e;
+  const std::string own = plugin_dir(), root = media_root();
+  if (own.size() > root.size() + 1 && own.compare(0, root.size() + 1, root + "/") == 0) {
+    const size_t end = own.find('/', root.size() + 1);
+    const std::string drive = own.substr(0, end);              // /media/<drive>
+    if (end != std::string::npos) {                            // (the plugin is in a folder on it, not at its top)
+      const std::string d = drive + "/Liminal Hz";
+      struct stat st;
+      if ((stat(d.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) || mkdir(d.c_str(), 0755) == 0)
+        if (access(d.c_str(), W_OK) == 0) return d;
+    }
+  }
+  return own;
+}
+
+int Library::migrate_user_files() {
+  const std::string own = plugin_dir(), data = data_dir();
+  if (own.empty() || data.empty() || canonical(own) == canonical(data)) return 0;
+  int moved = 0;
+  for (const char* sub : {"presets", "reverbs"}) {
+    const std::string from = own + "/" + sub, to = data + "/" + sub;
+    DIR* d = opendir(from.c_str());
+    if (!d) continue;
+    mkdir(to.c_str(), 0755);
+    std::vector<std::string> names;
+    while (dirent* de = readdir(d)) {
+      const std::string n = de->d_name;
+      if (n == "." || n == ".." || lower(n) == "readme.txt") continue;
+      names.push_back(n);
+    }
+    closedir(d);
+    for (const std::string& n : names) {
+      struct stat st;
+      if (lstat((to + "/" + n).c_str(), &st) == 0) continue;   // already there: leave this one (it's still found)
+      if (rename((from + "/" + n).c_str(), (to + "/" + n).c_str()) == 0) moved++;
+    }
+  }
+  return moved;
+}
+
 std::string Library::media_root() {
   const char* e = std::getenv("MPCNAM_MEDIA");
   return (e && *e) ? e : "/media";
@@ -264,7 +308,8 @@ static std::vector<LibEntry> list_dirs(const std::vector<std::string>& dirs, con
 
 static std::vector<std::string> own_dirs(const std::string& folder) {
   std::vector<std::string> dirs;
-  const std::string own = Library::plugin_dir();
+  const std::string own = Library::plugin_dir(), data = Library::data_dir();
+  if (!data.empty() && data != own && kind_of(data) == DIR_) find_dirs(data, folder, 0, 1, dirs);   // (yours first)
   if (!own.empty() && kind_of(own) == DIR_) find_dirs(own, folder, 0, 1, dirs);
   return dirs;
 }

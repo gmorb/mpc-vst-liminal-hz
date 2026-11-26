@@ -60,7 +60,8 @@ enum {
   effCanBeAutomated = 26, effGetPlugCategory = 35, effGetEffectName = 45, effGetVendorString = 47,
   effGetProductString = 48, effGetVendorVersion = 49, effCanDo = 51, effGetVstVersion = 58,
 };
-enum { audioMasterAutomate = 0, audioMasterGetTime = 7, audioMasterUpdateDisplay = 42, kVstTempoValid = 1 << 10 };
+enum { audioMasterAutomate = 0, audioMasterGetTime = 7, audioMasterUpdateDisplay = 42, kVstTempoValid = 1 << 10,
+       kVstPpqPosValid = 1 << 9, kVstTransportPlaying = 1 << 1 };
 struct VstTimeInfo {                           // (audioMasterGetTime's answer; MPC gives a valid tempo: mpc-vst-plugins docs/NOTES.md)
   double samplePos, sampleRate, nanoSeconds, ppqPos, tempo, barStartPos, cycleStartPos, cycleEndPos;
   int32_t timeSigNumerator, timeSigDenominator, smpteOffset, smpteFrameRate, samplesToNextClock, flags;
@@ -99,7 +100,38 @@ enum {
   P_LONG_IR_INFO,                              // read-only: "Off · IRs up to 5 s", "CPU heavy · tap again", "On · IRs up to 20 s"
   P_DUCK,                                      // Duck: the reverb turned down while the input plays (engine: ReverbParams::duck)
   P_PREDELAY_SYNC,                             // SYNC: Pre-delay in note values at the project tempo
-  P_PRESET_OPEN,                               // the PRESET popup's open flag (added by the layout's popup)
+  P_PRESET_OPEN,                               // the PRESET popup's open flag (listed in params.json: index 64 kept)
+  P_MP_RENAME,                                 // RENAME: the selected My Preset, on the keyboard
+  P_KB,                                        // the keyboard laid over the right-hand side: Off / On (read-only)
+  P_KB_TITLE, P_KB_NAME, P_KB_INFO,            // read-only: "Name the new preset", the name as typed, a status line
+  P_KB_KEY1,                                   // its 40 keys (text = the key's letter; value 1 = lit)
+  P_KB_KEY_LAST = P_KB_KEY1 + 39,
+  P_KB_CLEAR, P_KB_SPACE, P_KB_CANCEL, P_KB_OK,   // the bottom row
+  P_LENGTH_SYNC,                               // END SYNC: END in note values at the project tempo (a setting)
+  P_FREEZE,                                    // FREEZE: the reverb held as a pad (a performance switch: not a setting)
+  P_DAMPING, P_DISTANCE,                       // ROOM: IR shaping, as the shape knobs (settings)
+  P_TAB,                                       // SHAPE / ROOM / SCAN: the knob row's page, 0..2 (the plugin's; not a setting)
+  P_PG_SHAPE, P_PG_ROOM, P_PG_SCAN,            // read-only: each page shown or not (all Off under the keyboard)
+  P_TABS1,                                     // the three tabs: list tiles, lit = the page shown (a tap picks it)
+  P_TABS_LAST = P_TABS1 + 2,
+  P_SCAN,                                      // SCAN: grains of the reverb's last seconds (a switch: not a setting)
+  P_SCAN_POS, P_SCAN_TEX, P_SCAN_MIX,          // its Position, Texture, Amount (settings)
+  P_SCAN_MODE,                                 // PAD (the spectral pad) or GRAINS (grains of the playing, into the IR)
+  P_SCAN_PITCH,                                // semitones, both modes (snaps to whole semitones)
+  P_GRAIN_SIZE, P_GRAIN_SPRAY, P_GRAIN_DENSITY,   // GRAINS' knobs (settings)
+  P_PG_SCAN_PAD, P_PG_SCAN_GRAINS,             // read-only: the SCAN page's knobs for each mode, shown or not
+  P_GRAIN_DIRECT,                              // GRAINS: how much of the grains skips the IR (a setting)
+  P_GRAIN_AIR,                                 // GRAINS: AIR (detune, width, reverse/octave grains, brightness, feedback)
+  P_PITCH_SNAP,                                // PITCH in whole semitones (a setting; off: any value, gliding)
+  P_SW1, P_SW_LAST = P_SW1 + 3,                // SCAN / GRAINS / SNAP / SYNC: list tiles beside the tabs, lit = on (a tap flips)
+  P_SPARK0, P_SPARK_LAST = P_SPARK0 + ReverbEngine::kSparkCols - 1,   // read-only: the strip under the painting:
+                                               // the playhead (24 steps: a half column each) and GRAINS' streaks
+  P_PG_INFO,                                   // read-only: the sonics line shown (not on SCAN: its tiles are there)
+  P_GRAIN_SYNC,                                // GRAINS' SYNC: grains on the tempo's grid, Density a note value (a setting)
+  P_BEND,                                      // BEND: the wet signal pitched as it plays, -12..+12 st, gliding (a setting)
+  P_SHIMMER,                                   // SHIMMER: the wet an octave up, fed back into the IR (a setting)
+  P_MOTION,                                    // MOTION: a chorus on the wet: it moves and widens (a setting)
+  P_AGE,                                       // AGE: wow, flutter, saturation, a closing top on the wet (a setting)
   P_COUNT
 };
 static_assert(P_COUNT == NPARAMS, "vst/params.json and liminal_hz_vst.cpp disagree on the parameter list");
@@ -120,9 +152,36 @@ struct Browser {
   std::string notice;
 };
 static const int kArmSeconds = 4;
+
+// ---- the keyboard: a preset named on the MPC's screen (SAVE and RENAME in My Presets open it) -----------------------
+// 4 rows of 10 (digits; QWERTY with "-" and "'" in the gaps; SHIFT and DEL at the ends of the last row), then CLEAR,
+// SPACE, CANCEL, SAVE. A key is a list tile: a tap is one parameter write (MPC's Toggle Switch: the tile's text takes the
+// touch, so the Button inside never switches it again, issue #5); the key then reads 1 for kKbLitMs, which lights it,
+// and 0 after. A second write of one touch, if MPC ever sends one, comes while the key is lit (as 0) or within kKbDupMs.
+static const char kKbChars[] = "1234567890qwertyuiopasdfghjkl-?zxcvbnm'?";   // ? = SHIFT (30) and DEL (39)
+static const int kKbShift = 30, kKbDel = 39, kKbKeys = P_KB_OK - P_KB_KEY1 + 1;   // (44: the 40 and the bottom row)
+static const int kKbLitMs = 160, kKbDupMs = 50;
+static const int kKbNamePx = 640;              // the name's box (its readout is 664 px)
+static const size_t kKbMax = 32;               // a typed name's length (Presets keeps 40: a longer name can still be cut)
+static_assert(sizeof kKbChars == 41, "40 keys");
+struct Keyboard {                              // under mu (open, shift and the lit times are also atomics in Inst)
+  int mode = 0;                                // 1: a new preset (SAVE), 2: RENAME
+  std::string from;                            // RENAME: the preset's name as it was
+  std::string text;                            // the name as typed
+  std::string error;                           // why the last SAVE didn't save
+  std::string armed;                           // SAVE on a name in use: armed to replace it until armed_until
+  std::chrono::steady_clock::time_point armed_until;
+  bool busy = false;                           // the worker is saving / renaming
+  int req = 0;                                 // worker: 1 save `pending` as `name` (overwrite: replace), 2 rename from -> name
+  bool overwrite = false;
+  std::string name;
+  PresetData pending;
+  std::chrono::steady_clock::time_point last[kKbKeys];   // each key's last tap taken
+};
 // A tap MPC delivers twice (or a toggle it echoes) within this is one tap: a two-tap DELETE must not arm and confirm
 // on one touch. (LONG IR's warn-then-confirm taps behaved so on the device: the first tap turned it on.)
 static const int kTapMs = 300;
+static const int kSwRepeatMs = 60;              // the SCAN / GRAINS / SNAP / SYNC tiles: a repeat within this is one tap
 static const double kDispGapMs = 100, kDispHoldMs = 600;   // UpdateDisplay pacing (notify())
 
 // My Presets (engine/presets.h): the saved presets, the one selected, and what the worker is asked to do
@@ -133,8 +192,6 @@ struct MyPresets {
   bool active = false;                         // a My Preset was the last thing applied (the PRESET field shows it)
   bool listed = false;                         // the folder has been read at least once
   bool refresh = true;                         // worker: read the presets folder
-  bool save_req = false;                       // worker: save `pending` under a free name
-  PresetData pending;                          // the sound to save (name = the base of its name)
   std::string delete_name;                     // worker: delete this preset
   std::string armed_name;                      // DELETE: armed for this preset until armed_until
   std::chrono::steady_clock::time_point armed_until, notice_until;
@@ -146,13 +203,23 @@ static const struct { const char* key; int p; } kPresetParams[] = {
   {"mix", P_MIX}, {"predelay", P_PREDELAY}, {"lowcut", P_LOWCUT}, {"highcut", P_HIGHCUT}, {"width", P_WIDTH},
   {"length", P_LENGTH}, {"output", P_OUTPUT}, {"start", P_START}, {"fade_in", P_FADE_IN}, {"fade_out", P_FADE_OUT},
   {"stretch", P_STRETCH}, {"reverse", P_REVERSE}, {"feedback", P_FEEDBACK}, {"decay", P_DECAY}, {"duck", P_DUCK},
-  {"predelay_sync", P_PREDELAY_SYNC}};
+  {"predelay_sync", P_PREDELAY_SYNC}, {"length_sync", P_LENGTH_SYNC}, {"damping", P_DAMPING},
+  {"distance", P_DISTANCE}, {"scan_pos", P_SCAN_POS}, {"scan_tex", P_SCAN_TEX}, {"scan_mix", P_SCAN_MIX},
+  {"scan_mode", P_SCAN_MODE}, {"scan_pitch", P_SCAN_PITCH}, {"grain_size", P_GRAIN_SIZE}, {"grain_spray", P_GRAIN_SPRAY},
+  {"grain_density", P_GRAIN_DENSITY}, {"grain_direct", P_GRAIN_DIRECT}, {"grain_air", P_GRAIN_AIR}, {"pitch_snap", P_PITCH_SNAP}, {"grain_sync", P_GRAIN_SYNC},
+  {"bend", P_BEND}, {"shimmer", P_SHIMMER}, {"motion", P_MOTION}, {"age", P_AGE}};
 
 // SYNC: the Pre-delay knob's steps, in beats (quarter notes); T triplet, D dotted
 static const struct { const char* name; double beats; } kNotes[] = {
   {"0", 0}, {"1/128", 1 / 32.0}, {"1/64", 1 / 16.0}, {"1/32", 1 / 8.0}, {"1/16 T", 1 / 6.0}, {"1/16", 1 / 4.0},
   {"1/16 D", 3 / 8.0}, {"1/8 T", 1 / 3.0}, {"1/8", 1 / 2.0}, {"1/8 D", 3 / 4.0}, {"1/4", 1.0}};
 static const int kNoteCount = (int)(sizeof kNotes / sizeof kNotes[0]);
+// END SYNC: the END knob's steps (how long the IR is kept from Start), in beats: a gated reverb on the grid
+static const struct { const char* name; double beats; } kEndNotes[] = {
+  {"1/32", 1 / 8.0}, {"1/16", 1 / 4.0}, {"1/8 T", 1 / 3.0}, {"1/16 D", 3 / 8.0}, {"1/8", 1 / 2.0}, {"1/4 T", 2 / 3.0},
+  {"1/8 D", 3 / 4.0}, {"1/4", 1.0}, {"1/2 T", 4 / 3.0}, {"1/4 D", 3 / 2.0}, {"1/2", 2.0}, {"1/2 D", 3.0}, {"1 bar", 4.0},
+  {"2 bars", 8.0}, {"4 bars", 16.0}};
+static const int kEndCount = (int)(sizeof kEndNotes / sizeof kEndNotes[0]);
 
 struct Inst {
   AEffect fx;
@@ -185,7 +252,10 @@ struct Inst {
   int marq_sent = 0;                           // the scroll step the rows were last redrawn at (worker, under mu)
   std::string sonics;                          // the loaded IR's sonics, as words (under mu)
   int playhead_sent = 0, playhead_age = 0;     // the playhead as last reported (audio thread)
+  int spark_sent[ReverbEngine::kSparkCols] = {}, spark_age = 0;   // SCAN's sparks as last reported (audio thread)
   std::chrono::steady_clock::time_point long_tap_at;   // LONG IR's old tap parameter: the last tap taken (see kTapMs)
+  bool scan_by_grains = false;                 // SCAN came on with GRAINS (grains_switched): GRAINS off takes it off again
+  std::chrono::steady_clock::time_point sw_tap_at[4];   // the SCAN / GRAINS / SNAP / SYNC tiles: each one's last flip
   std::vector<LibEntry> prog_irs;              // MPC's PRESET menu: My IRs as programs (the folder index, read at load)
   std::atomic<int> cur_prog{0};                // the program MPC's menu shows as current
   std::chrono::steady_clock::time_point chunk_at;   // a project's state arrived (a program picked just after: the host)
@@ -193,12 +263,18 @@ struct Inst {
   std::atomic<bool> init_pending{false};       // (a TONE3000 download selected on the worker: Init after publishing)
   std::atomic<double> bpm{120.0};              // SYNC: the host's tempo (audio thread writes; 120 until it gives one)
   std::atomic<bool> tempo_ok{false};           // the host gave a tempo
+  Keyboard kb;                                 // under mu
+  std::atomic<bool> kb_open{false};
+  std::atomic<int> kb_shift{0};                // 0 lower case, 1 the next letter upper case, 2 CAPS
+  std::atomic<long long> kb_lit_until[kKbKeys];   // a key lights until then (ms, steady clock); the audio thread turns it off
+  std::atomic<bool> kb_lit_due[kKbKeys];       // ...and reports it off once
+  std::atomic<int> echo_i{-1};                 // the parameter notify() is reporting (MPC writes it back from inside the call)
 };
 
 static float clamp01(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 // Low Cut and High Cut turn on a log scale (each octave the same travel; linear, 20-200 Hz was the first 18% of Low
 // Cut's turn). Projects and presets store real values, so they come back the same.
-static bool is_log(int i) { return i == P_LOWCUT || i == P_HIGHCUT; }
+static bool is_log(int i) { return i == P_LOWCUT || i == P_HIGHCUT || i == P_GRAIN_SIZE; }
 static float real_of(int i, float n) {
   const param_t& p = PARAMS[i];
   if (p.nopts > 1) return (float)lroundf(clamp01(n) * (p.nopts - 1));
@@ -314,9 +390,45 @@ static int prog_of_ir(const Inst* w, const std::string& path) {   // a My IR's p
   return -1;
 }
 
-static bool is_display(int i) { return (i >= P_WAVE0 && i <= P_PLAYHEAD) || i == P_SONICS; }   // read-only, not automatable
+static bool is_spark(int i) { return i >= P_SPARK0 && i <= P_SPARK_LAST; }
+static bool is_display(int i) { return (i >= P_WAVE0 && i <= P_PLAYHEAD) || i == P_SONICS || is_spark(i); }
+static bool is_sw(int i) { return i >= P_SW1 && i <= P_SW_LAST; }
+static bool is_view(int i) { return (i >= P_TABS1 && i <= P_TABS1 + 2) || is_sw(i); }   // tiles the plugin lights   // read-only, not automatable
 static bool is_browser(int i) { return (i >= P_IR && i <= P_IR_BROWSE) || i == P_IR_DELETE; }
-static bool is_mp(int i) { return i >= P_MP_INFO && i <= P_MP_PHONE; }   // My Presets controls
+static bool is_mp(int i) { return (i >= P_MP_INFO && i <= P_MP_PHONE) || i == P_MP_RENAME; }   // My Presets controls
+static bool is_kb(int i) { return i >= P_KB && i <= P_KB_OK; }               // the keyboard (state, text, keys)
+static bool is_kb_key(int i) { return i >= P_KB_KEY1 && i <= P_KB_OK; }
+static long long now_ms() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+static void kb_show(Inst* w, int mode, const std::string& text, const std::string& from);   // below (hold mu)
+static void kb_hide(Inst* w);
+static std::string kb_suggest(Inst* w, const std::string& base);
+static int tab_of(const Inst* w) { return std::max(0, std::min(2, (int)lroundf(w->norm[P_TAB] * 2))); }   // SHAPE, ROOM, SCAN
+static bool is_page(int i) { return (i >= P_PG_SHAPE && i <= P_PG_SCAN) || i == P_PG_SCAN_PAD || i == P_PG_SCAN_GRAINS || i == P_PG_INFO; }
+static bool is_tabs(int i) { return i >= P_TABS1 && i <= P_TABS_LAST; }
+static bool page_on(const Inst* w, int n) { return !w->kb_open.load() && tab_of(w) == n; }   // (the keyboard covers all)
+static bool grains_on(const Inst* w) { return w->norm[P_SCAN_MODE] > 0.5f; }
+static const int kSwOf[4] = {P_SCAN, P_SCAN_MODE, P_PITCH_SNAP, P_GRAIN_SYNC};   // what each tile switches
+static bool sw_on(const Inst* w, int i) {        // the SCAN / GRAINS / SNAP / SYNC tiles' light
+  const int* of = kSwOf;
+  return w->norm[of[i - P_SW1]] > 0.5f;
+}
+static bool page_shown(const Inst* w, int i) {  // a page switch (pg_*): its page is the one shown
+  if (i == P_PG_SCAN_PAD) return page_on(w, 2) && !grains_on(w);
+  if (i == P_PG_SCAN_GRAINS) return page_on(w, 2) && grains_on(w);
+  if (i == P_PG_INFO) return !w->kb_open.load() && tab_of(w) != 2;
+  return page_on(w, i - P_PG_SHAPE);
+}
+static void pages_changed(Inst* w) {           // the tabs' light and the pages, told to the host again
+  for (int i = P_PG_SHAPE; i <= P_TABS_LAST; i++) w->changed[i] = 1;
+  w->changed[P_PG_SCAN_PAD] = w->changed[P_PG_SCAN_GRAINS] = w->changed[P_PG_INFO] = 1;
+  w->update_display = 1;
+}
+static bool kb_key_on(const Inst* w, int i) {  // a key is lit: just tapped, or SHIFT while it's on
+  if (i == P_KB_KEY1 + kKbShift) return w->kb_shift.load() != 0;
+  return now_ms() < w->kb_lit_until[i - P_KB_KEY1].load();
+}
 static bool is_menu(int i) { return i >= P_MENU && i <= P_ROW_LAST; }     // the list laid over the page (state, buttons, rows)
 static bool is_row(int i) { return i >= P_ROW1 && i <= P_ROW_LAST; }
 static bool is_long(int i) { return i >= P_LONG_IR && i <= P_LONG_IR_INFO; }   // LONG IR: the setting, its button, its line
@@ -324,6 +436,17 @@ static bool long_ir_on(const Inst* w) { return platform::kGen2 || w->norm[P_LONG
 static Quality quality_of(const Inst* w) { return platform::quality(long_ir_on(w)); }
 
 static bool sync_on(const Inst* w) { return w->norm[P_PREDELAY_SYNC] > 0.5f; }
+// GRAINS' SYNC: Density as a note value, slow to fast (quarter notes per grain)
+static const double kGrainBeats[8] = {4.0, 2.0, 1.0, 0.5, 1.0 / 3, 0.25, 1.0 / 6, 0.125};
+static const char* kGrainNotes[8] = {"1 bar", "1/2", "1/4", "1/8", "1/8 T", "1/16", "1/16 T", "1/32"};
+static int grain_note(const Inst* w) { return std::min(7, std::max(0, (int)(w->norm[P_GRAIN_DENSITY] * 8))); }
+static float grain_beats(const Inst* w) { return w->norm[P_GRAIN_SYNC] > 0.5f ? (float)kGrainBeats[grain_note(w)] : 0.0f; }
+static bool end_sync_on(const Inst* w) { return w->norm[P_LENGTH_SYNC] > 0.5f; }
+// END's step: the knob's travel (5-100%) over the note values
+static int end_note(const Inst* w) { return (int)lroundf(clamp01(w->norm[P_LENGTH]) * (kEndCount - 1)); }
+static double end_seconds(const Inst* w) {     // to the millisecond (a tempo's last decimals don't prepare the IR again)
+  return std::round(kEndNotes[end_note(w)].beats * 60000.0 / std::max(20.0, w->bpm.load())) / 1000.0;
+}
 static int sync_note(const Inst* w) { return (int)lroundf(clamp01(w->norm[P_PREDELAY]) * (kNoteCount - 1)); }
 static void sync_predelay(Inst* w) {           // SYNC: the note at the tempo, as ms (any thread; the engine glides to it)
   const double ms = kNotes[sync_note(w)].beats * 60000.0 / std::max(20.0, w->bpm.load());
@@ -341,6 +464,24 @@ static void apply_param(Inst* w, int i) {      // plain parameter -> engine (ato
     case P_OUTPUT: e.output_db = v; break;
     case P_FEEDBACK: e.feedback = v / 100.0f; break;
     case P_DUCK: e.duck = v / 100.0f; break;
+    case P_FREEZE: e.freeze = v > 0.5f; break;
+    case P_SCAN: e.scan = v > 0.5f; w->changed[P_SW1] = 1; break;
+    case P_SCAN_POS: e.scan_pos = v / 100.0f; break;
+    case P_SCAN_TEX: e.scan_tex = v / 100.0f; break;
+    case P_SCAN_MIX: e.scan_mix = v / 100.0f; break;
+    case P_SCAN_MODE: e.scan_mode = v > 0.5f ? 1 : 0; pages_changed(w); w->changed[P_SW1 + 1] = 1; break;
+    case P_SCAN_PITCH: e.scan_pitch = w->norm[P_PITCH_SNAP] > 0.5f ? std::round(v) : v; break;
+    case P_PITCH_SNAP: apply_param(w, P_SCAN_PITCH); w->changed[P_SCAN_PITCH] = 1; w->changed[P_SW1 + 2] = 1; break;
+    case P_GRAIN_AIR: e.grain_air = v / 100.0f; break;
+    case P_BEND: e.bend = v; break;
+    case P_SHIMMER: e.shimmer = v / 100.0f; break;
+    case P_MOTION: e.motion = v / 100.0f; break;
+    case P_AGE: e.age = v / 100.0f; break;
+    case P_GRAIN_SIZE: e.grain_size = (float)(std::log(v / 30.0) / std::log(500.0 / 30.0)); break;
+    case P_GRAIN_SPRAY: e.grain_spray = v / 100.0f; break;
+    case P_GRAIN_DENSITY: e.grain_density = v / 100.0f; e.grain_beats = grain_beats(w); break;
+    case P_GRAIN_SYNC: e.grain_beats = grain_beats(w); w->changed[P_GRAIN_DENSITY] = 1; w->changed[P_SW1 + 3] = 1; break;
+    case P_GRAIN_DIRECT: e.grain_direct = v / 100.0f; break;
     case P_PREDELAY_SYNC: apply_param(w, P_PREDELAY); break;   // (synced, process() sets the time from the tempo)
     default: break;
   }
@@ -481,10 +622,14 @@ static IRShape shape_of(Inst* w) {             // the IR shaping parameters (rea
   s.stretch = real_of(P_STRETCH, w->norm[P_STRETCH]) / 100.0;
   s.reverse = real_of(P_REVERSE, w->norm[P_REVERSE]) > 0.5f;
   s.decay = real_of(P_DECAY, w->norm[P_DECAY]) / 100.0;
+  s.damping = real_of(P_DAMPING, w->norm[P_DAMPING]) / 100.0;
+  s.distance = real_of(P_DISTANCE, w->norm[P_DISTANCE]) / 100.0;
+  if (end_sync_on(w)) s.length_s = end_seconds(w);   // (the worker looks again every 250 ms: a new tempo reshapes it)
   return s;
 }
 static bool is_shape(int i) {
-  return i == P_LENGTH || i == P_START || i == P_FADE_IN || i == P_FADE_OUT || i == P_STRETCH || i == P_REVERSE || i == P_DECAY;
+  return i == P_LENGTH || i == P_START || i == P_FADE_IN || i == P_FADE_OUT || i == P_STRETCH || i == P_REVERSE || i == P_DECAY ||
+         i == P_LENGTH_SYNC || i == P_DAMPING || i == P_DISTANCE;
 }
 
 static void load_ir(Inst* w) {
@@ -540,6 +685,8 @@ static void worker_main(Inst* w) {
       if (scan) { w->scanning = true; w->update_display = 1; }
     }
     if (scan) {
+      static std::once_flag moved;                // once per start: your files from the plugin's folder to yours
+      std::call_once(moved, [] { Library::migrate_user_files(); });
       const char* fenv = getenv("MPCNAM_FACTORY");
       const auto factory = Library::scan_folder(fenv ? fenv : Library::plugin_dir() + "/factory", ".wav");
       // Publish a scan's result: the lists, the saved or loaded IR found again, a TONE3000 download selected.
@@ -589,36 +736,52 @@ static void worker_main(Inst* w) {
       if (w->init_pending.exchange(false)) ir_picked(w, -1);   // (a TONE3000 download: one of your own IRs, picked)
     }
     {                                          // My Presets: read the folder, save the asked-for sound, delete
-      bool refresh, save;
-      PresetData pend;
+      bool refresh;
       std::string del;
+      int kreq;                                // the keyboard's SAVE (1) or RENAME (2)
+      bool kover;
+      std::string kname, kfrom;
+      PresetData kpend;
       {
         std::lock_guard<std::mutex> lk(w->mu);
         MyPresets& m = w->mp;
-        refresh = m.refresh; save = m.save_req; del = m.delete_name; pend = m.pending;
-        m.refresh = m.save_req = false;
+        refresh = m.refresh; del = m.delete_name;
+        m.refresh = false;
         m.delete_name.clear();
+        Keyboard& k = w->kb;
+        kreq = k.req; kover = k.overwrite; kname = k.name; kfrom = k.from; kpend = k.pending;
+        k.req = 0;
       }
-      if (refresh || save || !del.empty()) {
-        std::string err, notice, select;
+      if (refresh || kreq || !del.empty()) {
+        std::string err, notice, select, kerr;
         if (!del.empty()) { if (Presets::remove(del, &err)) { notice = "Deleted: " + del; err.clear(); } }
-        if (save) {
-          const std::string name = Presets::unique_name(pend.name);   // named from its IR, numbered if taken
-          pend.name = name;
-          if (Presets::save(pend, false, &err)) { notice = "Saved: " + name; select = name; err.clear(); }
-        }
+        bool kok = false;
+        if (kreq == 1) kok = Presets::save(kpend, kover, &kerr);
+        if (kreq == 2) kok = Presets::rename(kfrom, kname, &kerr);
+        if (kok) { notice = (kreq == 1 ? "Saved: " : "Renamed: ") + kname; if (kreq == 1) select = kname; }
         std::vector<PresetData> l = Presets::list();
         std::lock_guard<std::mutex> lk(w->mu);
         MyPresets& m = w->mp;
         m.list = std::move(l);
         m.listed = true;
         if (!select.empty()) { m.sel_name = select; m.active = true; }   // a new preset is the selected one
+        if (kok && kreq == 2 && ieq(m.sel_name, kfrom)) m.sel_name = kname;   // (renamed: still the one selected)
+        if (kreq) {                            // the keyboard: closes on success; says why not, and stays, if not
+          Keyboard& k = w->kb;
+          k.busy = false;
+          if (kok) kb_hide(w);
+          else if (kreq == 1 && kerr == "That name is already used") {
+            k.armed = kname; k.armed_until = std::chrono::steady_clock::now() + std::chrono::seconds(kArmSeconds);
+            k.error = "That name is used: tap SAVE again to replace it";
+          } else k.error = kerr.empty() ? "Can't save the preset" : kerr;
+          w->changed[P_KB_INFO] = 1;
+        }
         if (!del.empty() && ieq(m.sel_name, del)) { m.sel_name.clear(); m.active = false; }
         m.want = -1;
         for (int k = 0; k < (int)m.list.size(); k++) if (!m.sel_name.empty() && ieq(m.list[k].name, m.sel_name)) m.want = k;
         if (!notice.empty()) { m.notice = notice; m.notice_until = std::chrono::steady_clock::now() + std::chrono::seconds(4); m.error.clear(); }
         else if (!err.empty()) m.error = err;
-        if (!select.empty() && w->menu == 2 && m.want >= 0) w->menu_page = m.want / menu_page_size(2);   // show it
+        if ((!select.empty() || (kok && kreq == 2)) && w->menu == 2 && m.want >= 0) w->menu_page = m.want / menu_page_size(2);   // show it
         menu_clamp(w);
         w->changed[P_PRESET] = 1;              // (the PRESET field names a My Preset)
         w->update_display = 1;
@@ -696,7 +859,8 @@ static void set_real(Inst* w, int i, float real) {   // a plain parameter by its
 // a sound setting (what Init resets and a factory preset sets): not the IR, the lists, the buttons, LONG IR
 static bool is_setting(int i) {
   return !is_browser(i) && !is_display(i) && !is_mp(i) && !PARAMS[i].momentary && i != P_PRESET && i != P_PRESET_OPEN &&
-         i != P_RESCAN && i != P_T3K_INFO && i != P_SOURCE && !is_menu(i) && !is_long(i);
+         i != P_RESCAN && i != P_T3K_INFO && i != P_SOURCE && !is_menu(i) && !is_long(i) && !is_kb(i) && i != P_FREEZE &&
+         i != P_TAB && !is_page(i) && !is_view(i) && i != P_SCAN;
 }
 static void reset_settings(Inst* w) {          // every setting at its default (Init's), the IR as it is
   for (int i = 0; i < P_COUNT; i++)
@@ -763,7 +927,10 @@ static void apply_preset(Inst* w, int k) {
                          {P_WIDTH, p.width}, {P_LENGTH, p.length}, {P_OUTPUT, p.output}, {P_START, p.start},
                          {P_FADE_IN, p.fade_in}, {P_FADE_OUT, p.fade_out}, {P_STRETCH, p.stretch},
                          {P_REVERSE, p.reverse}, {P_FEEDBACK, p.feedback}, {P_DECAY, 100}, {P_DUCK, 0},
-                         {P_PREDELAY_SYNC, 0}};
+                         {P_PREDELAY_SYNC, 0}, {P_LENGTH_SYNC, 0}, {P_DAMPING, 0}, {P_DISTANCE, 50},
+                         {P_SCAN_POS, 0}, {P_SCAN_TEX, 0}, {P_SCAN_MIX, 100}, {P_SCAN_MODE, 0}, {P_SCAN_PITCH, 0},
+                         {P_GRAIN_SIZE, 150}, {P_GRAIN_SPRAY, 20}, {P_GRAIN_DENSITY, 60}, {P_GRAIN_DIRECT, 0}, {P_GRAIN_AIR, 0}, {P_PITCH_SNAP, 0}, {P_GRAIN_SYNC, 0},
+                         {P_BEND, 0}, {P_SHIMMER, 0}, {P_MOTION, 0}, {P_AGE, 0}};
   for (const auto& kv : vals) set_real(w, kv[0], (float)kv[1]);
   set_real(w, P_SOURCE, 0);                    // the factory list
   std::lock_guard<std::mutex> lk(w->mu);
@@ -827,6 +994,15 @@ static void mp_apply(Inst* w, const PresetData& p) {
   set_real(w, P_DECAY, 100);                   // (presets saved before Decay: as recorded)
   set_real(w, P_DUCK, 0);                      // (and before Duck and SYNC: off)
   set_real(w, P_PREDELAY_SYNC, 0);
+  set_real(w, P_LENGTH_SYNC, 0);               // (and before END SYNC)
+  set_real(w, P_DAMPING, 0);                   // (and before DAMPING and DISTANCE: as recorded)
+  set_real(w, P_DISTANCE, 50);
+  set_real(w, P_SCAN_POS, 0); set_real(w, P_SCAN_TEX, 0); set_real(w, P_SCAN_MIX, 100);   // (and before SCAN's knobs)
+  set_real(w, P_SCAN_MODE, 0); set_real(w, P_SCAN_PITCH, 0);                               // (and before GRAINS, PITCH)
+  set_real(w, P_GRAIN_SIZE, 150); set_real(w, P_GRAIN_SPRAY, 20); set_real(w, P_GRAIN_DENSITY, 60); set_real(w, P_GRAIN_DIRECT, 0);
+  set_real(w, P_GRAIN_AIR, 0); set_real(w, P_PITCH_SNAP, 0); set_real(w, P_GRAIN_SYNC, 0);
+  set_real(w, P_BEND, 0); set_real(w, P_SHIMMER, 0);       // (and before BEND and SHIMMER)
+  set_real(w, P_MOTION, 0); set_real(w, P_AGE, 0);          // (and before MOTION and AGE)
   for (const auto& kv : p.values)
     for (const auto& kp : kPresetParams)
       if (kv.first == kp.key) set_real(w, kp.p, kv.second);
@@ -880,12 +1056,15 @@ static void set_mp_param(Inst* w, int i, float v) {
     MyPresets& m = w->mp;
     const int n = (int)m.list.size();
     const auto now = std::chrono::steady_clock::now();
-    if (i == P_MP_SAVE) {
+    if (w->kb_open) {                          // (the keyboard is open: it has SAVE and CANCEL of its own)
+      w->changed[i] = 1;
+    } else if (i == P_MP_SAVE) {               // the keyboard, with a name from the IR (numbered if it's taken)
+      if (v >= 0.5f) kb_show(w, 1, kb_suggest(w, mp_snapshot(w).name), "");
+      w->changed[i] = 1;
+    } else if (i == P_MP_RENAME) {
       if (v >= 0.5f) {
-        m.pending = mp_snapshot(w);
-        m.save_req = true;
-        m.notice = "Saving..."; m.notice_until = now + std::chrono::seconds(3);
-        kick(w, false);
+        if (m.want >= 0 && m.want < n) kb_show(w, 2, m.list[m.want].name, m.list[m.want].name);
+        else { m.notice = "Pick a saved preset first"; m.notice_until = now + std::chrono::seconds(3); }
       }
       w->changed[i] = 1;
     } else if (i == P_MP_DELETE) {
@@ -909,6 +1088,119 @@ static void set_mp_param(Inst* w, int i, float v) {
     w->update_display = 1;
   }
   if (phone) open_presets_page(w);
+}
+
+// ---- the keyboard (holds mu) ------------------------------------------------------------------------------------------
+static std::string kb_suggest(Inst* w, const std::string& base) {   // base, or "base 2", "base 3"... if it's taken
+  std::string b = Presets::clean_name(base);
+  if (b.size() > kKbMax) b = Presets::clean_name(b.substr(0, kKbMax));
+  if (b.empty()) b = "My Preset";
+  auto taken = [w](const std::string& c) { for (const auto& p : w->mp.list) if (ieq(p.name, c)) return true; return false; };
+  if (!taken(b)) return b;
+  for (int k = 2; k < 1000; k++) {
+    const std::string tail = " " + std::to_string(k);
+    std::string head = b;
+    while (head.size() + tail.size() > kKbMax && head.size() > 1) head.pop_back();
+    const std::string c = Presets::clean_name(head + tail);
+    if (!c.empty() && !taken(c)) return c;
+  }
+  return b;
+}
+static void kb_auto_shift(Inst* w) {           // a capital to start the name and each word (not while CAPS is on)
+  if (w->kb_shift.load() == 2) return;
+  const std::string& t = w->kb.text;
+  w->kb_shift = t.empty() || t.back() == ' ' ? 1 : 0;
+}
+static void kb_redraw(Inst* w) {               // its text and every key (the letters follow SHIFT)
+  for (int i = P_KB; i <= P_KB_OK; i++) w->changed[i] = 1;
+  w->update_display = 1;
+}
+static void kb_show(Inst* w, int mode, const std::string& text, const std::string& from) {
+  Keyboard& k = w->kb;
+  k.mode = mode; k.from = from; k.text = text; k.error.clear(); k.armed.clear(); k.busy = false; k.req = 0;
+  for (int n = 0; n < kKbKeys; n++) { w->kb_lit_until[n] = 0; w->kb_lit_due[n] = false; k.last[n] = {}; }   // (a fresh start)
+  w->kb_shift = 0;
+  kb_auto_shift(w);
+  w->kb_open = true;
+  w->mp.armed_name.clear(); w->mp.show_addr = false;
+  kb_redraw(w);
+  pages_changed(w);
+}
+static void kb_hide(Inst* w) {
+  w->kb_open = false;
+  w->kb.mode = 0; w->kb.busy = false; w->kb.armed.clear();
+  kb_redraw(w);
+  w->changed[P_MENU] = 1;
+  pages_changed(w);
+}
+static std::string kb_label(const Inst* w, int i) {   // a key's text
+  const int n = i - P_KB_KEY1, sh = w->kb_shift.load();
+  if (i == P_KB_CLEAR) return "CLEAR";
+  if (i == P_KB_SPACE) return "space";
+  if (i == P_KB_CANCEL) return "CANCEL";
+  if (i == P_KB_OK) return w->kb.mode == 2 ? "RENAME" : "SAVE";
+  if (n == kKbShift) return sh == 2 ? "ABC" : sh == 1 ? "Abc" : "abc";
+  if (n == kKbDel) return "DEL";
+  char c = kKbChars[n];
+  if (sh && c >= 'a' && c <= 'z') c = (char)(c - 32);
+  if (sh && c == '-') c = '_';
+  if (sh && c == '\'') c = '&';
+  return std::string(1, c);
+}
+
+// a tap on a key (holds mu itself)
+static void set_kb_param(Inst* w, int i, float v) {
+  std::lock_guard<std::mutex> lk(w->mu);
+  w->changed[i] = 1;                           // the key shows what the plugin says: lit, or not
+  if (!w->kb_open) return;                     // (a project restoring values, or a stray write: nothing is typed)
+  Keyboard& k = w->kb;
+  const int n = i - P_KB_KEY1;
+  const auto now = std::chrono::steady_clock::now();
+  const long long ms = now_ms();
+  if (n != kKbShift && v < 0.5f && ms < w->kb_lit_until[n].load()) return;   // (the same touch again, while it's lit)
+  if (now - k.last[n] < std::chrono::milliseconds(kKbDupMs)) return;
+  k.last[n] = now;
+  if (n != kKbShift) { w->kb_lit_until[n] = ms + kKbLitMs; w->kb_lit_due[n] = true; }
+  w->changed[P_KB_NAME] = 1; w->changed[P_KB_INFO] = 1;
+  w->update_display = 1;
+  if (k.busy) return;                          // (saving: the key lights, nothing changes)
+  if (n != kKbShift && i != P_KB_OK) k.error.clear();
+  std::string& t = k.text;
+  if (i == P_KB_CANCEL) {
+    w->mp.notice = k.mode == 2 ? "Not renamed" : "Not saved"; w->mp.notice_until = now + std::chrono::seconds(3);
+    kb_hide(w);
+  } else if (i == P_KB_OK) {
+    std::string name = Presets::clean_name(t);
+    if (name.empty()) { k.error = "Type a name first"; return; }
+    if (k.mode == 2 && name == k.from) { kb_hide(w); return; }   // (unchanged)
+    k.name = name;
+    k.overwrite = k.mode == 1 && ieq(k.armed, name) && now < k.armed_until;
+    if (k.mode == 1) { k.pending = mp_snapshot(w); k.pending.name = name; }   // the sound as it is now
+    k.req = k.mode;
+    k.busy = true;
+    kick(w, false);
+  } else if (n == kKbShift) {
+    w->kb_shift = (w->kb_shift.load() + 1) % 3;
+    kb_redraw(w);
+  } else {
+    if (n == kKbDel) {                         // the last character (a whole one: a name from a file may have accents)
+      size_t e = t.size();
+      while (e > 0 && ((unsigned char)t[e - 1] & 0xC0) == 0x80) e--;
+      t.resize(e > 0 ? e - 1 : 0);
+    } else if (i == P_KB_CLEAR) {
+      t.clear();
+    } else if (i == P_KB_SPACE) {
+      if (!t.empty() && t.back() != ' ' && t.size() < kKbMax) t += ' ';
+    } else if (t.size() >= kKbMax) {
+      k.error = "A name can have up to 32 characters";
+    } else {
+      t += kb_label(w, i);
+    }
+    k.armed.clear();
+    const int was = w->kb_shift.load();
+    kb_auto_shift(w);
+    if (w->kb_shift.load() != was) kb_redraw(w);   // (the letters change case)
+  }
 }
 
 // what the phone page asks of the plugin (its server thread; each takes mu itself)
@@ -1018,7 +1310,7 @@ static void set_menu_param(Inst* w, int i, float v) {
         menu_goto_selected(w);
       }
     } else if (i == P_MENU_CLOSE) {
-      if (v >= 0.5f) { w->menu = 0; w->mp.armed_name.clear(); w->ir.armed_path.clear(); }
+      if (v >= 0.5f) { w->menu = 0; w->mp.armed_name.clear(); w->ir.armed_path.clear(); if (w->kb_open) kb_hide(w); }
     } else if (i == P_MENU_PREV || i == P_MENU_NEXT) {
       if (v >= 0.5f && m) {
         const int pages = menu_pages(w, m);
@@ -1026,7 +1318,7 @@ static void set_menu_param(Inst* w, int i, float v) {
       }
     } else if (is_row(i)) {
       const int r = i - P_ROW1, idx = w->menu_page * sz + r;
-      if (m && r < sz && idx < menu_count(w, m)) {
+      if (m && r < sz && idx < menu_count(w, m) && !w->kb_open) {   // (while a name is typed, the list only shows)
         if (m == 1) {                          // the IR: as stepping to it (the list stays open: try another)
           Browser& b = w->ir;
           before = b.want;
@@ -1046,11 +1338,29 @@ static void set_menu_param(Inst* w, int i, float v) {
   if (row_ir) ir_picked(w, before);
 }
 
+// GRAINS switched on (its tile, or its switch from a host / Q-Link) while SCAN is off: SCAN comes on with it, so the
+// grains are heard at once (GRAINS is a mode of SCAN; off, its knobs only wait). Switched off again before SCAN was
+// touched: SCAN goes off with it (not over to PAD). Not when a project or preset sets it.
+static void grains_switched(Inst* w, bool was_on) {
+  const bool on = grains_on(w);
+  if (on == was_on) return;
+  const bool scan = w->norm[P_SCAN] > 0.5f;
+  if (on && !scan) { w->norm[P_SCAN] = 1.0f; w->scan_by_grains = true; }
+  else if (!on && scan && w->scan_by_grains) { w->norm[P_SCAN] = 0.0f; w->scan_by_grains = false; }
+  else return;
+  apply_param(w, P_SCAN);
+  w->changed[P_SCAN] = 1; w->changed[P_SW1] = 1;
+}
+
 static void set_parameter(AEffect* e, int32_t i, float v) {
   Inst* w = (Inst*)e->object;
   if (i < 0 || i >= P_COUNT) return;
   v = clamp01(v);
   w->host_view[i] = v;                         // what the host now shows (notify() tells it when that changes)
+  if (is_kb(i)) {                              // the keyboard: its keys (the rest is read-only)
+    if (is_kb_key(i) && i != w->echo_i.load()) set_kb_param(w, i, v);
+    return;
+  }
   if (i == P_RESCAN || i == P_T3K_INFO) {
     if (i == P_RESCAN && v >= 0.5f) {
       std::lock_guard<std::mutex> lk(w->mu);
@@ -1062,7 +1372,32 @@ static void set_parameter(AEffect* e, int32_t i, float v) {
     }
     return;
   }
-  if (is_display(i)) return;                   // read-only: what the plugin shows
+  if (is_display(i) || is_page(i)) return;     // read-only: what the plugin shows
+  if (is_sw(i)) {                              // SCAN / GRAINS / SNAP tiles: a tap flips that switch (not MPC writing
+    if (i == w->echo_i.load()) return;         //  back the light the plugin reported)
+    // One flip per tap: a second write within kSwRepeatMs is the same tap again (a host that writes twice, or writes
+    // and reads back), not a new one, so a repeated write leaves the tile as the first one set it. (Short: a quick
+    // second tap by hand, ~100 ms or more apart, still flips it back.)
+    const auto now = std::chrono::steady_clock::now();
+    if (now - w->sw_tap_at[i - P_SW1] < std::chrono::milliseconds(kSwRepeatMs)) { w->changed[i] = 1; return; }
+    w->sw_tap_at[i - P_SW1] = now;
+    const int t = kSwOf[i - P_SW1];
+    const bool was = w->norm[t] > 0.5f;
+    w->norm[t] = was ? 0.0f : 1.0f;
+    apply_param(w, t);
+    w->changed[t] = 1; w->changed[i] = 1;
+    if (t == P_SCAN_MODE) grains_switched(w, was);
+    if (t == P_SCAN) w->scan_by_grains = false;  // (SCAN tapped: yours from now on)
+    return;
+  }
+  if (is_tabs(i) || i == P_TAB) {              // SHAPE / ROOM / SCAN: a tab tapped (any write: it's that tab; not
+    if (i == w->echo_i.load()) return;         // MPC writing back the light the plugin reported)
+    const int n = is_tabs(i) ? i - P_TABS1 : std::max(0, std::min(2, (int)lroundf(v * 2)));
+    w->norm[P_TAB] = n / 2.0f;
+    w->changed[P_TAB] = 1;
+    pages_changed(w);
+    return;
+  }
   if (is_long(i)) {                            // LONG IR
     if (i == P_LONG_IR_INFO) return;           // read-only
     {
@@ -1106,8 +1441,11 @@ static void set_parameter(AEffect* e, int32_t i, float v) {
   }
   if (!is_browser(i)) {
     if (is_setting(i) && std::fabs(v - w->norm[i]) > 1e-6f) w->preset_clean = false;   // (you changed the preset)
+    const bool grains_was = grains_on(w);
     w->norm[i] = v;
     apply_param(w, i);
+    if (i == P_SCAN_MODE) grains_switched(w, grains_was);
+    if (i == P_SCAN) w->scan_by_grains = false;
     if (is_shape(i)) {                         // a new shape: the IR is prepared again (crossfaded in)
       std::lock_guard<std::mutex> lk(w->mu);
       if (w->ir.want >= 0) w->ir.loading = true;
@@ -1200,6 +1538,11 @@ static float get_parameter(AEffect* e, int32_t i) {
     return menu_row_on(w, i - P_ROW1) ? 1.0f : 0.0f;
   }
   if (is_mp(i)) return 0;
+  if (is_kb(i)) return i == P_KB ? (w->kb_open ? 1.0f : 0.0f) : is_kb_key(i) && kb_key_on(w, i) ? 1.0f : 0.0f;
+  if (is_page(i)) return page_shown(w, i) ? 1.0f : 0.0f;
+  if (is_tabs(i)) return tab_of(w) == i - P_TABS1 ? 1.0f : 0.0f;
+  if (is_sw(i)) return sw_on(w, i) ? 1.0f : 0.0f;
+  if (is_spark(i)) return w->spark_sent[i - P_SPARK0] / 23.0f;
   if (i == P_LONG_IR) return long_ir_on(w) ? 1.0f : 0.0f;
   if (i == P_LONG_IR_TAP || i == P_LONG_IR_INFO) return 0;
   if (i == P_PLAYHEAD) return w->eng ? w->eng->playhead() / (float)ReverbEngine::kPlay : 0.0f;
@@ -1219,6 +1562,17 @@ static void notify(Inst* w) {                  // audio thread: report values th
       w->master(&w->fx, audioMasterAutomate, P_PLAYHEAD, 0, nullptr, col / (float)ReverbEngine::kPlay);
     }
   }
+  if (++w->spark_age >= 6) {                   // the strip under the painting: at most every 6 blocks (~17 ms). Its
+    w->spark_age = 0;                          // 12 pictures (the kit's pictures are opaque: they can't overlap) draw
+    const int ph = w->eng ? w->eng->playhead() : 0;   // the playhead (1..24: a half column each) and GRAINS' streaks
+    for (int c = 0; c < ReverbEngine::kSparkCols; c++) {
+      const int half = ph > 0 && (ph - 1) / 2 == c ? 1 + (ph - 1) % 2 : 0;
+      const int s = (w->eng ? w->eng->spark(c) : 0) + ReverbEngine::kSparkLevels * half;
+      if (s == w->spark_sent[c]) continue;
+      w->spark_sent[c] = s;
+      w->master(&w->fx, audioMasterAutomate, P_SPARK0 + c, 0, nullptr, s / 23.0f);
+    }
+  }
   // UpdateDisplay: MPC answers each one by reading every parameter again and rebuilding its screen (mpc-vst-plugins
   // wrapper/vst2_wrap.c), the slow part of a preset pick on the device. So they're paced: at most one per kDispGapMs,
   // and while an IR is being prepared one waits (up to kDispHoldMs), so a pick redraws once, with the new IR's name.
@@ -1235,6 +1589,11 @@ static void notify(Inst* w) {                  // audio thread: report values th
     disp = ms(w->disp_last) >= kDispGapMs && (!loading || ms(w->disp_since) >= kDispHoldMs);
   }
   if (disp) { w->disp_wait = false; w->disp_last = now; }
+  if (w->kb_open.load()) {                     // the keyboard: a tapped key goes dark again after its flash
+    const long long ms = now_ms();
+    for (int n = 0; n < kKbKeys; n++)
+      if (w->kb_lit_due[n].load() && ms >= w->kb_lit_until[n].load()) { w->kb_lit_due[n] = false; w->changed[P_KB_KEY1 + n] = 1; }
+  }
   if (disp && w->menu.load()) {                // a list is open: its title and rows are read again
     w->changed[P_MENU_TITLE] = 1;
     for (int r = P_ROW1; r <= P_ROW_LAST; r++) w->changed[r] = 1;
@@ -1242,7 +1601,8 @@ static void notify(Inst* w) {                  // audio thread: report values th
   for (int i = 0; i < P_COUNT; i++) {
     if (!w->changed[i].exchange(0)) continue;  // (values go at once: knobs move and the popup closes without waiting)
     float v = 0;
-    if (is_display(i) && i != P_PLAYHEAD && i != P_SONICS) v = w->wave[i - P_WAVE0] / (float)(8 * ReverbIR::kTones - 1);
+    if (is_display(i) && i != P_PLAYHEAD && i != P_SONICS && !is_spark(i)) v = w->wave[i - P_WAVE0] / (float)(8 * ReverbIR::kTones - 1);
+    if (is_spark(i)) v = w->spark_sent[i - P_SPARK0] / 23.0f;
     if (i == P_IR || i == P_IR_SRC || is_row(i)) {
       std::unique_lock<std::mutex> lk(w->mu, std::try_to_lock);   // never wait on the audio thread
       if (!lk.owns_lock()) { w->changed[i] = 1; continue; }
@@ -1250,22 +1610,35 @@ static void notify(Inst* w) {                  // audio thread: report values th
     }
     if (i == P_MENU) v = w->menu / 2.0f;
     if (i == P_LONG_IR) v = long_ir_on(w) ? 1.0f : 0.0f;
-    if ((disp || w->disp_wait) && v == w->host_view[i].load()) continue;   // the host has it; an UpdateDisplay redraws its text
+    if (i == P_KB) v = w->kb_open ? 1.0f : 0.0f;
+    if (is_page(i)) v = page_shown(w, i) ? 1.0f : 0.0f;
+    if (is_tabs(i)) v = tab_of(w) == i - P_TABS1 ? 1.0f : 0.0f;
+    if (is_sw(i)) v = sw_on(w, i) ? 1.0f : 0.0f;
+    if (is_kb_key(i)) v = kb_key_on(w, i) ? 1.0f : 0.0f;
+    if ((disp || w->disp_wait) && v == w->host_view[i].load() && !is_kb_key(i) && !is_view(i) && !is_page(i))
+      continue;                                // the host has it; an UpdateDisplay redraws its text (the keys, tabs and
+                                               // pages are told every time: what they show is the plugin's alone)
     w->host_view[i] = v;
+    w->echo_i = i;                             // (MPC calls setParameter from inside this with the same value: not a tap)
     w->master(&w->fx, audioMasterAutomate, i, 0, nullptr, v);
+    w->echo_i = -1;
   }
   if (disp) w->master(&w->fx, audioMasterUpdateDisplay, 0, 0, nullptr, 0);
 }
 
 static void process_replacing(AEffect* e, float** in, float** out, int32_t n) {
   Inst* w = (Inst*)e->object;
-  if (w->master && sync_on(w)) {               // SYNC: the tempo, every block (MPC answers at once; a tempo change glides)
-    const VstTimeInfo* ti = (const VstTimeInfo*)w->master(&w->fx, audioMasterGetTime, 0, kVstTempoValid, nullptr, 0);
+  const bool gsync = w->norm[P_GRAIN_SYNC] > 0.5f;
+  if (w->master && (sync_on(w) || end_sync_on(w) || gsync)) {   // SYNC, END SYNC, GRAINS' SYNC: the tempo (and song
+    const VstTimeInfo* ti = (const VstTimeInfo*)w->master(&w->fx, audioMasterGetTime, 0,   //  position), every block
+                                                          kVstTempoValid | kVstPpqPosValid, nullptr, 0);
     if (ti && (ti->flags & kVstTempoValid) && ti->tempo > 0) {
       w->bpm = ti->tempo;
-      if (!w->tempo_ok.exchange(true)) { w->changed[P_PREDELAY] = 1; w->update_display = 1; }   // (the "@120" goes)
+      if (gsync) w->eng->set_transport((ti->flags & kVstPpqPosValid) ? ti->ppqPos : 0.0, ti->tempo,
+                                       (ti->flags & kVstPpqPosValid) && (ti->flags & kVstTransportPlaying));
+      if (!w->tempo_ok.exchange(true)) { w->changed[P_PREDELAY] = 1; w->changed[P_LENGTH] = 1; w->update_display = 1; }   // (the "@120" goes)
     }
-    sync_predelay(w);
+    if (sync_on(w)) sync_predelay(w);          // (END SYNC: the worker prepares the IR again for a new tempo)
   }
   if (w->master) notify(w);
   if (n <= 0) return;
@@ -1294,7 +1667,7 @@ static void copy_text(void* dst, const std::string& s, size_t limit) {
 }
 static size_t text_limit(int i) {
   return (i == P_IR || i == P_IR_INFO || i == P_IR_PACK || i == P_T3K_INFO || i == P_SONICS || i == P_MP_INFO ||
-          i == P_MENU_TITLE || is_row(i) || i == P_LONG_IR_INFO) ? kTextLong : kText;
+          i == P_MENU_TITLE || is_row(i) || i == P_LONG_IR_INFO || i == P_KB_TITLE || i == P_KB_NAME || i == P_KB_INFO) ? kTextLong : kText;
 }
 static std::string gear_name(const std::string& g) {
   if (g == "space") return "Space";
@@ -1338,6 +1711,33 @@ static std::string display_of(Inst* w, int i) {
     return "IR: " + (p.ir_src == 0 ? factory_name(stem_of(p.ir_file)) : stem_of(p.ir_file));
   }
   if (i == P_MENU) return p.opts[std::max(0, std::min(2, w->menu.load()))];
+  if (is_page(i)) return page_shown(w, i) ? "On" : "Off";
+  if (is_tabs(i)) { static const char* T[3] = {"SHAPE", "ROOM", "SCAN"}; return T[i - P_TABS1]; }
+  if (is_sw(i)) { static const char* T[4] = {"SCAN", "GRAINS", "SNAP", "SYNC"}; return T[i - P_SW1]; }
+  if (is_spark(i)) return PARAMS[i].opts[w->spark_sent[i - P_SPARK0]];
+  if (is_kb(i)) {
+    if (i == P_KB) return w->kb_open ? "On" : "Off";
+    std::lock_guard<std::mutex> lk(w->mu);
+    const Keyboard& k = w->kb;
+    if (!w->kb_open) return "";
+    if (i == P_KB_TITLE) return k.mode == 2 ? "Rename " + k.from : "Name the new preset";
+    if (i == P_KB_NAME) {                        // the end of the name, with a cursor (a long name slides left)
+      std::string t = k.text + "|";
+      std::vector<size_t> off; std::vector<int> px;
+      marq_cells(t, off, px);
+      int tot = 0; for (int x : px) tot += x;
+      size_t a = 0;
+      while (tot * 3 / 2 > kKbNamePx && a + 1 < px.size()) tot -= px[a++];   // (its text is ~1.5x the rows')
+      return t.substr(off.empty() ? 0 : off[a]);
+    }
+    if (i == P_KB_INFO) {
+      if (k.busy) return k.mode == 2 ? "Renaming..." : "Saving...";
+      if (!k.error.empty()) return k.error;
+      snprintf(buf, sizeof buf, "%d of %d characters \xC2\xB7 %s keeps it", (int)k.text.size(), (int)kKbMax, k.mode == 2 ? "RENAME" : "SAVE");
+      return buf;
+    }
+    return kb_label(w, i);
+  }
   if (i == P_LONG_IR_INFO) {
     if (platform::kGen2) return "Gen 2 \xC2\xB7 always on";
     return long_ir_on(w) ? "On \xC2\xB7 CPU heavy \xC2\xB7 20 s" : "Off \xC2\xB7 IRs up to 5 s";
@@ -1429,6 +1829,11 @@ static std::string display_of(Inst* w, int i) {
     return w->sonics.empty() ? (w->ir.loading ? "listening..." : "") : w->sonics;
   }
   if (is_display(i)) return p.opts[w->wave[i - P_WAVE0].load()];
+  if (i == P_GRAIN_DENSITY && w->norm[P_GRAIN_SYNC] > 0.5f) return kGrainNotes[grain_note(w)];   // GRAINS' SYNC
+  if (i == P_LENGTH && end_sync_on(w)) {       // END SYNC: the note value ("1/4", "2 bars"); without a tempo, at 120
+    const std::string n = kEndNotes[end_note(w)].name;
+    return w->tempo_ok ? n : n + " @120";
+  }
   if (i == P_PREDELAY && sync_on(w)) {         // SYNC: the note value ("1/8 D"); without a tempo from the host, at 120
     const int k = sync_note(w);
     return k == 0 || w->tempo_ok ? std::string(kNotes[k].name) : std::string(kNotes[k].name) + " @120";
@@ -1440,6 +1845,12 @@ static std::string display_of(Inst* w, int i) {
   else if (!strcmp(p.unit, "Hz")) snprintf(buf, sizeof buf, "%.0f Hz", v);
   else if (!strcmp(p.unit, "ms")) snprintf(buf, sizeof buf, "%.0f ms", v);
   else if (!strcmp(p.unit, "%")) snprintf(buf, sizeof buf, "%.0f%%", v);
+  else if (!strcmp(p.unit, "st")) {            // PITCH: whole semitones with SNAP, else tenths
+    const bool whole = i == P_SCAN_PITCH && w->norm[P_PITCH_SNAP] > 0.5f;   // (BEND: always tenths)
+    const float q = whole ? std::round(v) : std::round(v * 10) / 10;
+    if (std::fabs(q) < 0.05f) snprintf(buf, sizeof buf, "0 st");
+    else snprintf(buf, sizeof buf, whole ? "%+.0f st" : "%+.1f st", q);
+  }
   else snprintf(buf, sizeof buf, "%.1f dB", v);
   return buf;
 }
@@ -1449,8 +1860,8 @@ static int get_chunk(Inst* w) {
   std::string s = "echo-vault=1\n";
   char buf[64];
   for (int i = 0; i < P_COUNT; i++) {
-    if (is_browser(i) || is_display(i) || is_mp(i) || is_menu(i) || PARAMS[i].momentary || i == P_T3K_INFO || PARAMS[i].popup_of >= 0 ||
-        i == P_LONG_IR_INFO) continue;
+    if (is_browser(i) || is_display(i) || is_mp(i) || is_menu(i) || is_kb(i) || i == P_FREEZE || i == P_SCAN || i == P_TAB || is_page(i) || is_view(i) || PARAMS[i].momentary || i == P_T3K_INFO ||
+        PARAMS[i].popup_of >= 0 || i == P_LONG_IR_INFO) continue;
     snprintf(buf, sizeof buf, "%s=%.6g\n", PARAMS[i].key, real_of(i, w->norm[i]));
     s += buf;
   }
@@ -1490,7 +1901,7 @@ static bool set_chunk(Inst* w, const char* data, size_t len) {
     if (k == "mp_active") { mp_active = v == "1"; continue; }
     if (k == "preset_clean") { clean = v == "1"; continue; }
     for (int i = 0; i < P_COUNT; i++) {
-      if (is_browser(i) || is_mp(i) || is_menu(i) || PARAMS[i].momentary || i == P_LONG_IR_INFO || k != PARAMS[i].key) continue;
+      if (is_browser(i) || is_mp(i) || is_menu(i) || is_kb(i) || i == P_FREEZE || i == P_SCAN || i == P_TAB || is_page(i) || is_view(i) || PARAMS[i].momentary || i == P_LONG_IR_INFO || k != PARAMS[i].key) continue;
       const param_t& p = PARAMS[i];
       float r = (float)atof(v.c_str());
       w->norm[i] = norm_of(i, r);
@@ -1515,6 +1926,11 @@ static bool set_chunk(Inst* w, const char* data, size_t len) {
   requested(w->ir);
   kick(w, !w->scanned);
   w->menu = 0; w->mp.armed_name.clear(); w->ir.armed_path.clear();   // (a project opens on the page: no list, nothing armed)
+  w->norm[P_PRESET_OPEN] = 0;                  // (nor the PRESET popup: its flag says closed too)
+  if (w->norm[P_FREEZE] > 0.5f) { w->norm[P_FREEZE] = 0; apply_param(w, P_FREEZE); w->changed[P_FREEZE] = 1; }   // (nor frozen)
+  if (w->norm[P_SCAN] > 0.5f) { w->norm[P_SCAN] = 0; apply_param(w, P_SCAN); w->changed[P_SCAN] = 1; }   // (nor scanning)
+  w->scan_by_grains = false;
+  if (w->kb_open) kb_hide(w);                  // (nor the keyboard)
   for (int i = 0; i < P_COUNT; i++) { w->changed[i] = 1; w->host_view[i] = -1.0f; }   // (all reported again)
   w->update_display = 1;
   return true;
@@ -1556,8 +1972,8 @@ static intptr_t dispatcher(AEffect* e, int32_t op, int32_t idx, intptr_t v, void
     case effGetVendorVersion: return PLUG_VERSION;
     case effGetVstVersion: return 2400;
     // the display parameters (waveform, glow) are read-only: not automatable (what MPC showed working)
-    case effCanBeAutomated: return idx >= 0 && idx < P_COUNT && !is_display(idx) && idx != P_PRESET_OPEN && idx != P_MENU && idx != P_MENU_TITLE &&
-                                   !is_long(idx);   // (LONG IR is a device setting, never automation)
+    case effCanBeAutomated: return idx >= 0 && idx < P_COUNT && !is_display(idx) && idx != P_PRESET_OPEN && idx != P_MENU && idx != P_MENU_TITLE && !(idx >= P_TAB && idx <= P_PG_SCAN) && !is_page(idx) &&
+                                   !is_long(idx) && !(idx >= P_KB && idx <= P_KB_INFO);   // (keys: as the list rows)   // (LONG IR is a device setting, never automation)
     case effGetParamName:
       if (idx >= 0 && idx < P_COUNT) { strncpy((char*)p, PARAMS[idx].name, 31); ((char*)p)[31] = 0; }
       return 1;
@@ -1619,6 +2035,7 @@ extern "C" __attribute__((visibility("default"))) AEffect* VSTPluginMain(audioMa
   if (!w) return nullptr;
   w->master = master;
   for (int i = 0; i < P_COUNT; i++) { w->changed[i] = 0; w->norm[i] = def_norm(i); w->host_view[i] = -1.0f; }
+  for (int n = 0; n < kKbKeys; n++) { w->kb_lit_until[n] = 0; w->kb_lit_due[n] = false; }
   for (auto& c : w->wave) c = 0;
   AEffect* e = &w->fx;
   memset(e, 0, sizeof *e);

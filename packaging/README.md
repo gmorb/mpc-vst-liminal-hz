@@ -11,7 +11,8 @@ Not affiliated with or endorsed by TONE3000 or Akai Professional.
 ## What's in the folder
 `Gm0rb - VST - Liminal Hz/` is the whole plugin: `liminal_hz.so`, its page (`Plugin Skins/`), `plugin-meta.xml`,
 `version.xml`, `LiminalHz.json` (parameter list), licences, the factory IRs (`factory/`), the phone pages' font
-(`art/fonts/`), an empty `reverbs/` folder for your own IRs and an empty `presets/` folder for My Presets.
+(`art/fonts/`), and `reverbs/` and `presets/` folders with a README each: your own IRs, TONE3000 downloads and My Presets are kept
+in a `Liminal Hz` folder at the top of the same drive, which updates never touch.
 
 ## Requirements
 - A Gen 1 Akai Force or MPC (Live, Live II, One, X, Key 61), with SSH access (modded firmware, e.g. MockbaMod)
@@ -97,14 +98,14 @@ what they do. In the background, a doorway at the far end of an empty room.
 - **NAME ON PHONE**: the MPC has no keyboard, so names are typed on a phone on the same Wi-Fi: the line shows an
   address such as `192.168.1.20:8191/presets`. Open it to save the current sound under a name, or load, rename and
   delete presets. The same page is a button on the TONE3000 page too. It needs no internet.
-- Presets are small text files in the plugin's `presets/` folder (`<name>.lhzp`), kept across upgrades; rename or
+- Presets are small text files in `Liminal Hz/presets/` at the top of the drive (`<name>.lhzp`), kept across updates; rename or
   delete them from a computer too, then press RESCAN.
 
 ## Getting IRs from TONE3000
 1. Press **BROWSE**. The TONE3000 line shows an address, e.g. `Open 192.168.1.20:8191`.
 2. On a phone on the same Wi-Fi as the MPC, open `http://` and that address, e.g. `http://192.168.1.20:8191`.
 3. Continue, sign in to TONE3000 and pick an IR from the Space, Outboard, Pedal or Experimental categories (IRs
-   only: only `.wav` IRs are downloaded). It downloads to `reverbs/TONE3000/<tone>/` and is selected.
+   only: only `.wav` IRs are downloaded). It downloads to `Liminal Hz/reverbs/TONE3000/<tone>/` and is selected.
 The page also has a **My Presets: name & save** button (see My Presets).
 
 ## Notes

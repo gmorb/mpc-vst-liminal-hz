@@ -47,6 +47,15 @@ class Library {
   // MPCNAM_MEDIA overrides it, for tests)
   static std::string plugin_dir();
   static std::string media_root();
+  // Your own files (My Presets, TONE3000 downloads) live outside the plugin's folder, so replacing that folder to update
+  // (as MPC OS 3.10.1's install does) keeps them: "<drive>/Liminal Hz", at the top of the card or drive the plugin is
+  // installed on (the first folder under media_root()). Made if missing. MPCNAM_DATA overrides it (tests). If the
+  // plugin isn't under media_root() or the folder can't be made, the plugin's own folder, as before 1.5.
+  static std::string data_dir();
+  // Once per start, before the first scan: what earlier versions kept in the plugin's own presets/ and reverbs/ folders
+  // (your presets, your IRs, TONE3000 downloads) is moved to data_dir()'s, unless a file of that name is there already
+  // (then it's left where it was, still found). README.txt files stay. Returns how many entries moved.
+  static int migrate_user_files();
 
   // the entry to use for something saved as (path, display, file): exact path, else the same relative display
   // path in any library folder, else the same file name; -1 if none

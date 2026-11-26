@@ -24,8 +24,9 @@ OUT = os.path.join(ROOT, "docs", f"Liminal-Hz-{SHORT}-User-Manual.pdf")
 # where each numbered callout sits on the 1280x628 page (layout.conf coordinates, y - 86 for the page's top edge)
 CALLOUTS = [
     (1, 312, 22), (2, 414, 30), (3, 20, 82), (4, 405, 92), (5, 20, 152), (6, 430, 152), (7, 92, 182),
-    (8, 24, 288), (9, 22, 358), (10, 386, 358), (11, 254, 398), (12, 650, 16), (13, 580, 56), (14, 580, 222),
-    (15, 580, 262), (16, 1142, 448), (17, 112, 424), (18, 262, 440), (19, 566, 424), (20, 880, 424), (21, 1092, 516),
+    (8, 24, 288), (9, 22, 358), (10, 386, 358), (11, 254, 398), (12, 874, 16), (13, 580, 56), (14, 580, 222),
+    (15, 580, 262), (16, 1248, 450), (17, 112, 424), (18, 262, 440), (19, 566, 424), (20, 880, 424), (21, 1248, 522),
+    (22, 1050, 450), (23, 1050, 522), (24, 846, 30),
 ]
 
 SIGNAL_FLOW = """<svg viewBox="0 0 720 132" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="Titillium Web" font-size="11">
@@ -78,7 +79,7 @@ def build_dir():
     os.makedirs(os.path.join(d, "fonts")); os.makedirs(os.path.join(d, "img"))
     for f in ("TitilliumWeb-Regular.ttf", "TitilliumWeb-SemiBold.ttf"):
         shutil.copy(FONTS + f, os.path.join(d, "fonts", f))
-    for f in ("page-render", "ir-list", "my-presets", "shape", "phone"):
+    for f in ("page-render", "ir-list", "my-presets", "keyboard", "room", "scan", "shape", "phone"):
         shutil.copy(os.path.join(ROOT, "docs", "images", f + ".png"), os.path.join(d, "img", f + ".png"))
     shutil.copy(os.path.join(ROOT, "vst", "art", "texture.png"), os.path.join(d, "img", "texture.png"))
     return d

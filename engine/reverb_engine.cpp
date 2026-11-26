@@ -209,6 +209,55 @@ static size_t decay_reshape(std::vector<std::vector<float>>& h, double rate, dou
   return out_len;
 }
 
+// ---- Damping and Distance: in the IR's own time (before Reverse and the trim), off the audio thread -------------------
+// DAMPING: two one-pole low-passes whose cutoff falls as the IR goes on, kDampOct octaves a second at 100% (from
+// kDampTop; never under kDampFloor): the start is untouched, the highs of the tail die away first, as in a room with
+// air and soft walls. The lows keep their own decay. O(n), so turning it costs little more than the trim.
+static const double kDampTop = 18000.0, kDampOct = 4.0, kDampFloor = 120.0;
+static void damp_ir(std::vector<std::vector<float>>& h, double rate, double amount) {
+  const double r = kDampOct * std::pow(std::min(1.0, std::max(0.0, amount)), 1.3);   // (the first half of the knob is gentle)
+  const double top = std::min(kDampTop, 0.45 * rate);
+  for (auto& v : h) {
+    double y1 = 0, y2 = 0;
+    for (size_t i = 0; i < v.size(); i++) {
+      const double fc = std::max(kDampFloor, top * std::exp2(-r * (double)i / rate));
+      const double a = 1.0 - std::exp(-2 * M_PI * fc / rate);
+      y1 += a * (v[i] - y1);
+      y2 += a * (y1 - y2);
+      v[i] = (float)y2;
+    }
+  }
+}
+// DISTANCE: the balance of the early reflections (the first kEarly s from the IR's onset, a kEarlyXf crossfade) and
+// the tail. Near (0): the early part up to +6 dB, the tail down to -6 dB. Far (1): the early part down to -14 dB and
+// darker (a low-pass falling to ~3 kHz: the air in between), the tail as it is. The IR's level is set afterwards, so
+// it is the balance that changes, not the loudness.
+static const double kEarly = 0.08, kEarlyXf = 0.02;
+static void distance_ir(std::vector<std::vector<float>>& h, double rate, double dist) {
+  const double x = 2.0 * (std::min(1.0, std::max(0.0, dist)) - 0.5);   // -1 near .. +1 far
+  if (x == 0.0 || h.empty()) return;
+  const size_t n = h[0].size();
+  float pk = 0;
+  for (auto& v : h) for (float s : v) pk = std::max(pk, std::fabs(s));
+  if (!(pk > 0)) return;
+  size_t t0 = 0;                                             // the onset: the first sample at a tenth of the peak
+  while (t0 < n) { bool hit = false; for (auto& v : h) hit = hit || std::fabs(v[t0]) >= 0.1f * pk; if (hit) break; t0++; }
+  const double te = (double)t0 + kEarly * rate, xf = kEarlyXf * rate;
+  const double ge = x < 0 ? 1.0 - x : 1.0 - 0.8 * x, gl = x < 0 ? 1.0 + 0.5 * x : 1.0;
+  const double fc = 18000.0 * std::exp2(-2.5 * std::max(0.0, x));   // far: the early part loses its top
+  const double a = 1.0 - std::exp(-2 * M_PI * std::min(fc, 0.45 * rate) / rate);
+  for (auto& v : h) {
+    double y = 0;
+    for (size_t i = 0; i < n; i++) {
+      const double u = std::min(1.0, std::max(0.0, ((double)i - (te - xf / 2)) / xf));   // 0 early .. 1 tail
+      const double w = 0.5 - 0.5 * std::cos(M_PI * u);
+      double s = v[i];
+      if (x > 0) { y += a * (s - y); s = s * w + y * (1 - w); }   // (the low-pass only on the early part)
+      v[i] = (float)(s * (ge * (1 - w) + gl * w));
+    }
+  }
+}
+
 // ---- high quality (LONG IR, and Gen 2): band-limited resampling (windowed sinc), off the audio thread ------------------------------------------------
 // Output sample j is the input at time j * rate / target (sample 0 at time 0, as ResampleCubic on the zero-padded input
 // gives, and the same count: ceil(n * target / rate)). Kaiser-windowed sinc, 64 zero crossings each side, beta 9.6
@@ -339,10 +388,13 @@ std::unique_ptr<ReverbIR> ReverbIR::make(const std::vector<std::vector<float>>& 
   }
   n = std::min(n, cap);                                    // the cap (5 s, or 20 s at high quality; after stretch: it's about CPU)
   for (auto& v : h) v.resize(n, 0.0f);
+  if (shape.damping > 0.0) damp_ir(h, host_rate, shape.damping);
+  if (shape.distance != 0.5) distance_ir(h, host_rate, shape.distance);
   if (shape.reverse) for (auto& v : h) std::reverse(v.begin(), v.end());
   // trim: [a, b) of the capped IR, at least 128 samples
   size_t a = (size_t)std::llround(n * std::min(0.9, std::max(0.0, shape.start)));
-  size_t b = (size_t)std::llround(n * std::min(1.0, std::max(0.02, shape.length)));
+  size_t b = shape.length_s > 0 ? a + (size_t)std::llround(shape.length_s * host_rate)   // END SYNC: a note's length
+                                 : (size_t)std::llround(n * std::min(1.0, std::max(0.02, shape.length)));
   if (b > n) b = n;
   if (b < a + 128) b = std::min(n, a + 128);
   if (b < a + 128) a = b > 128 ? b - 128 : 0;
@@ -444,6 +496,11 @@ ReverbEngine::ReverbEngine(double host_rate) : rate_(host_rate) {
   }
   for (int c = 0; c < 2; c++) { fin_[c].assign(128, 0.0f); fout_[c].assign(128, 0.0f); }
   onset_.reset(new OnsetDetector(host_rate));
+  fz_.reset(new SpectralFreeze());
+  sc_.reset(new SpectralScan(host_rate));
+  gc_.reset(new GrainCloud(host_rate));
+  for (int c = 0; c < 2; c++) { bs_[c].reset(new PitchShifter(host_rate, 0.07)); ss_[c].reset(new PitchShifter(host_rate, 0.1)); }
+  color_.reset(new ColorStage(host_rate));
   update_filters();
 }
 
@@ -527,6 +584,38 @@ void ReverbEngine::block(const float* in_l, const float* in_r, float* out_l, flo
   }
   delay_prev_ = delay;
   pd_pos_ = (pd_pos_ + B) % pdn;
+  {                                                         // SCAN, GRAINS: grains of what's played go INTO the IR, so
+    gc_->write(xl_, xr_, B);                                // each one rings in the space (the IR smooths their edges)
+    gd_ = false;
+    const bool gr_on = params.scan.load(std::memory_order_relaxed) && params.scan_mode.load(std::memory_order_relaxed) == 1;
+    if (gr_on || gc_on_ > 0.0f) {
+      const float st = 1.0f / (kScanFade * (float)rate_);
+      const float mx = std::min(1.0f, std::max(0.0f, params.scan_mix.load(std::memory_order_relaxed)));
+      float ga[128], gl[128], gr[128];
+      for (int i = 0; i < B; i++) {
+        gc_on_ = gr_on ? std::min(1.0f, gc_on_ + st) : std::max(0.0f, gc_on_ - st);
+        ga[i] = std::sin(1.5707963f * gc_on_) * mx;
+        gl[i] = gr[i] = 0.0f;
+      }
+      const double depth = cur_ ? (double)cur_->frames / rate_ : 2.0;
+      gc_->render(gl, gr, ga, B, params.scan_pos.load(std::memory_order_relaxed), params.grain_size.load(std::memory_order_relaxed),
+                  params.scan_pitch.load(std::memory_order_relaxed), params.grain_spray.load(std::memory_order_relaxed),
+                  params.grain_density.load(std::memory_order_relaxed), depth, params.grain_air.load(std::memory_order_relaxed),
+                  params.grain_beats.load(std::memory_order_relaxed), tr_ppq_, tr_bpm_, tr_play_);
+      // DIRECT: that much of the grains (equal power) skips the IR and joins the wet after it, edges and all
+      const float dr = std::min(1.0f, std::max(0.0f, params.grain_direct.load(std::memory_order_relaxed)));
+      const float to_ir = std::cos(1.5707963f * dr), to_out = std::sin(1.5707963f * dr) * kDirectGain;
+      for (int i = 0; i < B; i++) {                         // (equal power: the grains and the playing are unrelated)
+        const float keep = std::sqrt(std::max(0.0f, 1.0f - ga[i] * ga[i]));
+        gd_l_[i] = to_out * gl[i]; gd_r_[i] = to_out * gr[i];
+        const float il = to_ir * gl[i], ir = to_ir * gr[i];
+        if (stereo_ir) xl_[i] = xr_[i] = keep * xl_[i] + 0.5f * (il + ir);
+        else { xl_[i] = keep * xl_[i] + il; xr_[i] = keep * xr_[i] + ir; }
+      }
+      gd_ = dr > 0.0f;
+      if (!gr_on && gc_on_ <= 0.0f) gc_->reset();
+    }
+  }
   // feedback. The knob (0..1) sets the loop's strength on an eased curve, kFbMax * (1 - (1 - k)^2) (it builds quickly in
   // the first half). The loop is scaled by the IR's peak gain eased by kFbEase: 1 would keep the loop under 1 at every
   // frequency (safe, but weak on rooms: their loudest frequency sets the limit); below 1 the rest of the spectrum gets
@@ -549,7 +638,28 @@ void ReverbEngine::block(const float* in_l, const float* in_r, float* out_l, flo
       xl_[i] += r * sl; xr_[i] += r * sr;
     }
   }
+  {                                                         // SHIMMER: last block's octave-up wet back in, under the same guard
+    const float sk = std::min(1.0f, std::max(0.0f, params.shimmer.load(std::memory_order_relaxed)));
+    const float sg = kShimmerMax * sk * (cur_ ? std::pow(cur_->fb_gain, kFbEase) : 0.0f);
+    if (sg > 0.0f) {
+      const float r0 = fb_lim_prev_, r1 = fb_lim_;
+      for (int i = 0; i < B; i++) {
+        const float r = sg * (r0 + (r1 - r0) * (float)(i + 1) / B);
+        xl_[i] += r * sh_l_[i]; xr_[i] += r * (stereo_ir ? sh_l_[i] : sh_r_[i]);
+      }
+    }
+  }
   fb_lim_prev_ = fb_lim_;
+  const bool frz = params.freeze.load(std::memory_order_relaxed);
+  if (frz && !fz_was_) fz_->start();                        // FREEZE: what was heard until now is what's held
+  fz_was_ = frz;
+  if (frz || fz_in_ < 1.0f) {                               // frozen: new playing (and the loop) stop reaching the reverb
+    const float st = (float)B / (kInMute * (float)rate_) / B;
+    for (int i = 0; i < B; i++) {
+      fz_in_ = frz ? std::max(0.0f, fz_in_ - st) : std::min(1.0f, fz_in_ + st);
+      xl_[i] *= fz_in_; xr_[i] *= fz_in_;
+    }
+  }
   if (cur_) {
     cur_->l->process(xl_, wl_, B);
     cur_->r->process(cur_->stereo ? xl_ : xr_, wr_, B);
@@ -578,6 +688,89 @@ void ReverbEngine::block(const float* in_l, const float* in_r, float* out_l, flo
     const float want = wp > ceil ? ceil / wp : 1.0f;         // down at once, back up gently (about 0.1 s)
     fb_lim_ = want < fb_lim_ ? want : std::min(want, fb_lim_ + (float)B / (0.1f * (float)rate_));
   }
+  {                                                         // FREEZE: the pad in, the reverb out (and back)
+    const bool pad = frz && fz_->ready();
+    if (pad || fz_pad_ > 0.0f || fz_live_ < 1.0f || fz_->analysing() || fz_->ready()) {
+      const float pin = 1.0f / (kFreezeIn * (float)rate_), pout = 1.0f / (kFreezeOut * (float)rate_),
+                  lout = 1.0f / (kFreezeIn * (float)rate_), lin = 1.0f / (kLiveBack * (float)rate_);
+      for (int i = 0; i < B; i++) {
+        fz_pad_ = pad ? std::min(1.0f, fz_pad_ + pin) : std::max(0.0f, fz_pad_ - pout);
+        fz_live_ = pad ? std::max(0.0f, fz_live_ - lout) : std::min(1.0f, fz_live_ + lin);
+        // (equal power: the pad and the reverb are unrelated signals)
+        fz_g_[i] = std::sin(1.5707963f * fz_pad_);
+        const float lg = std::sin(1.5707963f * fz_live_);
+        wl_[i] *= lg; wr_[i] *= lg;
+      }
+      fz_->render(wl_, wr_, fz_g_, B);
+      if (!frz && fz_pad_ <= 0.0f && !fz_->analysing()) fz_->stop();   // faded out: no more frames made
+    }
+    if (!frz) fz_->capture(wl_, wr_, B);                    // what's heard (the reverb, a fading pad): the next freeze's
+  }
+  update_sparks(gc_on_ > 0.0f);
+  tr_ppq_ += B * tr_bpm_ / 60.0 / rate_;                    // (the transport, on to the next block)
+  if (gd_)                                                  // GRAINS' DIRECT part (made before the IR, above)
+    for (int i = 0; i < B; i++) { wl_[i] += gd_l_[i]; wr_[i] += gd_r_[i]; }
+  {                                                         // SCAN: what was heard, read back at Position, takes over (some of) it
+    sc_->write(wl_, wr_, B);
+    const bool on = params.scan.load(std::memory_order_relaxed);
+    const bool pad_on = on && params.scan_mode.load(std::memory_order_relaxed) == 0;   // (GRAINS: before the IR, above)
+    if (pad_on || sc_on_ > 0.0f) {
+      const float st = 1.0f / (kScanFade * (float)rate_);
+      const float mx = std::min(1.0f, std::max(0.0f, params.scan_mix.load(std::memory_order_relaxed)));
+      for (int i = 0; i < B; i++) {
+        sc_on_ = pad_on ? std::min(1.0f, sc_on_ + st) : std::max(0.0f, sc_on_ - st);
+        const float a = std::sin(1.5707963f * sc_on_) * mx;
+        sc_g_[i] = a;                                        // (equal power: the scan and the reverb are unrelated)
+        const float keep = std::sqrt(std::max(0.0f, 1.0f - a * a));
+        wl_[i] *= keep; wr_[i] *= keep;
+      }
+      const double depth = cur_ ? (double)cur_->frames / rate_ : 2.0;
+      const float pos = params.scan_pos.load(std::memory_order_relaxed);
+      const float pitch = params.scan_pitch.load(std::memory_order_relaxed);
+      if (pad_on || sc_on_ > 0.0f)
+        sc_->render(wl_, wr_, sc_g_, B, pos, params.scan_tex.load(std::memory_order_relaxed), depth, pitch);
+      if (!pad_on && sc_on_ <= 0.0f) sc_->stop();
+    }
+  }
+  {                                                         // SHIMMER's octave up (for the next block) and BEND
+    const float sk = params.shimmer.load(std::memory_order_relaxed);
+    if (sk > 0.0f) {
+      const float hp = std::exp(-2.0f * 3.14159265f * kShimmerLowHz / (float)rate_),
+                  lp = 1.0f - std::exp(-2.0f * 3.14159265f * kShimmerHighHz / (float)rate_);
+      for (int i = 0; i < B; i++) {
+        float v[2] = {wl_[i], wr_[i]};
+        for (int c = 0; c < 2; c++) {
+          float y = ss_[c]->run(v[c], 2.0f);
+          sh_hp_[c] = hp * (sh_hp_[c] + y - sh_hx_[c]); sh_hx_[c] = y;   // high-pass: no low build-up
+          sh_lp_[c] += lp * (sh_hp_[c] - sh_lp_[c]);                      // low-pass: no fizz
+          const float q = std::min(3.0f, std::max(-3.0f, sh_lp_[c]));   // (tanh, near enough: no tanh() per sample)
+          v[c] = q * (27.0f + q * q) / (27.0f + 9.0f * q * q);
+        }
+        sh_l_[i] = stereo_ir ? 0.5f * (v[0] + v[1]) : v[0]; sh_r_[i] = v[1];
+      }
+    } else {
+      memset(sh_l_, 0, sizeof sh_l_); memset(sh_r_, 0, sizeof sh_r_);
+    }
+    const float bend = std::min(12.0f, std::max(-12.0f, params.bend.load(std::memory_order_relaxed)));
+    const double target = std::pow(2.0, bend / 12.0);
+    const bool active = std::fabs(bend) > 0.005f || std::fabs(bend_r_ - 1.0) > 1e-5;
+    if (active || bend_g_ > 0.0f) {
+      const double k = 1.0 - std::exp(-1.0 / (kBendGlide * rate_));
+      const float fs = 1.0f / (kBendFade * (float)rate_);
+      for (int i = 0; i < B; i++) {
+        bend_r_ += (target - bend_r_) * k;
+        if (std::fabs(bend) <= 0.005f && std::fabs(bend_r_ - 1.0) < 2e-3) bend_r_ = 1.0;   // (within 0.03 st: home)
+        const bool on = std::fabs(bend) > 0.005f || bend_r_ != 1.0;
+        bend_g_ = on ? std::min(1.0f, bend_g_ + fs) : std::max(0.0f, bend_g_ - fs);
+        const float yl = bs_[0]->run(wl_[i], (float)bend_r_), yr = bs_[1]->run(wr_[i], (float)bend_r_);
+        wl_[i] += bend_g_ * (yl - wl_[i]); wr_[i] += bend_g_ * (yr - wr_[i]);
+      }
+    } else {
+      for (int i = 0; i < B; i++) { bs_[0]->run(wl_[i], 1.0f); bs_[1]->run(wr_[i], 1.0f); }   // (kept current: no stale start)
+    }
+    color_->process(wl_, wr_, B, std::min(1.0f, std::max(0.0f, params.motion.load(std::memory_order_relaxed))),
+                    std::min(1.0f, std::max(0.0f, params.age.load(std::memory_order_relaxed))));   // MOTION, AGE
+  }
   if (cur_) {                                               // late tails, per IR
     const long m = cur_->l->misses() + cur_->r->misses();
     if (m > cur_->reported) { misses_ += m - cur_->reported; cur_->reported = m; }
@@ -589,7 +782,9 @@ void ReverbEngine::block(const float* in_l, const float* in_r, float* out_l, flo
     if (midi || heard) { play_t_ = 0; notes_.fetch_add(1, std::memory_order_relaxed); }
     else play_t_ += B;
     int col = 0;
-    if (cur_) {
+    if (sc_on_ > 0.0f || gc_on_ > 0.0f) {                    // SCAN: the glow is where it reads
+      col = 1 + (int)std::lround(std::min(1.0f, std::max(0.0f, params.scan_pos.load(std::memory_order_relaxed))) * (kPlay - 1));
+    } else if (cur_ && fz_pad_ < 0.5f) {                      // (frozen: the sound isn't moving through the room)
       const long total = (long)delay + (long)cur_->frames;
       if (play_t_ < total) col = 1 + (int)((long long)kPlay * play_t_ / std::max(1L, total));
     }
@@ -632,8 +827,20 @@ void ReverbEngine::block(const float* in_l, const float* in_r, float* out_l, flo
   }
 }
 
+// a tail that has died away comes out as exact zeros, not as numbers far below hearing (-400 dB and less) that a host
+// downstream might still compute with (without flush-to-zero those become denormals there)
+static void flush_tiny(float* x, int n) {
+  for (int i = 0; i < n; i++) if (std::fabs(x[i]) < 1e-20f) x[i] = 0.0f;
+}
+
 void ReverbEngine::process(const float* in_l, const float* in_r, float* out_l, float* out_r, int n) {
   FlushDenormals fd;
+  process_blocks(in_l, in_r, out_l, out_r, n);
+  flush_tiny(out_l, n);
+  if (out_r != out_l) flush_tiny(out_r, n);
+}
+
+void ReverbEngine::process_blocks(const float* in_l, const float* in_r, float* out_l, float* out_r, int n) {
   if (!in_r) in_r = in_l;
   if (fifo_fill_ == 0 && n % 128 == 0) {                    // MPC: whole 128-frame blocks, no added latency
     for (int off = 0; off < n; off += 128) block(in_l + off, in_r + off, out_l + off, out_r + off);
@@ -647,6 +854,12 @@ void ReverbEngine::process(const float* in_l, const float* in_r, float* out_l, f
       fifo_fill_ = 0;
     }
   }
+}
+
+void ReverbEngine::update_sparks(bool grains) {   // (audio thread) for the display: see spark()
+  int st[kSparkCols] = {};
+  if (grains) gc_->stripes(st, kSparkCols, kSparkLevels - 1, cur_ ? (double)cur_->frames / rate_ : 2.0);
+  for (int c = 0; c < kSparkCols; c++) spark_[c].store(st[c], std::memory_order_relaxed);
 }
 
 }  // namespace irrev

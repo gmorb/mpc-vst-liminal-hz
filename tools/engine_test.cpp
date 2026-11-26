@@ -496,6 +496,354 @@ int main(int argc, char** argv) {
     CHECK(late_ref > 0 && late / late_ref < 1e-3, "with Feedback 60%%, the tail after the input (3-4 s) is as without Duck (diff %.1e)",
           late_ref > 0 ? late / late_ref : -1.0);
   }
+  {   // FREEZE: the reverb as it sounds is held as a pad; new playing doesn't reach it; let go, it fades away
+    auto room = [] { return ir_of({decay((size_t)(2.0 * RATE), 7, 0.1f), decay((size_t)(2.0 * RATE), 8, 0.1f)}); };
+    auto at = [](double s) { return (size_t)(s * RATE); };
+    auto win = [&](const std::vector<float>& v, double a, double b) {
+      double e = 0; for (size_t i = at(a); i < at(b); i++) e += (double)v[i] * v[i]; return std::sqrt(e / (at(b) - at(a))); };
+    auto db = [](double a, double b) { return 20 * std::log10(std::max(1e-12, a) / std::max(1e-12, b)); };
+    // a scripted run: input x, freeze on/off at times (seconds), mix 1 (only the reverb is heard)
+    auto play = [&](std::vector<float> x, std::vector<std::pair<double, bool>> events, ReverbEngine* keep = nullptr) {
+      x.resize((x.size() + 127) / 128 * 128, 0.0f);       // (whole blocks)
+      ReverbEngine e(RATE); e.params.mix = 1; e.params.lowcut_hz = 10; e.params.highcut_hz = 20000;
+      e.set_ir(room());
+      std::vector<float> ol(x.size(), 0), orr(x.size(), 0);
+      size_t k = 0;
+      for (size_t p = 0; p < x.size(); p += 128) {
+        while (k < events.size() && at(events[k].first) <= p) e.params.freeze = events[k++].second;
+        e.process(&x[p], &x[p], &ol[p], &orr[p], 128);
+      }
+      (void)keep;
+      return std::make_pair(ol, orr);
+    };
+    std::mt19937 rg(3); std::normal_distribution<float> g(0, 0.2f);
+    std::vector<float> burst(at(14), 0.0f);
+    for (size_t i = 0; i < at(1.0); i++) burst[i] = g(rg);                  // 1 s of noise, then silence
+    const auto plain = play(burst, {}).first;
+    const auto held = play(burst, {{1.1, true}}).first;
+    const double before = win(plain, 1.0, 1.1), early = win(held, 2.0, 3.0), late = win(held, 12.0, 13.0);
+    CHECK(std::fabs(db(early, before)) < 3.0 && std::fabs(db(late, early)) < 1.0 && win(plain, 12, 13) < 1e-4,
+          "FREEZE holds the tail at its level: %+.1f dB of the moment it's pressed, %+.2f dB 10 s later (unfrozen: gone)",
+          db(early, before), db(late, early));
+    bool finite = true; float pk = 0;
+    for (float v : held) { finite = finite && std::isfinite(v); pk = std::max(pk, std::fabs(v)); }
+    CHECK(finite && pk < 8 * early, "the pad is finite and steady (peak %.2f x its rms)", pk / std::max(1e-12, early));
+    std::vector<float> more = burst;                                        // frozen, play again: it isn't heard in the reverb
+    for (size_t i = at(5); i < at(7); i++) more[i] = 3 * g(rg);
+    const auto held2 = play(more, {{1.1, true}}).first;
+    CHECK(std::fabs(db(win(held2, 5.5, 7.5), early)) < 1.0, "while frozen, new playing doesn't reach the reverb (%+.2f dB)", db(win(held2, 5.5, 7.5), early));
+    const auto rel = play(burst, {{1.1, true}, {4.0, false}}).first;
+    CHECK(db(win(rel, 7.5, 8.5), early) < -50 && db(win(rel, 4.2, 4.4), early) > -3,
+          "let go, the pad fades away (%.1f dB after 0.3 s, %.0f dB after 4 s)", db(win(rel, 4.2, 4.4), early), db(win(rel, 7.5, 8.5), early));
+    std::vector<float> after = burst;                                       // let go and play: the reverb is back
+    for (size_t i = at(9); i < at(10); i++) after[i] = g(rg);
+    const auto back = play(after, {{1.1, true}, {4.0, false}}).first;
+    CHECK(std::fabs(db(win(back, 9.5, 10.0), win(plain, 0.5, 1.0))) < 2.0, "...and the reverb is back for what's played next (%+.2f dB)",
+          db(win(back, 9.5, 10.0), win(plain, 0.5, 1.0)));
+    const auto again = play(burst, {{1.1, true}, {4.0, false}, {4.3, true}}).first;
+    CHECK(std::fabs(db(win(again, 5.5, 6.5), early)) < 3.0, "frozen again while it fades: held at about the level heard (%+.2f dB)",
+          db(win(again, 5.5, 6.5), early));
+    std::vector<float> none(at(4), 0.0f);
+    const auto quiet = play(none, {{0.5, true}}).first;
+    CHECK(win(quiet, 1, 4) < 1e-7, "frozen in silence: silence (%.1e)", win(quiet, 1, 4));
+    std::vector<float> tone(at(8), 0.0f);                                   // the pitch of what was playing is kept
+    for (size_t i = 0; i < at(1.0); i++) tone[i] = 0.3f * std::sin(2 * M_PI * 440.0 * i / RATE);
+    const auto tz = play(tone, {{0.9, true}}).first;
+    double in = 0, all = 0;
+    {
+      const int N = 16384; std::vector<float> seg(tz.begin() + at(4), tz.begin() + at(4) + N);
+      for (int k = 20; k < N / 2; k++) {                                     // a plain DFT of the bins (test only)
+        double re = 0, im = 0;
+        if (k % 4) continue;
+        for (int i = 0; i < N; i++) { const double w = 0.5 - 0.5 * std::cos(2 * M_PI * i / N); re += w * seg[i] * std::cos(2 * M_PI * k * i / N); im -= w * seg[i] * std::sin(2 * M_PI * k * i / N); }
+        const double p = re * re + im * im, f = k * RATE / N;
+        all += p; if (f > 400 && f < 480) in += p;
+      }
+    }
+    CHECK(all > 0 && in / all > 0.8, "the frozen pad keeps the note's pitch (%.0f%% of its energy at 400-480 Hz)", 100 * in / std::max(1e-30, all));
+    const auto st = play(burst, {{1.1, true}});
+    double c = 0, a2 = 0, b2 = 0;
+    for (size_t i = at(3); i < at(5); i++) { c += (double)st.first[i] * st.second[i]; a2 += (double)st.first[i] * st.first[i]; b2 += (double)st.second[i] * st.second[i]; }
+    CHECK(std::fabs(c / std::sqrt(a2 * b2)) < 0.3, "a stereo pad (L/R correlation %.2f)", c / std::sqrt(a2 * b2));
+  }
+  {   // END SYNC: the IR kept for a note's length from Start
+    const auto room4 = std::vector<float>(decay((size_t)(4.0 * RATE), 9, 0.1f));
+    IRShape s; s.length_s = 0.5;
+    auto a = ir_shaped({room4}, s);
+    s.start = 0.25; auto b = ir_shaped({room4}, s);
+    s.start = 0; s.length_s = 6.0; auto c = ir_shaped({room4}, s);
+    CHECK(a && b && c && a->frames == (size_t)(0.5 * RATE) && b->frames == (size_t)(0.5 * RATE) && c->frames == (size_t)(4.0 * RATE),
+          "END SYNC: 0.5 s kept (%zu frames, from 25%%: %zu); longer than the IR: all of it (%zu)", a ? a->frames : 0, b ? b->frames : 0, c ? c->frames : 0);
+  }
+  {   // DAMPING and DISTANCE: the IR reshaped in its own time
+    const std::vector<float> hall = decay((size_t)(2.5 * RATE), 11, 0.08f);
+    auto band = [](const std::vector<float>& v, size_t a, size_t b) {   // highs / all, by the first difference
+      double e = 0, d = 0; for (size_t i = a + 1; i < b && i < v.size(); i++) { e += (double)v[i] * v[i]; d += (double)(v[i] - v[i - 1]) * (v[i] - v[i - 1]); }
+      return std::make_pair(e, d / std::max(1e-30, e)); };
+    auto db = [](double r) { return 10 * std::log10(std::max(1e-30, r)); };
+    const size_t NR = (size_t)(2.6 * RATE) / 128 * 128;
+    auto resp = [&](const IRShape& s) { return impulse_response(ir_shaped({hall}, s), NR); };
+    IRShape s0; const auto P = resp(s0);
+    IRShape sd; sd.damping = 1.0; const auto D = resp(sd);
+    IRShape sh; sh.damping = 0.5; const auto Hh = resp(sh);
+    const size_t e0 = (size_t)(0.03 * RATE), l0 = (size_t)(1.0 * RATE), l1 = (size_t)(1.5 * RATE);
+    const double early = db(band(D, 0, e0).second / band(P, 0, e0).second), late = db(band(D, l0, l1).second / band(P, l0, l1).second),
+                 lateh = db(band(Hh, l0, l1).second / band(P, l0, l1).second);
+    CHECK(std::fabs(early) < 2.0 && late < -15 && lateh < -3 && lateh > late,
+          "DAMPING: the start keeps its highs (%+.1f dB), the tail at 1-1.5 s loses them (%.0f dB at 100%%, %.0f dB at 50%%)", early, late, lateh);
+    double pkd = 0; bool fin = true; for (float v : D) { pkd = std::max(pkd, (double)std::fabs(v)); fin = fin && std::isfinite(v); }
+    CHECK(fin && pkd > 0, "DAMPING: finite");
+    // DISTANCE: the early part (80 ms from the onset) against the tail
+    auto er = [&](const std::vector<float>& v) { return db(band(v, 0, (size_t)(0.07 * RATE)).first / band(v, (size_t)(0.1 * RATE), v.size()).first); };
+    IRShape sn; sn.distance = 0.0; const auto Nr = resp(sn);
+    IRShape sf; sf.distance = 1.0; const auto Fr = resp(sf);
+    IRShape sm; sm.distance = 0.5; const auto Mr = resp(sm);
+    const double rp = er(P), rn = er(Nr), rf = er(Fr);
+    CHECK(rn - rp > 10 && rp - rf > 10, "DISTANCE: early / tail %+.1f dB near, %+.1f as recorded, %+.1f far", rn, rp, rf);
+    CHECK(band(Fr, 0, (size_t)(0.07 * RATE)).second < 0.5 * band(P, 0, (size_t)(0.07 * RATE)).second,
+          "DISTANCE far: the early part is darker");
+    bool same = Mr.size() == P.size();
+    for (size_t i = 0; same && i < P.size(); i++) same = Mr[i] == P[i];
+    CHECK(same, "DISTANCE 50%% and DAMPING 0 leave the IR exactly as it was");
+  }
+  {   // SCAN: the reverb's last seconds, read back from a point you move
+    auto at = [](double s) { return (size_t)(s * RATE) / 128 * 128; };
+    auto win = [&](const std::vector<float>& v, double a, double b) {
+      double e = 0; for (size_t i = at(a); i < at(b); i++) e += (double)v[i] * v[i]; return std::sqrt(e / std::max<size_t>(1, at(b) - at(a))); };
+    auto db = [](double a, double b) { return 20 * std::log10(std::max(1e-12, a) / std::max(1e-12, b)); };
+    struct Ev { double t; bool on; float pos, tex, mix; };
+    auto run = [&](const std::vector<float>& x, std::vector<Ev> ev, int* ph = nullptr) {
+      ReverbEngine e(RATE); e.params.mix = 1; e.params.lowcut_hz = 10; e.params.highcut_hz = 20000;
+      e.set_ir(ir_of({decay((size_t)(2.0 * RATE), 21, 0.1f), decay((size_t)(2.0 * RATE), 22, 0.1f)}));
+      std::vector<float> ol(x.size(), 0), orr(x.size(), 0);
+      size_t k = 0;
+      for (size_t p = 0; p + 128 <= x.size(); p += 128) {
+        while (k < ev.size() && at(ev[k].t) <= p) { e.params.scan = ev[k].on; e.params.scan_pos = ev[k].pos; e.params.scan_tex = ev[k].tex; e.params.scan_mix = ev[k].mix; k++; }
+        e.process(&x[p], &x[p], &ol[p], &orr[p], 128);
+        if (ph) *ph = e.playhead();
+      }
+      return ol;
+    };
+    std::mt19937 rg(9); std::normal_distribution<float> g(0, 0.2f);
+    std::vector<float> noise(at(6)); for (auto& v : noise) v = g(rg);
+    const auto plain = run(noise, {});
+    const auto offmoved = run(noise, {{0.5, false, 0.7f, 0.9f, 0.5f}});
+    CHECK(plain == offmoved, "SCAN off: the sound is exactly as without it (whatever its knobs)");
+    for (float tex : {0.0f, 0.5f, 1.0f}) {
+      const auto s = run(noise, {{2.0, true, 0.3f, tex, 1.0f}});
+      bool fin = true; for (float v : s) fin = fin && std::isfinite(v);
+      CHECK(fin && std::fabs(db(win(s, 3, 5.5), win(plain, 3, 5.5))) < 2.0, "SCAN on, texture %.0f%%: the level kept (%+.1f dB)", 100 * tex, db(win(s, 3, 5.5), win(plain, 3, 5.5)));
+    }
+    std::vector<float> burst(at(4), 0.0f); for (size_t i = 0; i < at(1.0); i++) burst[i] = g(rg);
+    const auto near = run(burst, {{2.0, true, 0.0f, 0.0f, 1.0f}}), far = run(burst, {{2.0, true, 1.0f, 0.0f, 1.0f}});
+    CHECK(db(win(far, 2.3, 2.6), win(near, 2.3, 2.6)) > 12, "POSITION: far back reads the loud start of the tail (%+.0f dB over near)", db(win(far, 2.3, 2.6), win(near, 2.3, 2.6)));
+    std::vector<float> tone(at(6)); for (size_t i = 0; i < tone.size(); i++) tone[i] = 0.3f * std::sin(2 * M_PI * 440.0 * i / RATE);
+    auto share = [&](const std::vector<float>& v, double lo, double hi) {   // energy share in [lo, hi) Hz (a plain DFT, every 4th bin)
+      const int N = 16384; double in = 0, all = 0;
+      for (int k = 20; k < N / 2; k += 4) {
+        double re = 0, im = 0;
+        for (int i = 0; i < N; i++) { const double w = 0.5 - 0.5 * std::cos(2 * M_PI * i / N); const double x = w * v[at(4) + i]; re += x * std::cos(2 * M_PI * k * i / N); im -= x * std::sin(2 * M_PI * k * i / N); }
+        const double p = re * re + im * im, f = k * RATE / N; all += p; if (f >= lo && f < hi) in += p;
+      }
+      return all > 0 ? in / all : 0.0;
+    };
+    const double s0 = share(run(tone, {{1.0, true, 0.2f, 0.0f, 1.0f}}), 400, 480), s5 = share(run(tone, {{1.0, true, 0.2f, 0.55f, 1.0f}}), 400, 480),
+                 s1 = share(run(tone, {{1.0, true, 0.2f, 1.0f, 1.0f}}), 400, 480);
+    CHECK(s0 > 0.8 && s5 < s0 - 0.1 && s1 < 0.5, "TEXTURE: the note kept at 0 (%.0f%% at 440 Hz), with octave/fifth halos at 55%% (%.0f%%), blown into wind at 100%% (%.0f%%)",
+          100 * s0, 100 * s5, 100 * s1);
+    int ph = -1; run(noise, {{0.5, true, 0.5f, 0.0f, 1.0f}}, &ph);
+    CHECK(ph == 1 + (int)std::lround(0.5 * (ReverbEngine::kPlay - 1)), "the glow shows where it reads (%d)", ph);
+    const auto half = run(noise, {{2.0, true, 0.3f, 0.5f, 0.5f}});
+    CHECK(std::fabs(db(win(half, 3, 5.5), win(plain, 3, 5.5))) < 3.0, "AMOUNT 50%%: reverb and scan together, the level kept (%+.1f dB)", db(win(half, 3, 5.5), win(plain, 3, 5.5)));
+    const auto offagain = run(noise, {{1.0, true, 0.3f, 0.5f, 1.0f}, {3.0, false, 0.3f, 0.5f, 1.0f}});
+    CHECK(std::fabs(db(win(offagain, 3.5, 5.5), win(plain, 3.5, 5.5))) < 0.5, "SCAN off again: the reverb as it was (%+.2f dB)", db(win(offagain, 3.5, 5.5), win(plain, 3.5, 5.5)));
+    // PITCH (both modes) and GRAINS (grains of the input, into the IR)
+    auto runm = [&](const std::vector<float>& x, int mode, float pitch, float size, float spray, float dens, double on_at, float direct = 0.0f) {
+      ReverbEngine e(RATE); e.params.mix = 1; e.params.lowcut_hz = 10; e.params.highcut_hz = 20000;
+      e.set_ir(ir_of({decay((size_t)(2.0 * RATE), 21, 0.1f), decay((size_t)(2.0 * RATE), 22, 0.1f)}));
+      e.params.scan_mode = mode; e.params.scan_pitch = pitch; e.params.grain_size = size; e.params.grain_spray = spray;
+      e.params.grain_density = dens; e.params.grain_direct = direct; e.params.scan_pos = 0.2f; e.params.scan_mix = 1.0f;
+      std::vector<float> ol(x.size(), 0), orr(x.size(), 0);
+      for (size_t p = 0; p + 128 <= x.size(); p += 128) {
+        e.params.scan = p >= at(on_at);
+        e.process(&x[p], &x[p], &ol[p], &orr[p], 128);
+      }
+      return ol;
+    };
+    const auto offg = runm(noise, 1, 7.0f, 0.3f, 0.5f, 1.0f, 99);
+    CHECK(offg == plain, "GRAINS chosen but SCAN off: the sound is exactly as without it");
+    for (float dens : {0.0f, 0.6f, 1.0f})
+      for (float size : {0.0f, 0.6f, 1.0f}) {
+        const auto s = runm(noise, 1, 0.0f, size, 0.3f, dens, 1.0);
+        bool fin = true; for (float v : s) fin = fin && std::isfinite(v);
+        const double d = db(win(s, 3, 5.5), win(plain, 3, 5.5));
+        CHECK(fin && d < 2.0 && d > (dens < 0.2f ? -9.0 : -3.0), "GRAINS size %.0f%%, density %.0f%%: the level kept (%+.1f dB)", 100 * size, 100 * dens, d);
+      }
+    {                                                     // DIRECT: grains past the IR, at about the level they have through it
+      const auto ir0 = runm(noise, 1, 0.0f, 0.3f, 0.3f, 0.3f, 1.0, 0.0f), half = runm(noise, 1, 0.0f, 0.3f, 0.3f, 0.3f, 1.0, 0.5f),
+                 all = runm(noise, 1, 0.0f, 0.3f, 0.3f, 0.3f, 1.0, 1.0f);
+      bool fin = true; for (float v : all) fin = fin && std::isfinite(v);
+      const double dh = db(win(half, 3, 5.5), win(ir0, 3, 5.5)), da = db(win(all, 3, 5.5), win(ir0, 3, 5.5));
+      // with no IR on them, the grains' gaps stay: the level swings more over 10 ms than through the IR
+      auto swing = [&](const std::vector<float>& v) {
+        double lo = 1e30, hi = 0;
+        for (size_t p = at(3); p + 441 < at(5.5); p += 441) { double e = 0; for (size_t i = p; i < p + 441; i++) e += (double)v[i] * v[i]; lo = std::min(lo, e); hi = std::max(hi, e); }
+        return 10 * std::log10(hi / std::max(lo, 1e-20));
+      };
+      CHECK(fin && std::fabs(dh) < 2.5 && std::fabs(da) < 3.0 && swing(all) > swing(ir0) + 3.0,
+            "GRAINS DIRECT 50%% / 100%%: the level kept (%+.1f / %+.1f dB), the grains' edges heard (10 ms swing %.0f vs %.0f dB through the IR)",
+            dh, da, swing(all), swing(ir0));
+    }
+    for (float air : {0.5f, 1.0f}) {                      // AIR: the level kept, nothing runs away (its feedback)
+      ReverbEngine e(RATE); e.params.mix = 1; e.params.lowcut_hz = 10; e.params.highcut_hz = 20000;
+      e.set_ir(ir_of({decay((size_t)(2.0 * RATE), 21, 0.1f), decay((size_t)(2.0 * RATE), 22, 0.1f)}));
+      e.params.scan_mode = 1; e.params.grain_air = air; e.params.scan_pos = 0.2f; e.params.scan_mix = 1.0f;
+      std::vector<float> ol(noise.size(), 0), orr(noise.size(), 0);
+      for (size_t p = 0; p + 128 <= noise.size(); p += 128) { e.params.scan = p >= at(1.0); e.process(&noise[p], &noise[p], &ol[p], &orr[p], 128); }
+      float pk = 0; bool fin = true; for (float v : ol) { fin = fin && std::isfinite(v); pk = std::max(pk, std::fabs(v)); }
+      const double d = db(win(ol, 3, 5.5), win(plain, 3, 5.5));
+      CHECK(fin && std::fabs(d) < 3.0 && pk < 4.0f, "GRAINS AIR %.0f%%: the level kept (%+.1f dB), peak %.2f", 100 * air, d, pk);
+    }
+    {                                                     // the stripes under the painting: one per grain, true
+      ReverbEngine e(RATE); e.params.mix = 1;
+      e.set_ir(ir_of({decay((size_t)(2.0 * RATE), 21, 0.1f), decay((size_t)(2.0 * RATE), 22, 0.1f)}));
+      e.params.scan_mode = 1; e.params.scan_mix = 1.0f; e.params.grain_spray = 0.0f; e.params.scan = true;
+      std::vector<float> ol(128), orr(128);
+      int lit_at_start = -1, lit_at_end = -1, most = 0;
+      for (size_t p = 0; p + 128 <= tone.size(); p += 128) {
+        const double t = (double)p / RATE;
+        e.params.scan_pos = (float)std::min(1.0, std::max(0.0, (t - 1.0) / 4.0));   // swept across in 4 s
+        e.process(&tone[p], &tone[p], ol.data(), orr.data(), 128);
+        int n = 0, first = -1;
+        for (int c = 0; c < ReverbEngine::kSparkCols; c++) if (e.spark(c)) { n++; if (first < 0) first = c; }
+        most = std::max(most, n);
+        if (std::fabs(t - 1.6) < 0.002) lit_at_start = first;
+        if (std::fabs(t - 4.9) < 0.002) lit_at_end = first;
+      }
+      // no Spray: the grains sit around Position (+-a grain's length), so at most a couple of columns show
+      CHECK(lit_at_start >= 0 && lit_at_start <= 2 && lit_at_end >= 9 && most <= 3,
+            "the stripes follow Position across (column %d -> %d), one per column, at most %d at once with no Spray",
+            lit_at_start, lit_at_end, most);
+    }
+    {                                                     // SYNC: grains on the host's grid
+      auto run_sync = [&](double beats, double ppq0, double loop_at, double loop_len, bool play, double secs) {
+        ReverbEngine e(RATE); e.params.mix = 1;
+        e.set_ir(ir_of({decay((size_t)(1.0 * RATE), 21, 0.1f), decay((size_t)(1.0 * RATE), 22, 0.1f)}));
+        e.params.scan_mode = 1; e.params.scan_mix = 1.0f; e.params.scan = true; e.params.grain_beats = (float)beats;
+        e.params.grain_size = 0.3f;
+        std::vector<float> ol(128), orr(128);
+        const double bpm = 120.0, blk = 128 * bpm / 60.0 / RATE;
+        double ppq = ppq0;
+        long before = -1;
+        for (size_t p = 0; p + 128 <= (size_t)(secs * RATE) && p + 128 <= tone.size(); p += 128) {
+          if (p == (size_t)(0.3 * RATE) / 128 * 128) before = e.grains_spawned();   // (after SCAN's fade-in)
+          e.set_transport(ppq, bpm, play);
+          e.process(&tone[p], &tone[p], ol.data(), orr.data(), 128);
+          ppq += blk;
+          if (loop_len > 0 && ppq >= loop_at) ppq -= loop_len;
+        }
+        return e.grains_spawned() - before;
+      };
+      // 120 bpm, 1/8 (0.5 quarter): 4 a second. 5.0 s, counted from 0.3 s: 4.7 s -> 18 or 19
+      const long free8 = run_sync(0.5, 3.3, 0, 0, true, 5.0), stop8 = run_sync(0.5, 0, 0, 0, false, 5.0),
+                 t16 = run_sync(1.0 / 6, 0, 0, 0, true, 5.0), loop = run_sync(0.5, 0.0, 3.0, 3.0, true, 5.0);
+      CHECK(free8 >= 18 && free8 <= 19 && stop8 >= 18 && stop8 <= 19 && t16 >= 55 && t16 <= 57 && loop >= 18 && loop <= 19,
+            "SYNC at 120: 1/8 = %ld grains in 4.7 s playing (from ppq 3.3), %ld stopped; 1/16 T = %ld; through a 3-beat loop %ld",
+            free8, stop8, t16, loop);
+    }
+    auto peak_hz = [&](const std::vector<float>& v) {   // the strongest frequency 100..2000 Hz (a DFT, 2 Hz steps)
+      const int N = 22050; double best = 0, bf = 0;
+      for (double f = 100; f < 2000; f += 2) {
+        double re = 0, im = 0;
+        for (int i = 0; i < N; i++) { const double w = 0.5 - 0.5 * std::cos(2 * M_PI * i / N); const double x = w * v[at(4) + i]; re += x * std::cos(2 * M_PI * f * i / RATE); im -= x * std::sin(2 * M_PI * f * i / RATE); }
+        if (re * re + im * im > best) { best = re * re + im * im; bf = f; }
+      }
+      return bf;
+    };
+    const double gu = peak_hz(runm(tone, 1, 12.0f, 0.6f, 0.1f, 0.6f, 1.0)), gd = peak_hz(runm(tone, 1, -12.0f, 0.6f, 0.1f, 0.6f, 1.0)),
+                 g7 = peak_hz(runm(tone, 1, 7.0f, 0.6f, 0.1f, 0.6f, 1.0)), pd = peak_hz(runm(tone, 0, -12.0f, 0, 0, 0, 1.0));
+    const double gf = peak_hz(runm(tone, 1, 7.5f, 0.6f, 0.1f, 0.6f, 1.0));
+    CHECK(std::fabs(gf - 440 * std::pow(2.0, 7.5 / 12)) < 6, "PITCH between semitones: +7.5 moves 440 Hz to %.0f Hz (%.0f)", gf, 440 * std::pow(2.0, 7.5 / 12));
+    CHECK(std::fabs(gu - 880) < 6 && std::fabs(gd - 220) < 4 && std::fabs(g7 - 659.3) < 6 && std::fabs(pd - 220) < 4,
+          "PITCH: GRAINS +12 / -12 / +7 move 440 Hz to %.0f / %.0f / %.0f Hz; PAD -12 to %.0f Hz", gu, gd, g7, pd);
+  }
+  { // BEND: the wet pitched as it plays, gliding; back at 0 the wet is untouched again
+    std::vector<float> unit(64, 0.0f); unit[0] = 1.0f;       // an IR that passes the input through: wet = input
+    const size_t n = 128 * 1400;                             // 4.06 s
+    std::vector<float> tone(n);
+    for (size_t i = 0; i < n; i++) tone[i] = 0.5f * (float)std::sin(2 * M_PI * 440.0 * i / RATE);
+    auto zc_hz = [&](const std::vector<float>& y, size_t a, size_t b) {   // the frequency from zero crossings
+      int z = 0; for (size_t i = a + 1; i < b; i++) if ((y[i - 1] < 0) != (y[i] < 0)) z++;
+      return z * RATE / 2.0 / (double)(b - a);
+    };
+    ReverbEngine e(RATE); e.params.mix = 1; e.set_ir(ir_of({unit}));
+    std::vector<float> ol(n), orr(n);
+    for (size_t p = 0; p < n; p += 128) {
+      const double t = p / RATE;                              // 0..0.5 s: 0; then +12 held; at 1.5 s a sweep to -12 over 1 s; at 3 s back to 0
+      e.params.bend = t < 0.5 ? 0.0f : t < 1.5 ? 12.0f : t < 2.5 ? (float)(12.0 - 24.0 * (t - 1.5)) : t < 3.0 ? -12.0f : 0.0f;
+      e.process(&tone[p], &tone[p], &ol[p], &orr[p], 128);
+    }
+    const double up = zc_hz(ol, (size_t)(1.0 * RATE), (size_t)(1.45 * RATE)), dn = zc_hz(ol, (size_t)(2.6 * RATE), (size_t)(2.95 * RATE));
+    float jump = 0; for (size_t i = (size_t)(0.6 * RATE); i < (size_t)(3.0 * RATE); i++) jump = std::max(jump, std::fabs(ol[i] - ol[i - 1]));
+    const float sine_step = 0.5f * (float)(2 * M_PI * 880.0 / RATE);   // the steepest step of the +12 tone itself
+    ReverbEngine ref(RATE); ref.params.mix = 1; ref.set_ir(ir_of({unit}));   // the same, never bent
+    std::vector<float> rl(n), rr(n);
+    for (size_t p = 0; p < n; p += 128) ref.process(&tone[p], &tone[p], &rl[p], &rr[p], 128);
+    double back = 0; for (size_t i = (size_t)(3.5 * RATE); i < n; i++) back = std::max(back, (double)std::fabs(ol[i] - rl[i]));
+    CHECK(std::fabs(up - 880) < 16 && std::fabs(dn - 220) < 6, "BEND +12 / -12: 440 Hz comes out at %.0f / %.0f Hz", up, dn);
+    CHECK(jump < 1.6f * sine_step, "BEND glides: no step while it holds and sweeps (largest %.3f, a +12 tone's own %.3f)", jump, sine_step);
+    CHECK(back < 1e-6, "BEND back at 0: the wet is untouched again (max diff %.1e)", back);
+  }
+  { // SHIMMER: an octave up fed back: the octaves build; bounded with Feedback at 100% too; it dies away after the playing
+    auto bin = [](const std::vector<float>& y, size_t a, size_t b, double f) {   // Goertzel: the level at f
+      const double c = 2 * std::cos(2 * M_PI * f / RATE); double s1 = 0, s2 = 0;
+      for (size_t i = a; i < b; i++) { const double s0 = y[i] + c * s1 - s2; s2 = s1; s1 = s0; }
+      return std::sqrt(std::max(0.0, s1 * s1 + s2 * s2 - c * s1 * s2)) / (double)(b - a);
+    };
+    double oct[2] = {0, 0}, peak = 0, late = 1, playing = 0; bool finite = true;
+    for (int k = 0; k < 3; k++) {
+      ReverbEngine e(RATE); e.params.mix = 1; e.params.shimmer = k ? 1.0f : 0.0f; e.params.feedback = k == 2 ? 1.0f : 0.0f;
+      e.set_ir(ir_of({decay(44100, 7, 0.2f)}));
+      const size_t n = (size_t)(RATE * 40) / 128 * 128; std::vector<float> x(n, 0.0f), ol(n), orr(n);
+      for (size_t i = 0; i < (size_t)(2 * RATE); i++) x[i] = 0.3f * (float)std::sin(2 * M_PI * 220.0 * i / RATE);
+      for (size_t p = 0; p < n; p += 128) e.process(&x[p], &x[p], &ol[p], &orr[p], 128);
+      if (k < 2) oct[k] = bin(ol, (size_t)RATE, (size_t)(2 * RATE), 440) + bin(ol, (size_t)RATE, (size_t)(2 * RATE), 880);
+      if (k == 2) {
+        for (size_t i = 0; i < n; i++) { if (!std::isfinite(ol[i])) finite = false; peak = std::max(peak, (double)std::fabs(ol[i])); }
+        playing = rms(std::vector<float>(ol.begin() + (size_t)RATE, ol.begin() + (size_t)(2 * RATE)));
+        late = rms(std::vector<float>(ol.end() - (size_t)RATE, ol.end()));
+      }
+    }
+    CHECK(oct[1] > 0.05 && oct[0] < 1e-3, "SHIMMER 100%%: a 220 Hz tone's octaves (440 + 880 Hz) build to %.3f (without: %.4f)", oct[1], oct[0]);
+    CHECK(finite && peak < 2.0, "SHIMMER 100%% with Feedback 100%%: bounded (peak %.2f)", peak);
+    CHECK(late < playing * 1e-3, "SHIMMER 100%% with Feedback 100%%: it ends once the input stops (%.0f dB under after 38 s)", 20 * std::log10(playing / std::max(1e-12, late)));
+  }
+  { // MOTION and AGE: out of the path at 0; Motion widens a mono tail; Age darkens it; both keep the level and stay smooth
+    const size_t n = (size_t)(RATE * 4) / 128 * 128;
+    std::vector<float> x(n);
+    std::mt19937 rq(5); std::normal_distribution<float> gq(0, 0.1f);
+    float lpq = 0; for (size_t i = 0; i < n; i++) { lpq += 0.15f * (gq(rq) - lpq); x[i] = 3 * lpq; }   // (a darker noise: closer to music)
+    auto render = [&](float mo, float ag, std::vector<float>& ol, std::vector<float>& orr, bool back = false) {
+      ReverbEngine e(RATE); e.params.mix = 1; e.set_ir(ir_of({decay(22050, 3, 0.2f)}));
+      ol.assign(n, 0); orr.assign(n, 0);
+      for (size_t p = 0; p < n; p += 128) {
+        const bool on = !back || p < n / 2;
+        e.params.motion = on ? mo : 0.0f; e.params.age = on ? ag : 0.0f;
+        e.process(&x[p], &x[p], &ol[p], &orr[p], 128);
+      }
+    };
+    auto bright = [](const std::vector<float>& y, size_t a) { double d = 0, t = 0; for (size_t i = a + 1; i < y.size(); i++) { d += (y[i] - y[i - 1]) * (y[i] - y[i - 1]); t += y[i] * y[i]; } return d / std::max(1e-12, t); };
+    std::vector<float> l0, r0, lm, rm, la, ra, lb, rb;
+    render(0, 0, l0, r0); render(1, 0, lm, rm); render(0, 1, la, ra); render(1, 1, lb, rb, true);
+    double c = 0, a2 = 0, b2 = 0; for (size_t i = n / 4; i < n; i++) { c += lm[i] * rm[i]; a2 += lm[i] * lm[i]; b2 += rm[i] * rm[i]; }
+    const double corr = c / std::sqrt(a2 * b2);
+    const double lv_m = 20 * std::log10(rms(lm, n / 4) / rms(l0, n / 4)), lv_a = 20 * std::log10(rms(la, n / 4) / rms(l0, n / 4));
+    double back = 0; for (size_t i = n / 2 + (size_t)(0.1 * RATE); i < n; i++) back = std::max(back, (double)std::fabs(lb[i] - l0[i]));
+    CHECK(corr < 0.9 && std::fabs(lv_m) < 2, "MOTION 100%%: a mono tail moves apart (L/R corr %.2f), level %+.1f dB", corr, lv_m);
+    CHECK(bright(la, n / 4) < 0.5 * bright(l0, n / 4) && std::fabs(lv_a) < 3, "AGE 100%%: darker (brightness x%.2f), level %+.1f dB",
+          bright(la, n / 4) / bright(l0, n / 4), lv_a);
+    CHECK(back < 1e-6, "MOTION and AGE back at 0: the wet is untouched again (max diff %.1e)", back);
+  }
   printf("%s (%d failure%s)\n", fails ? "FAILED" : "PASSED", fails, fails == 1 ? "" : "s");
   return fails ? 1 : 0;
 }
