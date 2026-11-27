@@ -46,5 +46,17 @@
     "device": "MPC Live III (Gen2)",
     "firmware": "3.10",
     "date": "2026-11-12"
+  },
+  {
+    "version": "1.5.0",
+    "device": "Akai Force",
+    "firmware": "3.10.1",
+    "date": "2026-11-26"
+  },
+  {
+    "version": "1.5.0",
+    "device": "MPC Live III (Gen2)",
+    "firmware": "3.10.1",
+    "date": "2026-11-26"
   }
 ]
